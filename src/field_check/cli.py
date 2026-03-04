@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 import click
@@ -10,7 +11,9 @@ from rich.console import Console
 
 from field_check import __version__
 from field_check.config import load_config
+from field_check.report import generate_report
 from field_check.scanner import walk_directory
+from field_check.scanner.inventory import analyze_inventory
 
 console = Console()
 
@@ -27,7 +30,10 @@ def main() -> None:
     "--config", "config_path", type=click.Path(), default=None,
     help="Path to .field-check.yaml config file.",
 )
-@click.option("--exclude", multiple=True, help="Additional exclude patterns (can be repeated).")
+@click.option(
+    "--exclude", multiple=True,
+    help="Additional exclude patterns (can be repeated).",
+)
 @click.option(
     "--format",
     "output_format",
@@ -61,30 +67,42 @@ def scan(
     if exclude:
         config.exclude = list(config.exclude) + list(exclude)
 
+    scan_start = time.monotonic()
+
     # Walk directory with progress
     with console.status("[bold blue]Scanning files...", spinner="dots") as status:
         def on_progress(count: int) -> None:
-            status.update(f"[bold blue]Scanning files... [cyan]{count}[/cyan] found")
+            status.update(
+                f"[bold blue]Scanning files... [cyan]{count}[/cyan] found"
+            )
 
         try:
-            result = walk_directory(scan_path, config, progress_callback=on_progress)
+            result = walk_directory(
+                scan_path, config, progress_callback=on_progress
+            )
         except KeyboardInterrupt:
             console.print("\n[yellow]Scan interrupted.[/yellow]")
             sys.exit(2)
 
-    # Summary (temporary — Plan B will replace with full report)
-    size_mb = result.total_size / (1024 * 1024)
-    console.print(
-        f"\nFound [bold]{len(result.files)}[/bold] files "
-        f"([cyan]{size_mb:.1f} MB[/cyan]) in [green]{scan_path}[/green]"
-    )
-    if result.permission_errors:
-        console.print(
-            f"[yellow]  {len(result.permission_errors)} permission errors[/yellow]"
+    # Analyze file inventory with progress
+    with console.status(
+        "[bold blue]Analyzing file types...", spinner="dots"
+    ) as status:
+        def on_analysis(current: int, total: int) -> None:
+            status.update(
+                f"[bold blue]Analyzing file types... "
+                f"[cyan]{current}[/cyan]/[cyan]{total}[/cyan]"
+            )
+
+        inventory = analyze_inventory(result, progress_callback=on_analysis)
+
+    elapsed = time.monotonic() - scan_start
+
+    # Generate report
+    output_path = Path(output) if output else None
+    try:
+        generate_report(
+            output_format, inventory, result, elapsed, output_path, console
         )
-    if result.symlink_loops:
-        console.print(
-            f"[yellow]  {len(result.symlink_loops)} symlink loops detected[/yellow]"
-        )
-    if result.excluded_count:
-        console.print(f"  {result.excluded_count} items excluded")
+    except ValueError as exc:
+        raise click.UsageError(str(exc)) from exc

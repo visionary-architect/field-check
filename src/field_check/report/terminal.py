@@ -1,0 +1,251 @@
+"""Rich terminal report renderer."""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+
+from field_check import __version__
+from field_check.scanner import WalkResult
+from field_check.scanner.inventory import InventoryResult
+
+
+def _format_size(size_bytes: int | float) -> str:
+    """Format bytes into human-readable string."""
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    if size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    if size_bytes < 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+    return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
+
+
+def _format_duration(seconds: float) -> str:
+    """Format elapsed seconds into human-readable string."""
+    if seconds < 1:
+        return f"{seconds * 1000:.0f}ms"
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    minutes = int(seconds // 60)
+    secs = seconds % 60
+    return f"{minutes}m {secs:.0f}s"
+
+
+def _bar(fraction: float, width: int = 20) -> str:
+    """Create a simple bar chart string."""
+    filled = int(fraction * width)
+    return "#" * filled + "-" * (width - filled)
+
+
+def render_terminal_report(
+    inventory: InventoryResult,
+    walk_result: WalkResult,
+    elapsed_seconds: float,
+    console: Console,
+) -> None:
+    """Render a complete terminal report using Rich.
+
+    Args:
+        inventory: Analysis results from analyze_inventory().
+        walk_result: Raw walk results.
+        elapsed_seconds: Total scan duration.
+        console: Rich console for output.
+    """
+    # Header
+    header_lines = [
+        f"[bold]Scan path:[/bold]  {walk_result.scan_root}",
+        f"[bold]Scan date:[/bold]  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"[bold]Duration:[/bold]   {_format_duration(elapsed_seconds)}",
+        f"[bold]Files:[/bold]      {inventory.total_files:,}",
+        f"[bold]Total size:[/bold] {_format_size(inventory.total_size)}",
+        f"[bold]Directories:[/bold] {inventory.dir_structure.total_dirs:,}",
+    ]
+    console.print(Panel(
+        "\n".join(header_lines),
+        title="[bold blue]Field Check — Document Corpus Health Report[/bold blue]",
+        border_style="blue",
+    ))
+
+    # Section 1: File Type Distribution
+    _render_type_distribution(inventory, console)
+
+    # Section 2: Size Distribution
+    _render_size_distribution(inventory, console)
+
+    # Section 3: File Age Distribution
+    _render_age_distribution(inventory, console)
+
+    # Section 4: Directory Structure
+    _render_dir_structure(inventory, console)
+
+    # Section 5: Issues
+    _render_issues(inventory, console)
+
+    # Footer
+    console.print(
+        Text(
+            f"\nField Check v{__version__} — All processing local. No data transmitted.",
+            style="dim",
+        )
+    )
+
+
+def _render_type_distribution(inventory: InventoryResult, console: Console) -> None:
+    """Render file type distribution table."""
+    if not inventory.type_counts:
+        return
+
+    table = Table(title="File Type Distribution", show_lines=False)
+    table.add_column("Type", style="cyan")
+    table.add_column("Count", justify="right")
+    table.add_column("%", justify="right")
+    table.add_column("Total Size", justify="right")
+    table.add_column("Avg Size", justify="right")
+
+    sorted_types = sorted(
+        inventory.type_counts.items(), key=lambda x: x[1], reverse=True
+    )
+
+    max_display = 15
+    displayed = sorted_types[:max_display]
+    remaining = sorted_types[max_display:]
+
+    for mime, count in displayed:
+        pct = (count / inventory.total_files * 100) if inventory.total_files else 0
+        total_size = inventory.type_sizes.get(mime, 0)
+        avg_size = total_size // count if count else 0
+        table.add_row(
+            mime,
+            f"{count:,}",
+            f"{pct:.1f}%",
+            _format_size(total_size),
+            _format_size(avg_size),
+        )
+
+    if remaining:
+        other_count = sum(c for _, c in remaining)
+        other_size = sum(inventory.type_sizes.get(m, 0) for m, _ in remaining)
+        pct = (other_count / inventory.total_files * 100) if inventory.total_files else 0
+        avg = other_size // other_count if other_count else 0
+        table.add_row(
+            f"[dim]Other ({len(remaining)} types)[/dim]",
+            f"{other_count:,}",
+            f"{pct:.1f}%",
+            _format_size(other_size),
+            _format_size(avg),
+        )
+
+    console.print(table)
+    console.print()
+
+
+def _render_size_distribution(inventory: InventoryResult, console: Console) -> None:
+    """Render size distribution table with bar chart."""
+    sd = inventory.size_distribution
+    if not sd.buckets:
+        return
+
+    table = Table(title="Size Distribution", show_lines=False)
+    table.add_column("Range", style="cyan")
+    table.add_column("Count", justify="right")
+    table.add_column("%", justify="right")
+    table.add_column("Distribution")
+
+    total = inventory.total_files or 1
+    for bucket in sd.buckets:
+        pct = bucket.count / total * 100
+        fraction = bucket.count / total
+        table.add_row(
+            bucket.label,
+            f"{bucket.count:,}",
+            f"{pct:.1f}%",
+            _bar(fraction),
+        )
+
+    console.print(table)
+
+    if inventory.total_files:
+        stats = (
+            f"  Min: {_format_size(sd.min_size)}  "
+            f"Max: {_format_size(sd.max_size)}  "
+            f"Median: {_format_size(sd.median_size)}  "
+            f"Mean: {_format_size(sd.mean_size)}"
+        )
+        console.print(Text(stats, style="dim"))
+    console.print()
+
+
+def _render_age_distribution(inventory: InventoryResult, console: Console) -> None:
+    """Render file age distribution table."""
+    ad = inventory.age_distribution
+    if not ad.buckets:
+        return
+
+    table = Table(title="File Age Distribution", show_lines=False)
+    table.add_column("Age Range", style="cyan")
+    table.add_column("Count", justify="right")
+    table.add_column("%", justify="right")
+
+    total = inventory.total_files or 1
+    for bucket in ad.buckets:
+        pct = bucket.count / total * 100
+        table.add_row(bucket.label, f"{bucket.count:,}", f"{pct:.1f}%")
+
+    console.print(table)
+
+    if ad.oldest and ad.newest:
+        console.print(Text(
+            f"  Oldest: {ad.oldest.strftime('%Y-%m-%d')}  "
+            f"Newest: {ad.newest.strftime('%Y-%m-%d')}",
+            style="dim",
+        ))
+    console.print()
+
+
+def _render_dir_structure(inventory: InventoryResult, console: Console) -> None:
+    """Render directory structure metrics."""
+    ds = inventory.dir_structure
+    table = Table(title="Directory Structure", show_lines=False)
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", justify="right")
+
+    table.add_row("Total directories", f"{ds.total_dirs:,}")
+    table.add_row("Max depth", str(ds.max_depth))
+    table.add_row("Avg depth", f"{ds.avg_depth:.1f}")
+    table.add_row("Max files in one dir", f"{ds.max_breadth:,}")
+    table.add_row("Avg files per dir", f"{ds.avg_breadth:.1f}")
+    if ds.empty_dirs:
+        table.add_row("Empty directories", f"{ds.empty_dirs:,}")
+
+    console.print(table)
+    console.print()
+
+
+def _render_issues(inventory: InventoryResult, console: Console) -> None:
+    """Render issues section if any problems were found."""
+    issues: list[tuple[str, int, str]] = []
+
+    if inventory.permission_errors:
+        issues.append(("Permission errors", inventory.permission_errors, "yellow"))
+    if inventory.symlink_loops:
+        issues.append(("Symlink loops", inventory.symlink_loops, "yellow"))
+    if inventory.type_detection_errors:
+        issues.append(("Type detection errors", inventory.type_detection_errors, "yellow"))
+
+    if not issues:
+        return
+
+    table = Table(title="Issues", show_lines=False)
+    table.add_column("Issue", style="yellow")
+    table.add_column("Count", justify="right")
+
+    for label, count, _ in issues:
+        table.add_row(label, f"{count:,}")
+
+    console.print(table)
+    console.print()
