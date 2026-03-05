@@ -326,3 +326,171 @@ def extract_text(
                 progress_callback(completed, total)
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Shared text cache for downstream analysis (PII, language, encoding)
+# ---------------------------------------------------------------------------
+
+# MIME types for plain text content extraction
+PLAIN_TEXT_MIMES: set[str] = {
+    "text/plain",
+    "text/csv",
+    "text/json",
+    "text/xml",
+    "application/json",
+    "application/xml",
+}
+
+# Combined set: all types we can extract text from for the cache
+CACHE_EXTRACTABLE_MIMES: set[str] = EXTRACTABLE_MIMES | PLAIN_TEXT_MIMES
+
+# Max bytes to read from plain text files
+_MAX_TEXT_READ = 1_000_000
+
+
+@dataclass
+class TextCacheResult:
+    """Result of shared text cache extraction."""
+
+    text_cache: dict[str, str] = field(default_factory=dict)
+    encoding_map: dict[str, tuple[str, float]] = field(default_factory=dict)
+    total_extracted: int = 0
+    extraction_errors: int = 0
+
+
+def _extract_text_for_cache(
+    filepath: str, mime_type: str
+) -> tuple[str, str | None, float, str | None]:
+    """Worker function to extract text content from any supported file.
+
+    Must be top-level for pickling (ProcessPoolExecutor).
+
+    Returns:
+        Tuple of (text, encoding_name, encoding_confidence, error).
+        encoding_name is only set for plain text files.
+    """
+    try:
+        if mime_type == "application/pdf":
+            import pdfplumber
+
+            with pdfplumber.open(filepath) as pdf:
+                text = "\n".join(
+                    page.extract_text() or "" for page in pdf.pages
+                )
+            return (text, None, 0.0, None)
+
+        if (
+            mime_type
+            == "application/vnd.openxmlformats-officedocument"
+               ".wordprocessingml.document"
+        ):
+            from docx import Document
+
+            doc = Document(filepath)
+            text = "\n".join(p.text for p in doc.paragraphs)
+            return (text, None, 0.0, None)
+
+        # Plain text types — read bytes, detect encoding
+        from charset_normalizer import from_bytes
+
+        with open(filepath, "rb") as f:
+            raw = f.read(_MAX_TEXT_READ)
+
+        result = from_bytes(raw).best()
+        if result:
+            return (str(result), result.encoding, 1.0 - result.chaos, None)
+        return (
+            raw.decode("utf-8", errors="replace"),
+            "utf-8",
+            0.0,
+            None,
+        )
+    except Exception as exc:
+        return ("", None, 0.0, str(exc))
+
+
+def build_text_cache(
+    sample: SampleResult,
+    inventory: InventoryResult,
+    max_workers: int | None = None,
+    timeout: float = DEFAULT_TIMEOUT,
+    progress_callback: Callable[[int, int], None] | None = None,
+) -> TextCacheResult:
+    """Build shared text cache for downstream analysis (PII, language, encoding).
+
+    Uses ProcessPoolExecutor for crash isolation. Extracts text from:
+    - PDFs via pdfplumber
+    - DOCXes via python-docx
+    - Plain text files via charset-normalizer (also captures encoding)
+
+    Args:
+        sample: Sampling result with selected files.
+        inventory: Inventory with per-file MIME type mapping.
+        max_workers: Max worker processes.
+        timeout: Per-file timeout in seconds.
+        progress_callback: Called with (current, total).
+
+    Returns:
+        TextCacheResult with text_cache dict and encoding_map.
+    """
+    cache_result = TextCacheResult()
+
+    # Filter to cache-extractable types
+    extractable: list[tuple[FileEntry, str]] = []
+    for entry in sample.selected_files:
+        mime = inventory.file_types.get(entry.path, "application/octet-stream")
+        if mime in CACHE_EXTRACTABLE_MIMES:
+            extractable.append((entry, mime))
+
+    if not extractable:
+        return cache_result
+
+    total = len(extractable)
+    workers = max_workers or min(MAX_WORKERS, os.cpu_count() or 1)
+
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        future_to_entry: dict = {}
+        for entry, mime in extractable:
+            future = pool.submit(
+                _extract_text_for_cache, str(entry.path), mime
+            )
+            future_to_entry[future] = entry
+
+        for completed, future in enumerate(as_completed(future_to_entry), 1):
+            entry = future_to_entry[future]
+            path_str = str(entry.path)
+            try:
+                text, enc_name, enc_conf, error = future.result(
+                    timeout=timeout
+                )
+            except TimeoutError:
+                cache_result.extraction_errors += 1
+                cache_result.total_extracted += 1
+                if progress_callback is not None:
+                    progress_callback(completed, total)
+                continue
+            except Exception:
+                cache_result.extraction_errors += 1
+                cache_result.total_extracted += 1
+                if progress_callback is not None:
+                    progress_callback(completed, total)
+                continue
+
+            cache_result.total_extracted += 1
+
+            if error:
+                cache_result.extraction_errors += 1
+            else:
+                if text:
+                    cache_result.text_cache[path_str] = text
+                if enc_name:
+                    cache_result.encoding_map[path_str] = (
+                        enc_name,
+                        enc_conf,
+                    )
+
+            if progress_callback is not None:
+                progress_callback(completed, total)
+
+    return cache_result

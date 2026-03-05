@@ -234,23 +234,69 @@ def _scan_single_file_from_specs(
     return _scan_single_file(filepath, mime_type, compiled, show_samples)
 
 
+def _scan_text_for_pii(
+    filepath: str,
+    text: str,
+    compiled_patterns: list[tuple[str, str, re.Pattern[str], str | None]],
+    show_samples: bool,
+) -> PIIFileResult:
+    """Scan pre-extracted text for PII patterns (no file I/O).
+
+    Used when text is available from the shared text cache.
+
+    Args:
+        filepath: Path to the file (for result metadata).
+        text: Pre-extracted text content.
+        compiled_patterns: List of (name, label, pattern, validator) tuples.
+        show_samples: Whether to store matched content.
+
+    Returns:
+        PII scan result for this file.
+    """
+    file_result = PIIFileResult(path=filepath)
+    if not text:
+        return file_result
+
+    for line_num, line in enumerate(text.split("\n"), 1):
+        for name, _label, pattern, validator in compiled_patterns:
+            for match in pattern.finditer(line):
+                matched = match.group()
+                if validator == "luhn" and not _luhn_check(matched):
+                    continue
+                file_result.matches_by_type[name] = (
+                    file_result.matches_by_type.get(name, 0) + 1
+                )
+                if show_samples and len(file_result.sample_matches) < 5:
+                    file_result.sample_matches.append(
+                        PIIMatch(
+                            pattern_name=name,
+                            matched_text=matched,
+                            line_number=line_num,
+                        )
+                    )
+
+    return file_result
+
+
 def scan_pii(
     sample: SampleResult,
     inventory: InventoryResult,
     config: FieldCheckConfig,
+    text_cache: dict[str, str] | None = None,
     max_workers: int | None = None,
     timeout: float = _DEFAULT_TIMEOUT,
     progress_callback: Callable[[int, int], None] | None = None,
 ) -> PIIScanResult:
-    """Scan sampled files for PII patterns using ProcessPoolExecutor.
+    """Scan sampled files for PII patterns.
 
-    Uses ProcessPoolExecutor for crash isolation — if a worker segfaults
-    on a malformed file, the pool spawns a new worker automatically.
+    When text_cache is provided, uses pre-extracted text (no file I/O).
+    Otherwise falls back to ProcessPoolExecutor with per-file extraction.
 
     Args:
         sample: Sampling result with selected files.
         inventory: Inventory with per-file MIME type mapping.
         config: Configuration with custom patterns and show_pii_samples flag.
+        text_cache: Pre-extracted text dict from build_text_cache() (optional).
         max_workers: Max worker processes (default: min(4, cpu_count)).
         timeout: Per-file timeout in seconds.
         progress_callback: Called with (current, total) for progress display.
@@ -288,52 +334,95 @@ def scan_pii(
         return result
 
     total = len(extractable)
-    workers = max_workers or min(_MAX_WORKERS, os.cpu_count() or 1)
 
-    with ProcessPoolExecutor(max_workers=workers) as pool:
-        future_to_entry: dict = {}
+    # Compile patterns for direct scanning (used with text_cache)
+    compiled_patterns = [
+        (name, label, re.compile(pat_str), validator)
+        for name, label, pat_str, validator in pattern_specs
+    ]
+
+    # Split into cached (direct scan) and uncached (process pool)
+    cached_entries: list[tuple[FileEntry, str]] = []
+    uncached_entries: list[tuple[FileEntry, str]] = []
+
+    if text_cache:
         for entry, mime in extractable:
-            future = pool.submit(
-                _scan_single_file_from_specs,
-                str(entry.path),
-                mime,
-                pattern_specs,
-                config.show_pii_samples,
-            )
-            future_to_entry[future] = entry
+            if str(entry.path) in text_cache:
+                cached_entries.append((entry, mime))
+            else:
+                uncached_entries.append((entry, mime))
+    else:
+        uncached_entries = extractable
 
-        for completed, future in enumerate(as_completed(future_to_entry), 1):
-            try:
-                file_result = future.result(timeout=timeout)
-            except TimeoutError:
-                file_result = PIIFileResult(
-                    path=str(future_to_entry[future].path),
-                    error="PII scan timed out",
+    completed_count = 0
+
+    # Scan cached files directly (no process pool, no file I/O)
+    for entry, _mime in cached_entries:
+        path_str = str(entry.path)
+        file_result = _scan_text_for_pii(
+            path_str,
+            text_cache[path_str],  # type: ignore[index]
+            compiled_patterns,
+            config.show_pii_samples,
+        )
+        _aggregate_file_result(result, file_result)
+        completed_count += 1
+        if progress_callback is not None:
+            progress_callback(completed_count, total)
+
+    # Scan uncached files via ProcessPoolExecutor (with file I/O)
+    if uncached_entries:
+        workers = max_workers or min(_MAX_WORKERS, os.cpu_count() or 1)
+
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            future_to_entry: dict = {}
+            for entry, mime in uncached_entries:
+                future = pool.submit(
+                    _scan_single_file_from_specs,
+                    str(entry.path),
+                    mime,
+                    pattern_specs,
+                    config.show_pii_samples,
                 )
-                result.scan_errors += 1
-            except Exception as exc:
-                file_result = PIIFileResult(
-                    path=str(future_to_entry[future].path),
-                    error=str(exc),
-                )
-                result.scan_errors += 1
+                future_to_entry[future] = entry
 
-            result.file_results.append(file_result)
-            result.total_scanned += 1
-
-            if file_result.error:
-                result.scan_errors += 1
-            elif file_result.matches_by_type:
-                result.files_with_pii += 1
-                for pname, count in file_result.matches_by_type.items():
-                    result.per_type_counts[pname] = (
-                        result.per_type_counts.get(pname, 0) + count
+            for future in as_completed(future_to_entry):
+                try:
+                    file_result = future.result(timeout=timeout)
+                except TimeoutError:
+                    file_result = PIIFileResult(
+                        path=str(future_to_entry[future].path),
+                        error="PII scan timed out",
                     )
-                    result.per_type_file_counts[pname] = (
-                        result.per_type_file_counts.get(pname, 0) + 1
+                    result.scan_errors += 1
+                except Exception as exc:
+                    file_result = PIIFileResult(
+                        path=str(future_to_entry[future].path),
+                        error=str(exc),
                     )
+                    result.scan_errors += 1
 
-            if progress_callback is not None:
-                progress_callback(completed, total)
+                _aggregate_file_result(result, file_result)
+                completed_count += 1
+                if progress_callback is not None:
+                    progress_callback(completed_count, total)
 
     return result
+
+
+def _aggregate_file_result(result: PIIScanResult, file_result: PIIFileResult) -> None:
+    """Aggregate a single file result into the scan result."""
+    result.file_results.append(file_result)
+    result.total_scanned += 1
+
+    if file_result.error:
+        result.scan_errors += 1
+    elif file_result.matches_by_type:
+        result.files_with_pii += 1
+        for pname, count in file_result.matches_by_type.items():
+            result.per_type_counts[pname] = (
+                result.per_type_counts.get(pname, 0) + count
+            )
+            result.per_type_file_counts[pname] = (
+                result.per_type_file_counts.get(pname, 0) + 1
+            )
