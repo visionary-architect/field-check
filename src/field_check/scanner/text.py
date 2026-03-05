@@ -37,6 +37,25 @@ CLASSIFICATION_MIXED = "mixed"
 DEFAULT_TIMEOUT = 30.0
 MAX_WORKERS = 4
 
+# Page count distribution buckets
+PAGE_COUNT_BUCKETS: list[tuple[int, float, str]] = [
+    (1, 1, "1 page"),
+    (2, 5, "2-5 pages"),
+    (6, 10, "6-10 pages"),
+    (11, 50, "11-50 pages"),
+    (51, 100, "51-100 pages"),
+    (101, 500, "101-500 pages"),
+    (501, float("inf"), ">500 pages"),
+]
+
+
+def _page_count_bucket(count: int) -> str:
+    """Map a page count to its distribution bucket label."""
+    for low, high, label in PAGE_COUNT_BUCKETS:
+        if low <= count <= high:
+            return label
+    return ">500 pages"
+
 
 @dataclass
 class TextResult:
@@ -69,6 +88,10 @@ class TextExtractionResult:
     mixed_content_count: int = 0
     metadata_field_counts: dict[str, int] = field(default_factory=dict)
     metadata_total_checked: int = 0
+    page_count_total: int = 0
+    page_count_min: int = 0
+    page_count_max: int = 0
+    page_count_distribution: dict[str, int] = field(default_factory=dict)
     file_results: list[TextResult] = field(default_factory=list)
 
 
@@ -283,6 +306,21 @@ def extract_text(
                         result.metadata_field_counts[mf] = (
                             result.metadata_field_counts.get(mf, 0) + 1
                         )
+
+                # Page count distribution (PDF only)
+                if text_result.page_count > 0:
+                    result.page_count_total += text_result.page_count
+                    if (
+                        result.page_count_min == 0
+                        or text_result.page_count < result.page_count_min
+                    ):
+                        result.page_count_min = text_result.page_count
+                    if text_result.page_count > result.page_count_max:
+                        result.page_count_max = text_result.page_count
+                    bucket = _page_count_bucket(text_result.page_count)
+                    result.page_count_distribution[bucket] = (
+                        result.page_count_distribution.get(bucket, 0) + 1
+                    )
 
             if progress_callback is not None:
                 progress_callback(completed, total)
