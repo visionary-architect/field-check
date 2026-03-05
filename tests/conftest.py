@@ -378,6 +378,56 @@ def tmp_corpus_with_pii(tmp_path: Path) -> Path:
 
 
 @pytest.fixture()
+def tmp_multilang_corpus(tmp_path: Path) -> Path:
+    """Create a corpus with multi-language text content."""
+    # English
+    (tmp_path / "english.txt").write_text(
+        "The quick brown fox jumps over the lazy dog. "
+        "This is a simple English document for testing purposes. "
+        "It contains enough words for the stop-word detection to work.",
+        encoding="utf-8",
+    )
+    # Spanish
+    (tmp_path / "spanish.txt").write_text(
+        "El gato está en la mesa. Los perros son grandes y fuertes. "
+        "Esta es una prueba del sistema de detección de idiomas para "
+        "el proyecto que estamos desarrollando.",
+        encoding="utf-8",
+    )
+    # French
+    (tmp_path / "french.txt").write_text(
+        "Le chat est sur la table. Les chiens sont grands et forts. "
+        "Ceci est un test du système de détection de langue pour "
+        "le projet que nous développons.",
+        encoding="utf-8",
+    )
+    # German
+    (tmp_path / "german.txt").write_text(
+        "Der Hund ist auf dem Tisch. Die Katzen sind nicht im Haus. "
+        "Das ist ein Test für das Spracherkennungssystem und "
+        "die Erkennung von verschiedenen Sprachen.",
+        encoding="utf-8",
+    )
+    # Latin-1 encoded German file
+    (tmp_path / "latin1_german.txt").write_bytes(
+        "Der Hund ist auf dem Tisch. Die Katzen sind nicht im Haus. "
+        "Das ist ein Test für das Spracherkennungssystem und "
+        "die Erkennung von verschiedenen Sprachen.".encode("iso-8859-1")
+    )
+    # PDF with English text
+    create_pdf_with_text(
+        tmp_path / "report.pdf",
+        "This is an English report with enough text for detection.",
+    )
+    # DOCX with English text
+    create_minimal_docx(
+        tmp_path / "memo.docx",
+        text="This is a memo document with English text for testing.",
+    )
+    return tmp_path
+
+
+@pytest.fixture()
 def tmp_corpus_with_issues(tmp_path: Path) -> Path:
     """Create a corpus with various file health issues."""
     # Empty file

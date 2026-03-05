@@ -15,10 +15,12 @@ from field_check.report import generate_report
 from field_check.scanner import walk_directory
 from field_check.scanner.corruption import check_corruption
 from field_check.scanner.dedup import compute_hashes
+from field_check.scanner.encoding import analyze_encodings
 from field_check.scanner.inventory import analyze_inventory
+from field_check.scanner.language import analyze_languages
 from field_check.scanner.pii import scan_pii
 from field_check.scanner.sampling import select_sample
-from field_check.scanner.text import extract_text
+from field_check.scanner.text import build_text_cache, extract_text
 
 console = Console()
 
@@ -159,11 +161,27 @@ def scan(
                 sample, inventory, progress_callback=on_extract
             )
 
+    # Build shared text cache for PII + language + encoding
+    text_cache_result = None
+    if sample.total_sample_size > 0:
+        with console.status(
+            "[bold blue]Extracting text content...", spinner="dots"
+        ) as status:
+            def on_cache(current: int, total: int) -> None:
+                status.update(
+                    f"[bold blue]Extracting text content... "
+                    f"[cyan]{current}[/cyan]/[cyan]{total}[/cyan]"
+                )
+
+            text_cache_result = build_text_cache(
+                sample, inventory, progress_callback=on_cache
+            )
+
     # Set show_pii_samples on config
     if show_pii_samples:
         config.show_pii_samples = True
 
-    # Scan for PII patterns
+    # Scan for PII patterns (using text cache to avoid re-reading)
     pii_result = None
     if sample.total_sample_size > 0:
         with console.status(
@@ -176,8 +194,27 @@ def scan(
                 )
 
             pii_result = scan_pii(
-                sample, inventory, config, progress_callback=on_pii
+                sample, inventory, config,
+                text_cache=(
+                    text_cache_result.text_cache if text_cache_result else None
+                ),
+                progress_callback=on_pii,
             )
+
+    # Detect languages from cached text
+    language_result = None
+    if text_cache_result and text_cache_result.text_cache:
+        with console.status(
+            "[bold blue]Detecting languages...", spinner="dots"
+        ):
+            language_result = analyze_languages(
+                text_cache_result.text_cache
+            )
+
+    # Analyze encodings from cached detection results
+    encoding_result = None
+    if text_cache_result and text_cache_result.encoding_map:
+        encoding_result = analyze_encodings(text_cache_result.encoding_map)
 
     elapsed = time.monotonic() - scan_start
 
@@ -191,6 +228,8 @@ def scan(
             sample_result=sample,
             text_result=text_result,
             pii_result=pii_result,
+            language_result=language_result,
+            encoding_result=encoding_result,
         )
     except ValueError as exc:
         raise click.UsageError(str(exc)) from exc

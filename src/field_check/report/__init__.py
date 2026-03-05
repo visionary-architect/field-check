@@ -10,7 +10,9 @@ from field_check.report.terminal import render_terminal_report
 from field_check.scanner import WalkResult
 from field_check.scanner.corruption import CorruptionResult
 from field_check.scanner.dedup import DedupResult
+from field_check.scanner.encoding import EncodingResult
 from field_check.scanner.inventory import InventoryResult
+from field_check.scanner.language import LanguageResult
 from field_check.scanner.pii import PIIScanResult
 from field_check.scanner.sampling import SampleResult
 from field_check.scanner.text import TextExtractionResult
@@ -28,6 +30,8 @@ def generate_report(
     sample_result: SampleResult | None = None,
     text_result: TextExtractionResult | None = None,
     pii_result: PIIScanResult | None = None,
+    language_result: LanguageResult | None = None,
+    encoding_result: EncodingResult | None = None,
 ) -> None:
     """Generate a report in the specified format.
 
@@ -43,6 +47,8 @@ def generate_report(
         sample_result: Sampling results (optional).
         text_result: Text extraction results (optional).
         pii_result: PII scan results (optional).
+        language_result: Language detection results (optional).
+        encoding_result: Encoding detection results (optional).
 
     Raises:
         ValueError: If format is not yet supported.
@@ -55,6 +61,8 @@ def generate_report(
             sample_result=sample_result,
             text_result=text_result,
             pii_result=pii_result,
+            language_result=language_result,
+            encoding_result=encoding_result,
         )
     else:
         raise ValueError(

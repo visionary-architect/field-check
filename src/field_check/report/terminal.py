@@ -13,7 +13,9 @@ from field_check import __version__
 from field_check.scanner import WalkResult
 from field_check.scanner.corruption import CorruptionResult
 from field_check.scanner.dedup import DedupResult
+from field_check.scanner.encoding import EncodingResult
 from field_check.scanner.inventory import InventoryResult
+from field_check.scanner.language import LanguageResult
 from field_check.scanner.pii import PIIScanResult
 from field_check.scanner.sampling import SampleResult, compute_confidence_interval, format_ci
 from field_check.scanner.text import METADATA_FIELDS, PAGE_COUNT_BUCKETS, TextExtractionResult
@@ -57,6 +59,8 @@ def render_terminal_report(
     sample_result: SampleResult | None = None,
     text_result: TextExtractionResult | None = None,
     pii_result: PIIScanResult | None = None,
+    language_result: LanguageResult | None = None,
+    encoding_result: EncodingResult | None = None,
 ) -> None:
     """Render a complete terminal report using Rich.
 
@@ -70,6 +74,8 @@ def render_terminal_report(
         sample_result: Sampling results (optional).
         text_result: Text extraction results (optional).
         pii_result: PII scan results (optional).
+        language_result: Language detection results (optional).
+        encoding_result: Encoding detection results (optional).
     """
     # Header
     header_lines = [
@@ -105,7 +111,13 @@ def render_terminal_report(
     if pii_result is not None and sample_result is not None:
         _render_pii_results(pii_result, sample_result, console)
 
-    # Section 6: Size Distribution
+    # Section 6: Language & Encoding
+    if language_result is not None or encoding_result is not None:
+        _render_language_encoding(
+            language_result, encoding_result, sample_result, console
+        )
+
+    # Section 7: Size Distribution
     _render_size_distribution(inventory, console)
 
     # Section 7: File Age Distribution
@@ -623,6 +635,82 @@ def _render_pii_results(
     # Show sample matches if --show-pii-samples
     if pii.show_pii_samples:
         _render_pii_samples(pii, console)
+
+    console.print()
+
+
+def _render_language_encoding(
+    language: LanguageResult | None,
+    encoding: EncodingResult | None,
+    sample: SampleResult | None,
+    console: Console,
+) -> None:
+    """Render combined Language & Encoding section with two sub-tables."""
+    # Language Distribution sub-table
+    if language is not None and language.total_analyzed > 0:
+        pop = sample.total_population_size if sample else language.total_analyzed
+
+        table = Table(title="Language Distribution", show_lines=False)
+        table.add_column("Language", style="cyan")
+        table.add_column("Count", justify="right")
+        table.add_column("Proportion", justify="right")
+
+        sorted_langs = sorted(
+            language.language_distribution.items(),
+            key=lambda x: x[1],
+            reverse=True,
+        )
+
+        displayed = sorted_langs[:10]
+        remaining = sorted_langs[10:]
+
+        for lang, count in displayed:
+            ci = compute_confidence_interval(
+                count, language.total_analyzed, pop
+            )
+            table.add_row(lang, f"{count:,}", format_ci(ci))
+
+        if remaining:
+            other_count = sum(c for _, c in remaining)
+            ci = compute_confidence_interval(
+                other_count, language.total_analyzed, pop
+            )
+            table.add_row(
+                f"[dim]Other ({len(remaining)} languages)[/dim]",
+                f"{other_count:,}",
+                format_ci(ci),
+            )
+
+        console.print(table)
+        if language.detection_errors:
+            console.print(Text(
+                f"  Detection errors: {language.detection_errors}",
+                style="yellow",
+            ))
+
+    # Encoding Distribution sub-table
+    if encoding is not None and encoding.total_analyzed > 0:
+        table = Table(title="Encoding Distribution", show_lines=False)
+        table.add_column("Encoding", style="cyan")
+        table.add_column("Count", justify="right")
+        table.add_column("%", justify="right")
+
+        sorted_encs = sorted(
+            encoding.encoding_distribution.items(),
+            key=lambda x: x[1],
+            reverse=True,
+        )
+
+        for enc_name, count in sorted_encs:
+            pct = count / encoding.total_analyzed * 100
+            table.add_row(enc_name, f"{count:,}", f"{pct:.1f}%")
+
+        console.print(table)
+        console.print(Text(
+            "  Encoding detected for plain text files only "
+            "(PDF/DOCX handle encoding internally)",
+            style="dim",
+        ))
 
     console.print()
 
