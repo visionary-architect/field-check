@@ -26,6 +26,7 @@ class FieldCheckConfig:
     sampling_min_per_type: int = 30
     pii_custom_patterns: list[dict[str, str]] = field(default_factory=list)
     show_pii_samples: bool = False
+    simhash_threshold: int = 5
 
 
 def load_config(scan_path: Path, config_path: Path | None = None) -> FieldCheckConfig:
@@ -91,11 +92,20 @@ def load_config(scan_path: Path, config_path: Path | None = None) -> FieldCheckC
                             entry["pattern"],
                         )
 
+    # Parse SimHash config
+    simhash_threshold = 5
+    simhash_section = raw.get("simhash", {})
+    if isinstance(simhash_section, dict):
+        thresh = simhash_section.get("threshold")
+        if isinstance(thresh, int):
+            simhash_threshold = max(0, min(64, thresh))
+
     return FieldCheckConfig(
         exclude=patterns,
         sampling_rate=sampling_rate,
         sampling_min_per_type=sampling_min_per_type,
         pii_custom_patterns=pii_custom_patterns,
+        simhash_threshold=simhash_threshold,
     )
 
 
