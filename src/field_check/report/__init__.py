@@ -8,6 +8,7 @@ from rich.console import Console
 
 from field_check.config import FieldCheckConfig
 from field_check.report.csv_report import render_csv_report
+from field_check.report.html import render_html_report
 from field_check.report.json_report import render_json_report
 from field_check.report.terminal import render_terminal_report
 from field_check.scanner import WalkResult
@@ -94,9 +95,17 @@ def generate_report(
         path = output_path or Path("field-check-report.csv")
         path.write_text(content, encoding="utf-8")
         console.print(f"Report saved to [bold]{path}[/bold]")
+    elif fmt == "html":
+        content = render_html_report(
+            inventory, walk_result, elapsed_seconds, **kwargs,
+        )
+        path = output_path or Path("field-check-report.html")
+        path.write_text(content, encoding="utf-8")
+        console.print(f"Report saved to [bold]{path}[/bold]")
     else:
         raise ValueError(
-            f"Format '{fmt}' not yet supported. Available: terminal, json, csv"
+            f"Format '{fmt}' not yet supported. "
+            "Available: terminal, html, json, csv"
         )
 
 
