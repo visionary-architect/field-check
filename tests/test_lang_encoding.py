@@ -206,6 +206,13 @@ class TestAnalyzeEncodings:
         })
         assert result.encoding_distribution == {"utf-8": 2}
 
+    def test_underscore_normalized_to_dash(self) -> None:
+        result = analyze_encodings({
+            "a.txt": ("utf_8", 0.99),
+            "b.txt": ("utf-8", 0.95),
+        })
+        assert result.encoding_distribution == {"utf-8": 2}
+
     def test_file_results_populated(self) -> None:
         result = analyze_encodings({"a.txt": ("utf-8", 0.99)})
         assert len(result.file_results) == 1

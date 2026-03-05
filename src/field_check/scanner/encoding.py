@@ -48,7 +48,7 @@ def _normalize_encoding(encoding: str) -> str:
     Returns:
         Canonical encoding name (e.g., "utf-8", "iso-8859-1").
     """
-    lower = encoding.lower().strip()
+    lower = encoding.lower().strip().replace("_", "-")
     return _ENCODING_ALIASES.get(lower, lower)
 
 
