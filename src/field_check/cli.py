@@ -20,6 +20,7 @@ from field_check.scanner.inventory import analyze_inventory
 from field_check.scanner.language import analyze_languages
 from field_check.scanner.pii import scan_pii
 from field_check.scanner.sampling import select_sample
+from field_check.scanner.simhash import detect_near_duplicates
 from field_check.scanner.text import build_text_cache, extract_text
 
 console = Console()
@@ -216,6 +217,24 @@ def scan(
     if text_cache_result and text_cache_result.encoding_map:
         encoding_result = analyze_encodings(text_cache_result.encoding_map)
 
+    # Detect near-duplicates via SimHash
+    simhash_result = None
+    if text_cache_result and text_cache_result.text_cache:
+        with console.status(
+            "[bold blue]Detecting near-duplicates...", spinner="dots"
+        ) as status:
+            def on_simhash(current: int, total: int) -> None:
+                status.update(
+                    f"[bold blue]Detecting near-duplicates... "
+                    f"[cyan]{current}[/cyan]/[cyan]{total}[/cyan]"
+                )
+
+            simhash_result = detect_near_duplicates(
+                text_cache_result.text_cache,
+                threshold=config.simhash_threshold,
+                progress_callback=on_simhash,
+            )
+
     elapsed = time.monotonic() - scan_start
 
     # Generate report
@@ -230,6 +249,7 @@ def scan(
             pii_result=pii_result,
             language_result=language_result,
             encoding_result=encoding_result,
+            simhash_result=simhash_result,
         )
     except ValueError as exc:
         raise click.UsageError(str(exc)) from exc

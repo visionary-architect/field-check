@@ -18,6 +18,7 @@ from field_check.scanner.inventory import InventoryResult
 from field_check.scanner.language import LanguageResult
 from field_check.scanner.pii import PIIScanResult
 from field_check.scanner.sampling import SampleResult, compute_confidence_interval, format_ci
+from field_check.scanner.simhash import SimHashResult
 from field_check.scanner.text import METADATA_FIELDS, PAGE_COUNT_BUCKETS, TextExtractionResult
 
 
@@ -61,6 +62,7 @@ def render_terminal_report(
     pii_result: PIIScanResult | None = None,
     language_result: LanguageResult | None = None,
     encoding_result: EncodingResult | None = None,
+    simhash_result: SimHashResult | None = None,
 ) -> None:
     """Render a complete terminal report using Rich.
 
@@ -76,6 +78,7 @@ def render_terminal_report(
         pii_result: PII scan results (optional).
         language_result: Language detection results (optional).
         encoding_result: Encoding detection results (optional).
+        simhash_result: Near-duplicate detection results (optional).
     """
     # Header
     header_lines = [
@@ -117,7 +120,11 @@ def render_terminal_report(
             language_result, encoding_result, sample_result, console
         )
 
-    # Section 7: Size Distribution
+    # Section 7: Near-Duplicate Detection
+    if simhash_result is not None and sample_result is not None:
+        _render_near_duplicates(simhash_result, sample_result, walk_result, console)
+
+    # Section 8: Size Distribution
     _render_size_distribution(inventory, console)
 
     # Section 7: File Age Distribution
@@ -711,6 +718,76 @@ def _render_language_encoding(
             "(PDF/DOCX handle encoding internally)",
             style="dim",
         ))
+
+    console.print()
+
+
+def _render_near_duplicates(
+    simhash: SimHashResult,
+    sample: SampleResult,
+    walk_result: WalkResult,
+    console: Console,
+) -> None:
+    """Render near-duplicate detection results with cluster list."""
+    if simhash.total_analyzed == 0:
+        return
+
+    pop = sample.total_population_size
+
+    # Summary table
+    summary = Table(title="Near-Duplicate Detection (estimated)", show_lines=False)
+    summary.add_column("Metric", style="cyan")
+    summary.add_column("Value", justify="right")
+    summary.add_row("Files analyzed", f"{simhash.total_analyzed:,}")
+    summary.add_row("Near-duplicate clusters", f"{simhash.total_clusters:,}")
+    summary.add_row("Files in clusters", f"{simhash.total_files_in_clusters:,}")
+
+    if simhash.total_files_in_clusters > 0:
+        ci = compute_confidence_interval(
+            simhash.total_files_in_clusters, simhash.total_analyzed, pop
+        )
+        summary.add_row("Est. corpus near-dup %", format_ci(ci))
+
+    console.print(summary)
+    console.print(Text(
+        f"  Near-duplicates detected via SimHash fingerprinting "
+        f"(threshold: {simhash.threshold} bits)",
+        style="dim",
+    ))
+
+    # Cluster detail table (top 5)
+    if simhash.clusters:
+        shown = min(5, len(simhash.clusters))
+        detail = Table(
+            title=f"Top Near-Duplicate Clusters "
+                  f"(showing {shown} of {len(simhash.clusters)})",
+            show_lines=False,
+        )
+        detail.add_column("Cluster", justify="right", style="cyan")
+        detail.add_column("Files", justify="right")
+        detail.add_column("Similarity", justify="right")
+        detail.add_column("Paths")
+
+        for idx, cluster in enumerate(simhash.clusters[:5], 1):
+            sim_pct = f"{cluster.similarity * 100:.1f}%"
+
+            # Show paths as relative to scan root, or basenames
+            display_paths: list[str] = []
+            for p in cluster.paths[:5]:
+                try:
+                    from pathlib import Path as P
+                    rel = P(p).relative_to(walk_result.scan_root)
+                    display_paths.append(str(rel))
+                except ValueError:
+                    display_paths.append(P(p).name)
+
+            path_str = "\n".join(display_paths)
+            if len(cluster.paths) > 5:
+                path_str += f"\n[dim]... and {len(cluster.paths) - 5} more[/dim]"
+
+            detail.add_row(str(idx), str(len(cluster.paths)), sim_pct, path_str)
+
+        console.print(detail)
 
     console.print()
 

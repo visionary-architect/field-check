@@ -428,6 +428,47 @@ def tmp_multilang_corpus(tmp_path: Path) -> Path:
 
 
 @pytest.fixture()
+def tmp_neardup_corpus(tmp_path: Path) -> Path:
+    """Create a corpus with near-duplicate and distinct text files."""
+    base_text = (
+        "The quarterly financial report for the fiscal year 2025 demonstrates "
+        "remarkable growth across all business segments. Revenue increased by "
+        "fifteen percent compared to the previous quarter, driven primarily by "
+        "expansion in the technology sector. The company successfully launched "
+        "three new product lines, each targeting distinct market segments. "
+        "Customer satisfaction surveys indicate consistently high approval "
+        "ratings, with net promoter scores exceeding industry benchmarks."
+    )
+    # Near-duplicate 1: change 1 word
+    variant1 = base_text.replace("fifteen", "fourteen")
+    # Near-duplicate 2: add a sentence
+    variant2 = base_text + (
+        " The board of directors has approved a dividend increase."
+    )
+    # Completely different text
+    different1 = (
+        "Machine learning algorithms have revolutionized the field of natural "
+        "language processing. Recent advances in transformer architectures "
+        "have enabled unprecedented performance on a wide range of tasks "
+        "including text classification, named entity recognition, and "
+        "machine translation. Large language models represent the cutting edge."
+    )
+    different2 = (
+        "The principles of organic chemistry govern how carbon-based molecules "
+        "interact and transform. Understanding reaction mechanisms requires "
+        "a deep knowledge of electron orbital theory and thermodynamics. "
+        "Modern spectroscopy techniques allow precise identification of "
+        "molecular structures and functional groups in complex compounds."
+    )
+    (tmp_path / "report_v1.txt").write_text(base_text, encoding="utf-8")
+    (tmp_path / "report_v2.txt").write_text(variant1, encoding="utf-8")
+    (tmp_path / "report_v3.txt").write_text(variant2, encoding="utf-8")
+    (tmp_path / "ml_paper.txt").write_text(different1, encoding="utf-8")
+    (tmp_path / "chemistry.txt").write_text(different2, encoding="utf-8")
+    return tmp_path
+
+
+@pytest.fixture()
 def tmp_corpus_with_issues(tmp_path: Path) -> Path:
     """Create a corpus with various file health issues."""
     # Empty file

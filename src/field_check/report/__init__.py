@@ -15,6 +15,7 @@ from field_check.scanner.inventory import InventoryResult
 from field_check.scanner.language import LanguageResult
 from field_check.scanner.pii import PIIScanResult
 from field_check.scanner.sampling import SampleResult
+from field_check.scanner.simhash import SimHashResult
 from field_check.scanner.text import TextExtractionResult
 
 
@@ -32,6 +33,7 @@ def generate_report(
     pii_result: PIIScanResult | None = None,
     language_result: LanguageResult | None = None,
     encoding_result: EncodingResult | None = None,
+    simhash_result: SimHashResult | None = None,
 ) -> None:
     """Generate a report in the specified format.
 
@@ -49,6 +51,7 @@ def generate_report(
         pii_result: PII scan results (optional).
         language_result: Language detection results (optional).
         encoding_result: Encoding detection results (optional).
+        simhash_result: Near-duplicate detection results (optional).
 
     Raises:
         ValueError: If format is not yet supported.
@@ -63,6 +66,7 @@ def generate_report(
             pii_result=pii_result,
             language_result=language_result,
             encoding_result=encoding_result,
+            simhash_result=simhash_result,
         )
     else:
         raise ValueError(
