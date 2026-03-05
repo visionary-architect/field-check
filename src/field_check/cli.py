@@ -11,7 +11,7 @@ from rich.console import Console
 
 from field_check import __version__
 from field_check.config import load_config
-from field_check.report import generate_report
+from field_check.report import determine_exit_code, generate_report
 from field_check.scanner import walk_directory
 from field_check.scanner.corruption import check_corruption
 from field_check.scanner.dedup import compute_hashes
@@ -253,3 +253,14 @@ def scan(
         )
     except ValueError as exc:
         raise click.UsageError(str(exc)) from exc
+
+    # Determine CI exit code based on thresholds
+    exit_code = determine_exit_code(
+        config,
+        inventory,
+        dedup_result=dedup_result,
+        corruption_result=corruption_result,
+        pii_result=pii_result,
+    )
+    if exit_code != 0:
+        sys.exit(exit_code)

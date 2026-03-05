@@ -67,11 +67,10 @@ def test_cli_scan_with_config(tmp_corpus_with_config: Path) -> None:
 
 
 def test_cli_scan_unsupported_format(tmp_corpus: Path) -> None:
-    """--format html shows 'not yet supported'."""
+    """--format with invalid value shows error."""
     runner = CliRunner()
-    result = runner.invoke(main, ["scan", "--format", "html", str(tmp_corpus)])
+    result = runner.invoke(main, ["scan", "--format", "xml", str(tmp_corpus)])
     assert result.exit_code != 0
-    assert "not yet supported" in result.output
 
 
 def test_cli_scan_file_count_in_output(tmp_corpus: Path) -> None:
