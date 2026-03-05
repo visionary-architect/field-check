@@ -11,6 +11,8 @@ from rich.text import Text
 
 from field_check import __version__
 from field_check.scanner import WalkResult
+from field_check.scanner.corruption import CorruptionResult
+from field_check.scanner.dedup import DedupResult
 from field_check.scanner.inventory import InventoryResult
 
 
@@ -47,6 +49,8 @@ def render_terminal_report(
     walk_result: WalkResult,
     elapsed_seconds: float,
     console: Console,
+    dedup_result: DedupResult | None = None,
+    corruption_result: CorruptionResult | None = None,
 ) -> None:
     """Render a complete terminal report using Rich.
 
@@ -55,6 +59,8 @@ def render_terminal_report(
         walk_result: Raw walk results.
         elapsed_seconds: Total scan duration.
         console: Rich console for output.
+        dedup_result: Duplicate detection results (optional).
+        corruption_result: Corruption detection results (optional).
     """
     # Header
     header_lines = [
@@ -67,29 +73,37 @@ def render_terminal_report(
     ]
     console.print(Panel(
         "\n".join(header_lines),
-        title="[bold blue]Field Check — Document Corpus Health Report[/bold blue]",
+        title="[bold blue]Field Check -- Document Corpus Health Report[/bold blue]",
         border_style="blue",
     ))
 
     # Section 1: File Type Distribution
     _render_type_distribution(inventory, console)
 
-    # Section 2: Size Distribution
+    # Section 2: Duplicate Detection
+    if dedup_result is not None:
+        _render_dedup_summary(dedup_result, console)
+
+    # Section 3: File Health (Corruption)
+    if corruption_result is not None:
+        _render_corruption_summary(corruption_result, walk_result, console)
+
+    # Section 4: Size Distribution
     _render_size_distribution(inventory, console)
 
-    # Section 3: File Age Distribution
+    # Section 5: File Age Distribution
     _render_age_distribution(inventory, console)
 
-    # Section 4: Directory Structure
+    # Section 6: Directory Structure
     _render_dir_structure(inventory, console)
 
-    # Section 5: Issues
-    _render_issues(inventory, console)
+    # Section 7: Issues
+    _render_issues(inventory, dedup_result, console)
 
     # Footer
     console.print(
         Text(
-            f"\nField Check v{__version__} — All processing local. No data transmitted.",
+            f"\nField Check v{__version__} -- All processing local. No data transmitted.",
             style="dim",
         )
     )
@@ -226,7 +240,11 @@ def _render_dir_structure(inventory: InventoryResult, console: Console) -> None:
     console.print()
 
 
-def _render_issues(inventory: InventoryResult, console: Console) -> None:
+def _render_issues(
+    inventory: InventoryResult,
+    dedup_result: DedupResult | None,
+    console: Console,
+) -> None:
     """Render issues section if any problems were found."""
     issues: list[tuple[str, int, str]] = []
 
@@ -236,6 +254,8 @@ def _render_issues(inventory: InventoryResult, console: Console) -> None:
         issues.append(("Symlink loops", inventory.symlink_loops, "yellow"))
     if inventory.type_detection_errors:
         issues.append(("Type detection errors", inventory.type_detection_errors, "yellow"))
+    if dedup_result is not None and dedup_result.hash_errors:
+        issues.append(("Hash errors", dedup_result.hash_errors, "yellow"))
 
     if not issues:
         return
@@ -248,4 +268,121 @@ def _render_issues(inventory: InventoryResult, console: Console) -> None:
         table.add_row(label, f"{count:,}")
 
     console.print(table)
+    console.print()
+
+
+def _render_dedup_summary(dedup: DedupResult, console: Console) -> None:
+    """Render duplicate detection summary and detail table."""
+    table = Table(title="Duplicate Detection", show_lines=False)
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", justify="right")
+
+    table.add_row("Files hashed", f"{dedup.total_hashed:,}")
+    table.add_row("Unique files", f"{dedup.unique_files:,}")
+    table.add_row("Duplicate groups", f"{len(dedup.duplicate_groups):,}")
+    table.add_row("Duplicate files", f"{dedup.duplicate_file_count:,}")
+    table.add_row("Wasted space", _format_size(dedup.duplicate_bytes))
+    table.add_row("Duplicate %", f"{dedup.duplicate_percentage:.1f}%")
+
+    console.print(table)
+
+    # Detail table: top 10 groups by wasted bytes
+    if dedup.duplicate_groups:
+        sorted_groups = sorted(
+            dedup.duplicate_groups,
+            key=lambda g: g.size * (len(g.paths) - 1),
+            reverse=True,
+        )
+        top_groups = sorted_groups[:10]
+
+        detail = Table(title="Top Duplicate Groups", show_lines=False)
+        detail.add_column("Hash", style="dim")
+        detail.add_column("File Size", justify="right")
+        detail.add_column("Copies", justify="right")
+        detail.add_column("Wasted", justify="right", style="red")
+        detail.add_column("Paths")
+
+        for group in top_groups:
+            wasted = group.size * (len(group.paths) - 1)
+            shown_paths = [str(p) for p in group.paths[:3]]
+            path_str = "\n".join(shown_paths)
+            if len(group.paths) > 3:
+                path_str += f"\n[dim]... and {len(group.paths) - 3} more[/dim]"
+
+            detail.add_row(
+                group.hash[:12],
+                _format_size(group.size),
+                str(len(group.paths)),
+                _format_size(wasted),
+                path_str,
+            )
+
+        console.print(detail)
+
+    console.print()
+
+
+def _render_corruption_summary(
+    corruption: CorruptionResult,
+    walk_result: WalkResult,
+    console: Console,
+) -> None:
+    """Render file health summary and flagged file details."""
+    table = Table(title="File Health", show_lines=False)
+    table.add_column("Status", style="cyan")
+    table.add_column("Count", justify="right")
+
+    table.add_row("OK", f"{corruption.ok_count:,}")
+    if corruption.empty_count:
+        table.add_row("[dim]Empty (0 bytes)[/dim]", f"{corruption.empty_count:,}")
+    if corruption.near_empty_count:
+        table.add_row("[dim]Near-empty (<50 B)[/dim]", f"{corruption.near_empty_count:,}")
+    if corruption.corrupt_count:
+        table.add_row("[red]Corrupt[/red]", f"{corruption.corrupt_count:,}")
+    if corruption.encrypted_count:
+        table.add_row("[yellow]Encrypted[/yellow]", f"{corruption.encrypted_count:,}")
+    if corruption.unreadable_count:
+        table.add_row("[yellow]Unreadable[/yellow]", f"{corruption.unreadable_count:,}")
+
+    console.print(table)
+
+    # Detail table for flagged files (top 20)
+    if corruption.flagged_files:
+        flagged = corruption.flagged_files[:20]
+
+        detail = Table(title="Flagged Files", show_lines=False)
+        detail.add_column("Path")
+        detail.add_column("Status")
+        detail.add_column("MIME Type", style="dim")
+        detail.add_column("Detail")
+
+        status_styles = {
+            "empty": "dim",
+            "near_empty": "dim",
+            "corrupt": "red",
+            "encrypted_pdf": "yellow",
+            "encrypted_zip": "yellow",
+            "unreadable": "yellow",
+        }
+
+        for fh in flagged:
+            try:
+                rel = fh.path.relative_to(walk_result.scan_root)
+            except ValueError:
+                rel = fh.path
+            style = status_styles.get(fh.status, "")
+            detail.add_row(
+                str(rel),
+                f"[{style}]{fh.status}[/{style}]" if style else fh.status,
+                fh.mime_type or "-",
+                fh.detail,
+            )
+
+        console.print(detail)
+        if len(corruption.flagged_files) > 20:
+            console.print(Text(
+                f"  ... and {len(corruption.flagged_files) - 20} more flagged files",
+                style="dim",
+            ))
+
     console.print()

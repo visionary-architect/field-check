@@ -13,6 +13,8 @@ from field_check import __version__
 from field_check.config import load_config
 from field_check.report import generate_report
 from field_check.scanner import walk_directory
+from field_check.scanner.corruption import check_corruption
+from field_check.scanner.dedup import compute_hashes
 from field_check.scanner.inventory import analyze_inventory
 
 console = Console()
@@ -96,13 +98,39 @@ def scan(
 
         inventory = analyze_inventory(result, progress_callback=on_analysis)
 
+    # Hash files for duplicate detection
+    with console.status(
+        "[bold blue]Hashing files...", spinner="dots"
+    ) as status:
+        def on_hash(current: int, total: int) -> None:
+            status.update(
+                f"[bold blue]Hashing files... "
+                f"[cyan]{current}[/cyan]/[cyan]{total}[/cyan]"
+            )
+
+        dedup_result = compute_hashes(result, progress_callback=on_hash)
+
+    # Check file health (corruption, encryption, emptiness)
+    with console.status(
+        "[bold blue]Checking file health...", spinner="dots"
+    ) as status:
+        def on_check(current: int, total: int) -> None:
+            status.update(
+                f"[bold blue]Checking file health... "
+                f"[cyan]{current}[/cyan]/[cyan]{total}[/cyan]"
+            )
+
+        corruption_result = check_corruption(result, progress_callback=on_check)
+
     elapsed = time.monotonic() - scan_start
 
     # Generate report
     output_path = Path(output) if output else None
     try:
         generate_report(
-            output_format, inventory, result, elapsed, output_path, console
+            output_format, inventory, result, elapsed, output_path, console,
+            dedup_result=dedup_result,
+            corruption_result=corruption_result,
         )
     except ValueError as exc:
         raise click.UsageError(str(exc)) from exc

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import struct
 import sys
+import zipfile
 import zlib
 from pathlib import Path
 
@@ -111,3 +112,95 @@ def tmp_corpus_with_config(tmp_corpus: Path) -> Path:
 def default_config() -> FieldCheckConfig:
     """Return a FieldCheckConfig with default values."""
     return FieldCheckConfig()
+
+
+def create_minimal_zip(path: Path) -> None:
+    """Write a valid ZIP file with a small text entry."""
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_STORED) as zf:
+        zf.writestr("test.txt", "hello from zip")
+
+
+def create_encrypted_zip(path: Path) -> None:
+    """Write a ZIP file with the encryption flag set in the local header.
+
+    Creates a valid ZIP structure, then patches byte 6 to set bit 0
+    (encryption flag) in the general purpose bit flag.
+    """
+    create_minimal_zip(path)
+    data = bytearray(path.read_bytes())
+    # Local file header general purpose bit flag is at offset 6
+    flags = struct.unpack_from("<H", data, 6)[0]
+    flags |= 0x01  # Set encryption bit
+    struct.pack_into("<H", data, 6, flags)
+    path.write_bytes(bytes(data))
+
+
+def create_corrupt_pdf(path: Path) -> None:
+    """Write a file with .pdf extension but PNG header bytes."""
+    create_minimal_png(path)
+
+
+def create_encrypted_pdf(path: Path) -> None:
+    """Write a minimal PDF that contains an /Encrypt dictionary marker."""
+    pdf_bytes = (
+        b"%PDF-1.4\n"
+        b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+        b"2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\n"
+        b"3 0 obj<</Type/Encryption/Filter/Standard/V 1"
+        b"/R 2/O(owner)/U(user)/P -3904>>endobj\n"
+        b"xref\n0 4\n"
+        b"0000000000 65535 f \n"
+        b"0000000009 00000 n \n"
+        b"0000000052 00000 n \n"
+        b"0000000095 00000 n \n"
+        b"trailer<</Size 4/Root 1 0 R/Encrypt 3 0 R>>\n"
+        b"startxref\n200\n%%EOF"
+    )
+    path.write_bytes(pdf_bytes)
+
+
+@pytest.fixture()
+def tmp_corpus_with_duplicates(tmp_path: Path) -> Path:
+    """Create a corpus with known duplicate files."""
+    # 3 identical text files
+    text_content = "This is duplicate content for testing purposes.\n"
+    (tmp_path / "file_a.txt").write_text(text_content, encoding="utf-8")
+    (tmp_path / "file_b.txt").write_text(text_content, encoding="utf-8")
+    (tmp_path / "file_c.txt").write_text(text_content, encoding="utf-8")
+
+    # 2 identical binary files
+    binary_content = b"\x00\x01\x02\x03" * 256  # 1KB
+    (tmp_path / "data1.bin").write_bytes(binary_content)
+    (tmp_path / "data2.bin").write_bytes(binary_content)
+
+    # 1 unique file
+    (tmp_path / "unique.txt").write_text("I am unique.", encoding="utf-8")
+
+    return tmp_path
+
+
+@pytest.fixture()
+def tmp_corpus_with_issues(tmp_path: Path) -> Path:
+    """Create a corpus with various file health issues."""
+    # Empty file
+    (tmp_path / "empty.dat").write_bytes(b"")
+
+    # Near-empty file (10 bytes)
+    (tmp_path / "tiny.dat").write_bytes(b"0123456789")
+
+    # Corrupt PDF (PNG header in .pdf extension)
+    create_corrupt_pdf(tmp_path / "corrupt.pdf")
+
+    # Encrypted PDF
+    create_encrypted_pdf(tmp_path / "encrypted.pdf")
+
+    # Encrypted ZIP
+    create_encrypted_zip(tmp_path / "encrypted.zip")
+
+    # Normal valid PDF
+    create_minimal_pdf(tmp_path / "valid.pdf")
+
+    # Normal valid PNG
+    create_minimal_png(tmp_path / "valid.png")
+
+    return tmp_path
