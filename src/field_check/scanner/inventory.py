@@ -144,6 +144,7 @@ class InventoryResult:
     size_distribution: SizeDistribution = field(default_factory=SizeDistribution)
     age_distribution: AgeDistribution = field(default_factory=AgeDistribution)
     dir_structure: DirectoryStructure = field(default_factory=DirectoryStructure)
+    file_types: dict[Path, str] = field(default_factory=dict)
     permission_errors: int = 0
     symlink_loops: int = 0
     excluded_count: int = 0
@@ -257,12 +258,14 @@ def analyze_inventory(
     type_counts: defaultdict[str, int] = defaultdict(int)
     type_sizes: defaultdict[str, int] = defaultdict(int)
     ext_counts: defaultdict[str, int] = defaultdict(int)
+    file_types: dict[Path, str] = {}
     sizes: list[int] = []
     mtimes: list[float] = []
     detection_errors = 0
 
     for i, entry in enumerate(walk_result.files):
         mime = _detect_file_type(entry.path)
+        file_types[entry.path] = mime
         type_counts[mime] += 1
         type_sizes[mime] += entry.size
 
@@ -284,6 +287,7 @@ def analyze_inventory(
         size_distribution=_compute_size_distribution(sizes),
         age_distribution=_compute_age_distribution(mtimes),
         dir_structure=_compute_dir_structure(walk_result),
+        file_types=file_types,
         permission_errors=len(walk_result.permission_errors),
         symlink_loops=len(walk_result.symlink_loops),
         excluded_count=walk_result.excluded_count,

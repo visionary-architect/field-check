@@ -21,6 +21,8 @@ class FieldCheckConfig:
     """Configuration for a Field Check scan."""
 
     exclude: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDES))
+    sampling_rate: float = 0.10
+    sampling_min_per_type: int = 30
 
 
 def load_config(scan_path: Path, config_path: Path | None = None) -> FieldCheckConfig:
@@ -51,7 +53,23 @@ def load_config(scan_path: Path, config_path: Path | None = None) -> FieldCheckC
     exclude = raw.get("exclude")
     patterns = [str(p) for p in exclude] if isinstance(exclude, list) else list(DEFAULT_EXCLUDES)
 
-    return FieldCheckConfig(exclude=patterns)
+    # Parse sampling config
+    sampling = raw.get("sampling", {})
+    sampling_rate = 0.10
+    sampling_min_per_type = 30
+    if isinstance(sampling, dict):
+        rate = sampling.get("rate")
+        if isinstance(rate, (int, float)):
+            sampling_rate = float(max(0.0, min(1.0, rate)))
+        min_per = sampling.get("min_per_type")
+        if isinstance(min_per, int) and min_per >= 0:
+            sampling_min_per_type = min_per
+
+    return FieldCheckConfig(
+        exclude=patterns,
+        sampling_rate=sampling_rate,
+        sampling_min_per_type=sampling_min_per_type,
+    )
 
 
 def should_exclude(relative_path: str, patterns: list[str]) -> bool:
