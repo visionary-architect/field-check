@@ -11,6 +11,7 @@ from field_check.scanner import WalkResult
 from field_check.scanner.corruption import CorruptionResult
 from field_check.scanner.dedup import DedupResult
 from field_check.scanner.inventory import InventoryResult
+from field_check.scanner.pii import PIIScanResult
 from field_check.scanner.sampling import SampleResult
 from field_check.scanner.text import TextExtractionResult
 
@@ -26,6 +27,7 @@ def generate_report(
     corruption_result: CorruptionResult | None = None,
     sample_result: SampleResult | None = None,
     text_result: TextExtractionResult | None = None,
+    pii_result: PIIScanResult | None = None,
 ) -> None:
     """Generate a report in the specified format.
 
@@ -40,6 +42,7 @@ def generate_report(
         corruption_result: Corruption detection results (optional).
         sample_result: Sampling results (optional).
         text_result: Text extraction results (optional).
+        pii_result: PII scan results (optional).
 
     Raises:
         ValueError: If format is not yet supported.
@@ -51,6 +54,7 @@ def generate_report(
             corruption_result=corruption_result,
             sample_result=sample_result,
             text_result=text_result,
+            pii_result=pii_result,
         )
     else:
         raise ValueError(

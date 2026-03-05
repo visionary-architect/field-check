@@ -14,8 +14,9 @@ from field_check.scanner import WalkResult
 from field_check.scanner.corruption import CorruptionResult
 from field_check.scanner.dedup import DedupResult
 from field_check.scanner.inventory import InventoryResult
+from field_check.scanner.pii import PIIScanResult
 from field_check.scanner.sampling import SampleResult, compute_confidence_interval, format_ci
-from field_check.scanner.text import METADATA_FIELDS, TextExtractionResult
+from field_check.scanner.text import METADATA_FIELDS, PAGE_COUNT_BUCKETS, TextExtractionResult
 
 
 def _format_size(size_bytes: int | float) -> str:
@@ -55,6 +56,7 @@ def render_terminal_report(
     corruption_result: CorruptionResult | None = None,
     sample_result: SampleResult | None = None,
     text_result: TextExtractionResult | None = None,
+    pii_result: PIIScanResult | None = None,
 ) -> None:
     """Render a complete terminal report using Rich.
 
@@ -67,6 +69,7 @@ def render_terminal_report(
         corruption_result: Corruption detection results (optional).
         sample_result: Sampling results (optional).
         text_result: Text extraction results (optional).
+        pii_result: PII scan results (optional).
     """
     # Header
     header_lines = [
@@ -98,17 +101,21 @@ def render_terminal_report(
     if text_result is not None and sample_result is not None:
         _render_text_analysis(text_result, sample_result, console)
 
-    # Section 5: Size Distribution
+    # Section 5: PII Risk Indicators
+    if pii_result is not None and sample_result is not None:
+        _render_pii_results(pii_result, sample_result, console)
+
+    # Section 6: Size Distribution
     _render_size_distribution(inventory, console)
 
-    # Section 6: File Age Distribution
+    # Section 7: File Age Distribution
     _render_age_distribution(inventory, console)
 
-    # Section 7: Directory Structure
+    # Section 8: Directory Structure
     _render_dir_structure(inventory, console)
 
-    # Section 8: Issues
-    _render_issues(inventory, dedup_result, text_result, console)
+    # Section 9: Issues
+    _render_issues(inventory, dedup_result, text_result, pii_result, console)
 
     # Footer
     console.print(
@@ -254,6 +261,7 @@ def _render_issues(
     inventory: InventoryResult,
     dedup_result: DedupResult | None,
     text_result: TextExtractionResult | None,
+    pii_result: PIIScanResult | None,
     console: Console,
 ) -> None:
     """Render issues section if any problems were found."""
@@ -271,6 +279,8 @@ def _render_issues(
         issues.append(("Extraction errors", text_result.extraction_errors, "yellow"))
     if text_result is not None and text_result.timeout_errors:
         issues.append(("Extraction timeouts", text_result.timeout_errors, "yellow"))
+    if pii_result is not None and pii_result.scan_errors:
+        issues.append(("PII scan errors", pii_result.scan_errors, "yellow"))
 
     if not issues:
         return
@@ -433,6 +443,9 @@ def _render_text_analysis(
     # Metadata completeness
     _render_metadata_completeness(text, sample, console)
 
+    # Page count distribution
+    _render_page_count_distribution(text, console)
+
     console.print()
 
 
@@ -520,3 +533,125 @@ def _render_metadata_completeness(
         table.add_row(display_name, f"{count:,}", format_ci(ci))
 
     console.print(table)
+
+
+def _render_page_count_distribution(
+    text: TextExtractionResult,
+    console: Console,
+) -> None:
+    """Render page count distribution for documents with pages."""
+    if not text.page_count_distribution:
+        return
+
+    total_docs_with_pages = sum(text.page_count_distribution.values())
+
+    table = Table(title="Page Count Distribution", show_lines=False)
+    table.add_column("Range", style="cyan")
+    table.add_column("Count", justify="right")
+    table.add_column("%", justify="right")
+
+    for _, _, label in PAGE_COUNT_BUCKETS:
+        count = text.page_count_distribution.get(label, 0)
+        if count > 0 or label in ("1 page", "2-5 pages"):
+            pct = count / total_docs_with_pages * 100 if total_docs_with_pages else 0
+            table.add_row(label, f"{count:,}", f"{pct:.1f}%")
+
+    console.print(table)
+    if total_docs_with_pages > 0:
+        mean = text.page_count_total / total_docs_with_pages
+        console.print(Text(
+            f"  Min: {text.page_count_min}  Max: {text.page_count_max}  "
+            f"Mean: {mean:.1f}",
+            style="dim",
+        ))
+
+
+def _render_pii_results(
+    pii: PIIScanResult,
+    sample: SampleResult,
+    console: Console,
+) -> None:
+    """Render PII risk indicators with per-type breakdown."""
+    if pii.total_scanned == 0:
+        return
+
+    # Warning banner if samples are shown
+    if pii.show_pii_samples:
+        console.print(Panel(
+            "[bold yellow]WARNING:[/bold yellow] PII samples shown below. "
+            "Do not share this report without redacting sensitive data.",
+            border_style="yellow",
+            title="Privacy Warning",
+        ))
+
+    # Summary table
+    summary = Table(title="PII Risk Indicators", show_lines=False)
+    summary.add_column("Metric", style="cyan")
+    summary.add_column("Value", justify="right")
+    summary.add_row("Files scanned for PII", f"{pii.total_scanned:,}")
+    summary.add_row("Files with PII indicators", f"{pii.files_with_pii:,}")
+    if pii.scan_errors:
+        summary.add_row("[yellow]Scan errors[/yellow]", f"{pii.scan_errors:,}")
+    console.print(summary)
+
+    # Per-type breakdown tables
+    if not pii.per_type_counts:
+        console.print(Text("  No PII risk indicators found.", style="dim"))
+        console.print()
+        return
+
+    for pattern_name in pii.per_type_counts:
+        label = pii.pattern_labels.get(pattern_name, pattern_name)
+        match_count = pii.per_type_counts[pattern_name]
+        file_count = pii.per_type_file_counts.get(pattern_name, 0)
+        fp_rate = pii.pattern_fp_rates.get(pattern_name, 0.0)
+
+        ci = compute_confidence_interval(
+            file_count, pii.total_scanned, sample.total_population_size
+        )
+
+        table = Table(title=f"  {label}", show_lines=False)
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", justify="right")
+        table.add_row("Total matches", f"{match_count:,}")
+        table.add_row("Files affected", f"{file_count:,}")
+        table.add_row("Corpus exposure", format_ci(ci))
+        if fp_rate > 0:
+            table.add_row("Expected FP rate", f"~{fp_rate:.0%}")
+        console.print(table)
+
+    # Show sample matches if --show-pii-samples
+    if pii.show_pii_samples:
+        _render_pii_samples(pii, console)
+
+    console.print()
+
+
+def _render_pii_samples(pii: PIIScanResult, console: Console) -> None:
+    """Render PII sample matches (only with --show-pii-samples)."""
+    from pathlib import Path
+
+    samples: list[tuple[str, str, str, int]] = []
+    for fr in pii.file_results:
+        for m in fr.sample_matches:
+            samples.append((fr.path, m.pattern_name, m.matched_text, m.line_number))
+
+    if not samples:
+        return
+
+    table = Table(title="PII Samples (first 5 per file)", show_lines=False)
+    table.add_column("File", style="dim")
+    table.add_column("Type")
+    table.add_column("Match", style="red")
+    table.add_column("Line", justify="right")
+
+    for path, ptype, match, line in samples[:20]:
+        short_path = Path(path).name
+        label = pii.pattern_labels.get(ptype, ptype)
+        table.add_row(short_path, label, match, str(line))
+
+    console.print(table)
+    if len(samples) > 20:
+        console.print(Text(
+            f"  ... and {len(samples) - 20} more matches", style="dim"
+        ))

@@ -16,6 +16,7 @@ from field_check.scanner import walk_directory
 from field_check.scanner.corruption import check_corruption
 from field_check.scanner.dedup import compute_hashes
 from field_check.scanner.inventory import analyze_inventory
+from field_check.scanner.pii import scan_pii
 from field_check.scanner.sampling import select_sample
 from field_check.scanner.text import extract_text
 
@@ -53,6 +54,10 @@ def main() -> None:
     "--sampling-rate", type=float, default=None,
     help="Sampling rate for content analysis (0.0-1.0, default: 0.10).",
 )
+@click.option(
+    "--show-pii-samples", is_flag=True, default=False,
+    help="Show matched PII content in report (WARNING: exposes sensitive data).",
+)
 def scan(
     path: str,
     config_path: str | None,
@@ -60,6 +65,7 @@ def scan(
     output_format: str,
     output: str | None,
     sampling_rate: float | None,
+    show_pii_samples: bool,
 ) -> None:
     """Scan a document corpus and generate a health report."""
     scan_path = Path(path).resolve()
@@ -153,6 +159,26 @@ def scan(
                 sample, inventory, progress_callback=on_extract
             )
 
+    # Set show_pii_samples on config
+    if show_pii_samples:
+        config.show_pii_samples = True
+
+    # Scan for PII patterns
+    pii_result = None
+    if sample.total_sample_size > 0:
+        with console.status(
+            "[bold blue]Scanning for PII...", spinner="dots"
+        ) as status:
+            def on_pii(current: int, total: int) -> None:
+                status.update(
+                    f"[bold blue]Scanning for PII... "
+                    f"[cyan]{current}[/cyan]/[cyan]{total}[/cyan]"
+                )
+
+            pii_result = scan_pii(
+                sample, inventory, config, progress_callback=on_pii
+            )
+
     elapsed = time.monotonic() - scan_start
 
     # Generate report
@@ -164,6 +190,7 @@ def scan(
             corruption_result=corruption_result,
             sample_result=sample,
             text_result=text_result,
+            pii_result=pii_result,
         )
     except ValueError as exc:
         raise click.UsageError(str(exc)) from exc

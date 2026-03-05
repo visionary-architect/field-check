@@ -340,6 +340,43 @@ def tmp_corpus_with_documents(tmp_path: Path) -> Path:
     return tmp_path
 
 
+def create_pdf_with_pii(path: Path) -> None:
+    """Create a PDF containing PII-like content for testing."""
+    text = (
+        "Contact: john.doe@example.com\n"
+        "SSN: 123-45-6789\n"
+        "Phone: (555) 123-4567\n"
+        "CC: 4111 1111 1111 1111\n"
+        "IP: 192.168.1.100\n"
+        "Normal text without PII here."
+    )
+    create_pdf_with_text(path, text)
+
+
+@pytest.fixture()
+def tmp_corpus_with_pii(tmp_path: Path) -> Path:
+    """Corpus with files containing PII-like content."""
+    # PDF with PII
+    create_pdf_with_pii(tmp_path / "pii_doc.pdf")
+    # Clean PDF (no PII)
+    create_pdf_with_text(tmp_path / "clean.pdf", "No sensitive data here at all.")
+    # Text file with PII
+    pii_txt = tmp_path / "contacts.txt"
+    pii_txt.write_text(
+        "Email: alice@test.org\nPhone: 555-987-6543\n",
+        encoding="utf-8",
+    )
+    # CSV with PII-like content
+    pii_csv = tmp_path / "data.csv"
+    pii_csv.write_text(
+        "name,email,ssn\nBob,bob@corp.io,987-65-4321\n",
+        encoding="utf-8",
+    )
+    # Clean text file
+    (tmp_path / "readme.txt").write_text("No PII here.", encoding="utf-8")
+    return tmp_path
+
+
 @pytest.fixture()
 def tmp_corpus_with_issues(tmp_path: Path) -> Path:
     """Create a corpus with various file health issues."""
