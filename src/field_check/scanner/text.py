@@ -235,22 +235,21 @@ def extract_text(
     workers = max_workers or min(MAX_WORKERS, os.cpu_count() or 1)
 
     with ProcessPoolExecutor(max_workers=workers) as pool:
-        future_to_entry = {}
+        future_to_info: dict = {}
         for entry, mime in extractable:
             future = pool.submit(_extract_single, str(entry.path), mime)
-            future_to_entry[future] = entry
+            future_to_info[future] = (entry, mime)
 
-        for completed, future in enumerate(as_completed(future_to_entry), 1):
+        for completed, future in enumerate(as_completed(future_to_info), 1):
+            entry, mime = future_to_info[future]
             try:
                 text_result = future.result(timeout=timeout)
             except TimeoutError:
-                entry = future_to_entry[future]
                 text_result = TextResult(
                     path=str(entry.path), error="Extraction timed out"
                 )
                 result.timeout_errors += 1
             except Exception as exc:
-                entry = future_to_entry[future]
                 text_result = TextResult(path=str(entry.path), error=str(exc))
 
             result.file_results.append(text_result)
@@ -259,13 +258,14 @@ def extract_text(
             if text_result.error:
                 result.extraction_errors += 1
             else:
-                # Scanned detection counts
-                if text_result.is_scanned:
-                    result.scanned_count += 1
-                elif text_result.is_mixed_scan:
-                    result.mixed_scan_count += 1
-                else:
-                    result.native_count += 1
+                # Scanned detection counts (PDF-only concept)
+                if mime == "application/pdf":
+                    if text_result.is_scanned:
+                        result.scanned_count += 1
+                    elif text_result.is_mixed_scan:
+                        result.mixed_scan_count += 1
+                    else:
+                        result.native_count += 1
 
                 # Content classification counts
                 if text_result.classification == CLASSIFICATION_TEXT_HEAVY:

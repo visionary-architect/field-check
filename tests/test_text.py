@@ -113,9 +113,9 @@ def test_extract_text_aggregate_counts(tmp_corpus_with_documents: Path) -> None:
     assert isinstance(result, TextExtractionResult)
     # 4 PDFs + 2 DOCXes = 6 extractable files
     assert result.total_processed == 6
-    # Counts should sum to total minus errors
-    classified = result.scanned_count + result.native_count + result.mixed_scan_count
-    assert classified + result.extraction_errors == result.total_processed
+    # Scanned/native/mixed counts are PDF-only (4 PDFs)
+    pdf_classified = result.scanned_count + result.native_count + result.mixed_scan_count
+    assert pdf_classified == 4
 
 
 def test_extract_text_scanned_detection(tmp_corpus_with_documents: Path) -> None:
