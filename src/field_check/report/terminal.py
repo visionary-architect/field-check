@@ -14,6 +14,8 @@ from field_check.scanner import WalkResult
 from field_check.scanner.corruption import CorruptionResult
 from field_check.scanner.dedup import DedupResult
 from field_check.scanner.inventory import InventoryResult
+from field_check.scanner.sampling import SampleResult, compute_confidence_interval, format_ci
+from field_check.scanner.text import METADATA_FIELDS, TextExtractionResult
 
 
 def _format_size(size_bytes: int | float) -> str:
@@ -51,6 +53,8 @@ def render_terminal_report(
     console: Console,
     dedup_result: DedupResult | None = None,
     corruption_result: CorruptionResult | None = None,
+    sample_result: SampleResult | None = None,
+    text_result: TextExtractionResult | None = None,
 ) -> None:
     """Render a complete terminal report using Rich.
 
@@ -61,6 +65,8 @@ def render_terminal_report(
         console: Rich console for output.
         dedup_result: Duplicate detection results (optional).
         corruption_result: Corruption detection results (optional).
+        sample_result: Sampling results (optional).
+        text_result: Text extraction results (optional).
     """
     # Header
     header_lines = [
@@ -88,17 +94,21 @@ def render_terminal_report(
     if corruption_result is not None:
         _render_corruption_summary(corruption_result, walk_result, console)
 
-    # Section 4: Size Distribution
+    # Section 4: Document Content Analysis
+    if text_result is not None and sample_result is not None:
+        _render_text_analysis(text_result, sample_result, console)
+
+    # Section 5: Size Distribution
     _render_size_distribution(inventory, console)
 
-    # Section 5: File Age Distribution
+    # Section 6: File Age Distribution
     _render_age_distribution(inventory, console)
 
-    # Section 6: Directory Structure
+    # Section 7: Directory Structure
     _render_dir_structure(inventory, console)
 
-    # Section 7: Issues
-    _render_issues(inventory, dedup_result, console)
+    # Section 8: Issues
+    _render_issues(inventory, dedup_result, text_result, console)
 
     # Footer
     console.print(
@@ -243,6 +253,7 @@ def _render_dir_structure(inventory: InventoryResult, console: Console) -> None:
 def _render_issues(
     inventory: InventoryResult,
     dedup_result: DedupResult | None,
+    text_result: TextExtractionResult | None,
     console: Console,
 ) -> None:
     """Render issues section if any problems were found."""
@@ -256,6 +267,10 @@ def _render_issues(
         issues.append(("Type detection errors", inventory.type_detection_errors, "yellow"))
     if dedup_result is not None and dedup_result.hash_errors:
         issues.append(("Hash errors", dedup_result.hash_errors, "yellow"))
+    if text_result is not None and text_result.extraction_errors:
+        issues.append(("Extraction errors", text_result.extraction_errors, "yellow"))
+    if text_result is not None and text_result.timeout_errors:
+        issues.append(("Extraction timeouts", text_result.timeout_errors, "yellow"))
 
     if not issues:
         return
@@ -386,3 +401,122 @@ def _render_corruption_summary(
             ))
 
     console.print()
+
+
+def _render_text_analysis(
+    text: TextExtractionResult,
+    sample: SampleResult,
+    console: Console,
+) -> None:
+    """Render document content analysis with confidence intervals."""
+    if text.total_processed == 0:
+        return
+
+    # Summary
+    summary = Table(title="Document Content Analysis", show_lines=False)
+    summary.add_column("Metric", style="cyan")
+    summary.add_column("Value", justify="right")
+    summary.add_row("Files analyzed", f"{text.total_processed:,}")
+    summary.add_row("Total corpus files", f"{sample.total_population_size:,}")
+    rate_pct = sample.sampling_rate * 100
+    summary.add_row("Sampling rate", f"{rate_pct:.0f}%")
+    if text.extraction_errors:
+        summary.add_row("[yellow]Extraction errors[/yellow]", f"{text.extraction_errors:,}")
+    console.print(summary)
+
+    # Scanned PDF detection
+    _render_scanned_detection(text, sample, console)
+
+    # Content classification
+    _render_content_classification(text, sample, console)
+
+    # Metadata completeness
+    _render_metadata_completeness(text, sample, console)
+
+    console.print()
+
+
+def _render_scanned_detection(
+    text: TextExtractionResult,
+    sample: SampleResult,
+    console: Console,
+) -> None:
+    """Render scanned vs native PDF detection with confidence intervals."""
+    total_classified = text.scanned_count + text.native_count + text.mixed_scan_count
+    if total_classified == 0:
+        return
+
+    pdf_pop = sample.per_type_population.get("application/pdf", total_classified)
+
+    table = Table(title="Scanned PDF Detection", show_lines=False)
+    table.add_column("Category", style="cyan")
+    table.add_column("Count", justify="right")
+    table.add_column("Proportion", justify="right")
+
+    for label, count in [
+        ("Native (has text layer)", text.native_count),
+        ("Scanned (image-only)", text.scanned_count),
+        ("Mixed (partial text)", text.mixed_scan_count),
+    ]:
+        if count > 0 or label.startswith("Native"):
+            ci = compute_confidence_interval(count, total_classified, pdf_pop)
+            table.add_row(label, f"{count:,}", format_ci(ci))
+
+    console.print(table)
+
+
+def _render_content_classification(
+    text: TextExtractionResult,
+    sample: SampleResult,
+    console: Console,
+) -> None:
+    """Render text-heavy vs image-heavy classification with CIs."""
+    total = text.text_heavy_count + text.image_heavy_count + text.mixed_content_count
+    if total == 0:
+        return
+
+    pop = text.total_processed - text.extraction_errors
+    if pop <= 0:
+        pop = total
+
+    table = Table(title="Content Classification", show_lines=False)
+    table.add_column("Classification", style="cyan")
+    table.add_column("Count", justify="right")
+    table.add_column("Proportion", justify="right")
+
+    for label, count in [
+        ("Text-heavy (>500 chars/page)", text.text_heavy_count),
+        ("Image-heavy (<100 chars/page)", text.image_heavy_count),
+        ("Mixed (100-500 chars/page)", text.mixed_content_count),
+    ]:
+        if count > 0:
+            ci = compute_confidence_interval(count, total, pop)
+            table.add_row(label, f"{count:,}", format_ci(ci))
+
+    console.print(table)
+
+
+def _render_metadata_completeness(
+    text: TextExtractionResult,
+    sample: SampleResult,
+    console: Console,
+) -> None:
+    """Render per-field metadata completeness with confidence intervals."""
+    if text.metadata_total_checked == 0:
+        return
+
+    n = text.metadata_total_checked
+    pop = n  # population is the checked files
+
+    table = Table(title="Metadata Completeness", show_lines=False)
+    table.add_column("Field", style="cyan")
+    table.add_column("Files with value", justify="right")
+    table.add_column("Completeness", justify="right")
+
+    for field_name in METADATA_FIELDS:
+        count = text.metadata_field_counts.get(field_name, 0)
+        ci = compute_confidence_interval(count, n, pop)
+        display_name = field_name.replace("_", " ").title()
+        table.add_row(display_name, f"{count:,}", format_ci(ci))
+
+    console.print(table)

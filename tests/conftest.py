@@ -179,6 +179,167 @@ def tmp_corpus_with_duplicates(tmp_path: Path) -> Path:
     return tmp_path
 
 
+def create_pdf_with_text(path: Path, text: str = "Hello world", pages: int = 1) -> None:
+    """Create a PDF with actual text content that pdfplumber can extract."""
+    # Build a minimal but valid PDF with text content streams
+    objects: list[bytes] = []
+    offsets: list[int] = []
+    pos = 0
+
+    header = b"%PDF-1.4\n"
+    pos = len(header)
+
+    # Object 1: Catalog
+    offsets.append(pos)
+    obj1 = b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+    objects.append(obj1)
+    pos += len(obj1)
+
+    # Object 2: Pages
+    kids = " ".join(f"{3 + i * 2} 0 R" for i in range(pages))
+    offsets.append(pos)
+    obj2 = f"2 0 obj<</Type/Pages/Kids[{kids}]/Count {pages}>>endobj\n".encode()
+    objects.append(obj2)
+    pos += len(obj2)
+
+    # Object 3: Font
+    offsets.append(pos)
+    obj_font = b"3 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n"
+    objects.append(obj_font)
+    pos += len(obj_font)
+
+    # For each page: Page object + Content stream
+    page_obj_num = 4
+    for i in range(pages):
+        page_text = f"{text} (page {i + 1})" if pages > 1 else text
+        stream_content = (
+            f"BT /F1 12 Tf 72 720 Td ({page_text}) Tj ET"
+        ).encode()
+        stream_len = len(stream_content)
+
+        # Page object
+        offsets.append(pos)
+        page_obj = (
+            f"{page_obj_num} 0 obj<</Type/Page/Parent 2 0 R"
+            f"/MediaBox[0 0 612 792]"
+            f"/Resources<</Font<</F1 3 0 R>>>>"
+            f"/Contents {page_obj_num + 1} 0 R>>endobj\n"
+        ).encode()
+        objects.append(page_obj)
+        pos += len(page_obj)
+
+        # Content stream
+        offsets.append(pos)
+        stream_obj = (
+            f"{page_obj_num + 1} 0 obj<</Length {stream_len}>>\n"
+            f"stream\n"
+        ).encode() + stream_content + b"\nendstream\nendobj\n"
+        objects.append(stream_obj)
+        pos += len(stream_obj)
+
+        page_obj_num += 2
+
+    # Cross-reference table
+    xref_pos = pos
+    total_objs = page_obj_num
+    xref = f"xref\n0 {total_objs}\n0000000000 65535 f \n".encode()
+    for offset in offsets:
+        xref += f"{offset:010d} 00000 n \n".encode()
+
+    trailer = (
+        f"trailer<</Size {total_objs}/Root 1 0 R>>\n"
+        f"startxref\n{xref_pos}\n%%EOF"
+    ).encode()
+
+    path.write_bytes(header + b"".join(objects) + xref + trailer)
+
+
+def create_scanned_pdf(path: Path) -> None:
+    """Create a PDF with no text layer (simulates a scanned document).
+
+    Uses image XObject reference instead of text operators so pdfplumber
+    will find zero char objects on each page.
+    """
+    # Content stream with only an image Do operator (no text)
+    stream_content = b"q 612 0 0 792 0 0 cm /Im1 Do Q"
+    stream_len = len(stream_content)
+
+    pdf = (
+        b"%PDF-1.4\n"
+        b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+        b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+        b"3 0 obj<</Type/Page/Parent 2 0 R"
+        b"/MediaBox[0 0 612 792]"
+        b"/Contents 4 0 R>>endobj\n"
+    )
+    pdf += (
+        f"4 0 obj<</Length {stream_len}>>\nstream\n"
+    ).encode() + stream_content + b"\nendstream\nendobj\n"
+
+    xref_pos = len(pdf)
+    pdf += (
+        b"xref\n0 5\n"
+        b"0000000000 65535 f \n"
+        b"0000000009 00000 n \n"
+        b"0000000052 00000 n \n"
+        b"0000000101 00000 n \n"
+        b"0000000200 00000 n \n"
+    )
+    pdf += f"trailer<</Size 5/Root 1 0 R>>\nstartxref\n{xref_pos}\n%%EOF".encode()
+    path.write_bytes(pdf)
+
+
+def create_minimal_docx(
+    path: Path,
+    text: str = "Hello world",
+    title: str = "",
+    author: str = "",
+) -> None:
+    """Create a minimal DOCX with text and optional metadata."""
+    from docx import Document
+
+    doc = Document()
+    doc.add_paragraph(text)
+    if title:
+        doc.core_properties.title = title
+    if author:
+        doc.core_properties.author = author
+    doc.save(str(path))
+
+
+@pytest.fixture()
+def tmp_corpus_with_documents(tmp_path: Path) -> Path:
+    """Corpus with PDFs and DOCXes for text extraction testing."""
+    # Native PDFs with text
+    create_pdf_with_text(tmp_path / "report1.pdf", "First report content")
+    create_pdf_with_text(tmp_path / "report2.pdf", "Second report with more text " * 20)
+    create_pdf_with_text(
+        tmp_path / "multipage.pdf", "Multi-page document", pages=3
+    )
+
+    # Scanned PDF (no text layer)
+    create_scanned_pdf(tmp_path / "scanned.pdf")
+
+    # DOCX files with metadata
+    create_minimal_docx(
+        tmp_path / "letter.docx",
+        text="Dear Sir, This is a test letter.",
+        title="Test Letter",
+        author="John Doe",
+    )
+    create_minimal_docx(
+        tmp_path / "memo.docx",
+        text="Internal memo content here.",
+        title="Memo",
+    )
+
+    # Plain text files (not extractable by text.py)
+    (tmp_path / "readme.txt").write_text("Just a readme file.", encoding="utf-8")
+    (tmp_path / "data.csv").write_text("a,b,c\n1,2,3\n", encoding="utf-8")
+
+    return tmp_path
+
+
 @pytest.fixture()
 def tmp_corpus_with_issues(tmp_path: Path) -> Path:
     """Create a corpus with various file health issues."""

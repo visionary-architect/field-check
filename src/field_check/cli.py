@@ -16,6 +16,8 @@ from field_check.scanner import walk_directory
 from field_check.scanner.corruption import check_corruption
 from field_check.scanner.dedup import compute_hashes
 from field_check.scanner.inventory import analyze_inventory
+from field_check.scanner.sampling import select_sample
+from field_check.scanner.text import extract_text
 
 console = Console()
 
@@ -47,12 +49,17 @@ def main() -> None:
     "--output", "-o", type=click.Path(), default=None,
     help="Output file path (for non-terminal formats).",
 )
+@click.option(
+    "--sampling-rate", type=float, default=None,
+    help="Sampling rate for content analysis (0.0-1.0, default: 0.10).",
+)
 def scan(
     path: str,
     config_path: str | None,
     exclude: tuple[str, ...],
     output_format: str,
     output: str | None,
+    sampling_rate: float | None,
 ) -> None:
     """Scan a document corpus and generate a health report."""
     scan_path = Path(path).resolve()
@@ -122,6 +129,30 @@ def scan(
 
         corruption_result = check_corruption(result, progress_callback=on_check)
 
+    # Override sampling rate from CLI if provided
+    if sampling_rate is not None:
+        config.sampling_rate = max(0.0, min(1.0, sampling_rate))
+
+    # Select sample for content analysis
+    with console.status("[bold blue]Selecting sample...", spinner="dots"):
+        sample = select_sample(result, inventory, config)
+
+    # Extract text from sampled PDF/DOCX files
+    text_result = None
+    if sample.total_sample_size > 0:
+        with console.status(
+            "[bold blue]Extracting text...", spinner="dots"
+        ) as status:
+            def on_extract(current: int, total: int) -> None:
+                status.update(
+                    f"[bold blue]Extracting text... "
+                    f"[cyan]{current}[/cyan]/[cyan]{total}[/cyan]"
+                )
+
+            text_result = extract_text(
+                sample, inventory, progress_callback=on_extract
+            )
+
     elapsed = time.monotonic() - scan_start
 
     # Generate report
@@ -131,6 +162,8 @@ def scan(
             output_format, inventory, result, elapsed, output_path, console,
             dedup_result=dedup_result,
             corruption_result=corruption_result,
+            sample_result=sample,
+            text_result=text_result,
         )
     except ValueError as exc:
         raise click.UsageError(str(exc)) from exc
