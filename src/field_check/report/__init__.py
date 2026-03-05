@@ -6,6 +6,9 @@ from pathlib import Path
 
 from rich.console import Console
 
+from field_check.config import FieldCheckConfig
+from field_check.report.csv_report import render_csv_report
+from field_check.report.json_report import render_json_report
 from field_check.report.terminal import render_terminal_report
 from field_check.scanner import WalkResult
 from field_check.scanner.corruption import CorruptionResult
@@ -17,6 +20,11 @@ from field_check.scanner.pii import PIIScanResult
 from field_check.scanner.sampling import SampleResult
 from field_check.scanner.simhash import SimHashResult
 from field_check.scanner.text import TextExtractionResult
+
+_REPORT_KWARGS_KEYS = [
+    "dedup_result", "corruption_result", "sample_result", "text_result",
+    "pii_result", "language_result", "encoding_result", "simhash_result",
+]
 
 
 def generate_report(
@@ -56,19 +64,74 @@ def generate_report(
     Raises:
         ValueError: If format is not yet supported.
     """
+    kwargs = {
+        "dedup_result": dedup_result,
+        "corruption_result": corruption_result,
+        "sample_result": sample_result,
+        "text_result": text_result,
+        "pii_result": pii_result,
+        "language_result": language_result,
+        "encoding_result": encoding_result,
+        "simhash_result": simhash_result,
+    }
+
     if fmt == "terminal":
         render_terminal_report(
             inventory, walk_result, elapsed_seconds, console,
-            dedup_result=dedup_result,
-            corruption_result=corruption_result,
-            sample_result=sample_result,
-            text_result=text_result,
-            pii_result=pii_result,
-            language_result=language_result,
-            encoding_result=encoding_result,
-            simhash_result=simhash_result,
+            **kwargs,
         )
+    elif fmt == "json":
+        content = render_json_report(
+            inventory, walk_result, elapsed_seconds, **kwargs,
+        )
+        path = output_path or Path("field-check-report.json")
+        path.write_text(content, encoding="utf-8")
+        console.print(f"Report saved to [bold]{path}[/bold]")
+    elif fmt == "csv":
+        content = render_csv_report(
+            inventory, walk_result, elapsed_seconds, **kwargs,
+        )
+        path = output_path or Path("field-check-report.csv")
+        path.write_text(content, encoding="utf-8")
+        console.print(f"Report saved to [bold]{path}[/bold]")
     else:
         raise ValueError(
-            f"Format '{fmt}' not yet supported. Available: terminal"
+            f"Format '{fmt}' not yet supported. Available: terminal, json, csv"
         )
+
+
+def determine_exit_code(
+    config: FieldCheckConfig,
+    inventory: InventoryResult,
+    dedup_result: DedupResult | None = None,
+    corruption_result: CorruptionResult | None = None,
+    pii_result: PIIScanResult | None = None,
+) -> int:
+    """Determine CI exit code based on configured thresholds.
+
+    Args:
+        config: Configuration with threshold values.
+        inventory: Inventory results for total file count.
+        dedup_result: Duplicate detection results.
+        corruption_result: Corruption detection results.
+        pii_result: PII scan results.
+
+    Returns:
+        0 if no critical findings, 1 if any threshold exceeded.
+    """
+    if dedup_result is not None:
+        dup_rate = dedup_result.duplicate_percentage / 100.0
+        if dup_rate >= config.duplicate_critical:
+            return 1
+
+    if corruption_result is not None and inventory.total_files > 0:
+        corrupt_rate = corruption_result.corrupt_count / inventory.total_files
+        if corrupt_rate >= config.corrupt_critical:
+            return 1
+
+    if pii_result is not None and pii_result.total_scanned > 0:
+        pii_rate = pii_result.files_with_pii / pii_result.total_scanned
+        if pii_rate >= config.pii_critical:
+            return 1
+
+    return 0

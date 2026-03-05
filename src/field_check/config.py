@@ -27,6 +27,9 @@ class FieldCheckConfig:
     pii_custom_patterns: list[dict[str, str]] = field(default_factory=list)
     show_pii_samples: bool = False
     simhash_threshold: int = 5
+    pii_critical: float = 0.05
+    duplicate_critical: float = 0.10
+    corrupt_critical: float = 0.01
 
 
 def load_config(scan_path: Path, config_path: Path | None = None) -> FieldCheckConfig:
@@ -100,12 +103,31 @@ def load_config(scan_path: Path, config_path: Path | None = None) -> FieldCheckC
         if isinstance(thresh, int):
             simhash_threshold = max(0, min(64, thresh))
 
+    # Parse thresholds config
+    pii_critical = 0.05
+    duplicate_critical = 0.10
+    corrupt_critical = 0.01
+    thresholds_section = raw.get("thresholds", {})
+    if isinstance(thresholds_section, dict):
+        pii_t = thresholds_section.get("pii_critical")
+        if isinstance(pii_t, (int, float)):
+            pii_critical = max(0.0, min(1.0, float(pii_t)))
+        dup_t = thresholds_section.get("duplicate_critical")
+        if isinstance(dup_t, (int, float)):
+            duplicate_critical = max(0.0, min(1.0, float(dup_t)))
+        cor_t = thresholds_section.get("corrupt_critical")
+        if isinstance(cor_t, (int, float)):
+            corrupt_critical = max(0.0, min(1.0, float(cor_t)))
+
     return FieldCheckConfig(
         exclude=patterns,
         sampling_rate=sampling_rate,
         sampling_min_per_type=sampling_min_per_type,
         pii_custom_patterns=pii_custom_patterns,
         simhash_threshold=simhash_threshold,
+        pii_critical=pii_critical,
+        duplicate_critical=duplicate_critical,
+        corrupt_critical=corrupt_critical,
     )
 
 
