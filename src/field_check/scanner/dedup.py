@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import logging
+import os
+from collections import defaultdict
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -15,6 +18,9 @@ logger = logging.getLogger(__name__)
 
 # 64KB read chunks balance memory vs syscall overhead
 _CHUNK_SIZE = 65536
+
+# Max worker threads for parallel hashing
+_MAX_WORKERS = 4
 
 
 @dataclass
@@ -58,12 +64,17 @@ def _hash_file(filepath: Path) -> str:
 def compute_hashes(
     walk_result: WalkResult,
     progress_callback: Callable[[int, int], None] | None = None,
+    max_workers: int | None = None,
 ) -> DedupResult:
     """Hash all files and detect exact duplicates.
+
+    Uses ThreadPoolExecutor for parallel hashing — BLAKE3's Rust backend
+    releases the GIL, so threads can overlap I/O and CPU work.
 
     Args:
         walk_result: Results from directory walk.
         progress_callback: Called with (current, total) after each file.
+        max_workers: Max hash threads (default: min(4, cpu_count)).
 
     Returns:
         DedupResult with duplicate groups and statistics.
@@ -74,32 +85,51 @@ def compute_hashes(
 
     # Pre-filter: group by size, only hash files that share a size
     # with at least one other file. Unique sizes can never be duplicates.
-    from collections import defaultdict
-
     size_groups: dict[int, list] = defaultdict(list)
     for entry in walk_result.files:
         size_groups[entry.size].append(entry)
 
-    candidates = {
-        id(entry)
+    candidate_entries = [
+        entry
         for entries in size_groups.values()
         if len(entries) >= 2
         for entry in entries
-    }
+    ]
 
-    for i, entry in enumerate(walk_result.files):
-        if id(entry) in candidates:
-            try:
-                file_hash = _hash_file(entry.path)
-                if file_hash not in hash_map:
-                    hash_map[file_hash] = []
-                hash_map[file_hash].append((entry.path, entry.size))
-            except (PermissionError, OSError):
-                logger.debug("Could not hash file: %s", entry.path)
-                hash_errors += 1
+    candidate_set = {id(e) for e in candidate_entries}
+    completed = 0
 
-        if progress_callback is not None:
-            progress_callback(i + 1, total)
+    # Report progress for non-candidates (skipped, no hashing needed)
+    if progress_callback is not None:
+        for entry in walk_result.files:
+            if id(entry) not in candidate_set:
+                completed += 1
+                progress_callback(completed, total)
+
+    # Hash candidates in parallel (BLAKE3 releases the GIL)
+    if candidate_entries:
+        workers = max_workers or min(_MAX_WORKERS, os.cpu_count() or 1)
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            future_to_entry = {
+                pool.submit(_hash_file, entry.path): entry
+                for entry in candidate_entries
+            }
+
+            for future in as_completed(future_to_entry):
+                entry = future_to_entry[future]
+                try:
+                    file_hash = future.result()
+                    if file_hash not in hash_map:
+                        hash_map[file_hash] = []
+                    hash_map[file_hash].append((entry.path, entry.size))
+                except (PermissionError, OSError):
+                    logger.debug("Could not hash file: %s", entry.path)
+                    hash_errors += 1
+
+                completed += 1
+                if progress_callback is not None:
+                    progress_callback(completed, total)
 
     # Build duplicate groups (2+ files with same hash)
     duplicate_groups: list[DuplicateGroup] = []
