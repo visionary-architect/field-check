@@ -122,6 +122,7 @@ def _extract_pdf(filepath: str) -> TextResult:
             scanned_pages = 0
             native_pages = 0
 
+            total_text_len = 0
             for page in pdf.pages:
                 # Count char objects for scanned detection
                 char_count = len(page.chars) if page.chars else 0
@@ -133,9 +134,10 @@ def _extract_pdf(filepath: str) -> TextResult:
 
                 # Extract text
                 text = page.extract_text() or ""
+                total_text_len += len(text)
                 total_text_bytes += len(text.encode("utf-8", errors="replace"))
 
-            result.text_length = total_chars
+            result.text_length = total_text_len
 
             # Scanned detection
             if result.page_count > 0:
