@@ -445,6 +445,25 @@ class TestJSONGaps:
         assert data["summary"]["encoding"]["total_analyzed"] == 1
 
 
+# -- encoding.py --------------------------------------------------------------
+
+
+class TestEncodingGaps:
+    def test_normalize_unknown_encoding(self):
+        from field_check.scanner.encoding import _normalize_encoding
+
+        # Unknown codec falls back to lowercased name
+        assert _normalize_encoding("totally-fake-codec-xyz") == "totally-fake-codec-xyz"
+
+    def test_normalize_codecs_lookup(self):
+        from field_check.scanner.encoding import _normalize_encoding
+
+        # codecs.lookup handles alias resolution
+        assert _normalize_encoding("latin-1") == "iso-8859-1"
+        assert _normalize_encoding("ASCII") == "utf-8"
+        assert _normalize_encoding("CP1252") == "windows-1252"
+
+
 # -- corruption.py ------------------------------------------------------------
 
 

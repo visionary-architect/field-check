@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
+import codecs
 import logging
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
-# Canonical encoding name mapping for normalization
-_ENCODING_ALIASES: dict[str, str] = {
+# Display name overrides applied after codecs.lookup() normalization.
+# codecs.lookup handles all alias→canonical mapping; this dict only
+# covers cases where we want a different display name.
+_DISPLAY_OVERRIDES: dict[str, str] = {
     "ascii": "utf-8",           # ASCII is a subset of UTF-8
     "utf-8-sig": "utf-8",       # UTF-8 with BOM
-    "iso8859-1": "iso-8859-1",
-    "latin-1": "iso-8859-1",
-    "latin1": "iso-8859-1",
     "cp1252": "windows-1252",
+    "iso8859-1": "iso-8859-1",
     "iso8859-15": "iso-8859-15",
-    "latin-9": "iso-8859-15",
 }
 
 
@@ -48,8 +48,11 @@ def _normalize_encoding(encoding: str) -> str:
     Returns:
         Canonical encoding name (e.g., "utf-8", "iso-8859-1").
     """
-    lower = encoding.lower().strip().replace("_", "-")
-    return _ENCODING_ALIASES.get(lower, lower)
+    try:
+        canonical = codecs.lookup(encoding).name
+    except LookupError:
+        canonical = encoding.lower().strip()
+    return _DISPLAY_OVERRIDES.get(canonical, canonical)
 
 
 def analyze_encodings(
