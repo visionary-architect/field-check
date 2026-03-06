@@ -32,10 +32,10 @@ from field_check.scanner.text import (
     CHARS_PER_PAGE_IMAGE_HEAVY,
     CHARS_PER_PAGE_TEXT_HEAVY,
     TEXT_SIZE_RATIO_IMAGE_HEAVY,
-    _extract_pdf,
     _page_count_bucket,
     build_text_cache,
 )
+from field_check.scanner.text_workers import _extract_pdf
 
 ROOT = Path("/corpus")
 
@@ -278,7 +278,7 @@ class TestPDFClassificationMixedZone:
 class TestTextCacheFalsyCharset:
     def test_cache_plain_text_charset_falsy(self, tmp_path):
         """text.py line 403: charset_normalizer returns falsy -> raw decode."""
-        from field_check.scanner.text import _extract_text_for_cache
+        from field_check.scanner.text_workers import _extract_text_for_cache
 
         p = tmp_path / "binary.txt"
         p.write_bytes(b"\x80\x81\x82\x83" * 10)
@@ -1002,7 +1002,7 @@ class TestPDFClassificationTextHeavy:
 class TestExtractSinglePDF:
     def test_extract_single_pdf(self, tmp_path):
         """text.py line 213: _extract_single dispatches to _extract_pdf."""
-        from field_check.scanner.text import _extract_single
+        from field_check.scanner.text_workers import _extract_single
         from tests.conftest import create_pdf_with_text
 
         pdf_path = tmp_path / "test.pdf"

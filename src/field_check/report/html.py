@@ -15,6 +15,7 @@ from field_check.scanner.dedup import DedupResult
 from field_check.scanner.encoding import EncodingResult
 from field_check.scanner.inventory import InventoryResult
 from field_check.scanner.language import LanguageResult
+from field_check.scanner.mojibake import MojibakeResult
 from field_check.scanner.pii import PIIScanResult
 from field_check.scanner.sampling import SampleResult, compute_confidence_interval, format_ci
 from field_check.scanner.simhash import SimHashResult
@@ -33,6 +34,7 @@ def render_html_report(
     language_result: LanguageResult | None = None,
     encoding_result: EncodingResult | None = None,
     simhash_result: SimHashResult | None = None,
+    mojibake_result: MojibakeResult | None = None,
 ) -> str:
     """Render a complete report as self-contained HTML.
 
@@ -50,7 +52,7 @@ def render_html_report(
         inventory, walk_result, elapsed_seconds,
         dedup_result, corruption_result, sample_result,
         text_result, pii_result, language_result,
-        encoding_result, simhash_result,
+        encoding_result, simhash_result, mojibake_result,
     )
 
     return template.render(**context)
@@ -68,6 +70,7 @@ def _build_context(
     language: LanguageResult | None,
     encoding: EncodingResult | None,
     simhash: SimHashResult | None,
+    mojibake: MojibakeResult | None,
 ) -> dict:
     """Build the template context dict."""
     sd = inventory.size_distribution
@@ -175,6 +178,7 @@ def _build_context(
             "empty": corruption.empty_count,
             "near_empty": corruption.near_empty_count,
             "corrupt": corruption.corrupt_count,
+            "truncated": corruption.truncated_count,
             "encrypted": corruption.encrypted_count,
             "unreadable": corruption.unreadable_count,
         }
@@ -224,14 +228,17 @@ def _build_context(
 
     # Encoding section
     if encoding is not None and encoding.total_analyzed > 0:
+        enc_pop = sample.total_population_size if sample else encoding.total_analyzed
         enc_rows = []
         for enc_name, count in sorted(
             encoding.encoding_distribution.items(),
             key=lambda x: x[1], reverse=True,
         ):
-            pct = count / encoding.total_analyzed * 100
+            ci = compute_confidence_interval(
+                count, encoding.total_analyzed, enc_pop
+            )
             enc_rows.append({
-                "encoding": enc_name, "count": count, "pct": f"{pct:.1f}",
+                "encoding": enc_name, "count": count, "proportion": format_ci(ci),
             })
         context["encoding"] = {"rows": enc_rows}
 
@@ -262,6 +269,14 @@ def _build_context(
             "threshold": simhash.threshold,
             "corpus_pct": nd_ci,
             "clusters": clusters,
+        }
+
+    # Mojibake (encoding damage) section
+    if mojibake is not None and mojibake.total_checked > 0:
+        context["mojibake"] = {
+            "total_checked": f"{mojibake.total_checked:,}",
+            "files_with_mojibake": mojibake.files_with_mojibake,
+            "files": [Path(p).name for p in mojibake.mojibake_files[:20]],
         }
 
     return context

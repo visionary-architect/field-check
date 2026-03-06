@@ -142,9 +142,10 @@ def compute_hashes(
             )
 
     total_hashed = total - hash_errors
-    # Unique files = those with unique sizes (never hashed) + unique hashes
+    # Unique files = those with unique sizes (never hashed) + hashes appearing once
     unique_by_size = sum(1 for g in size_groups.values() if len(g) == 1)
-    unique_files = unique_by_size + len(hash_map)
+    unique_by_hash = sum(1 for entries in hash_map.values() if len(entries) == 1)
+    unique_files = unique_by_size + unique_by_hash
     duplicate_file_count = sum(len(g.paths) for g in duplicate_groups)
     duplicate_bytes = sum(
         g.size * (len(g.paths) - 1) for g in duplicate_groups

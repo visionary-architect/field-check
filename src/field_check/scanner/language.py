@@ -110,10 +110,92 @@ STOP_WORDS: dict[str, set[str]] = {
         "de", "het", "een", "van", "en", "in", "is", "dat", "op", "te",
         "voor", "met", "zijn", "er", "aan", "ook", "niet", "maar", "om",
     },
+    "Swedish": {
+        "och", "att", "det", "som", "en", "av", "för", "med", "har",
+        "den", "till", "är", "på", "var", "inte", "om", "kan", "ett",
+        "hans", "från", "hade", "men", "alla", "vi", "jag",
+    },
+    "Norwegian": {
+        "og", "det", "som", "han", "var", "den", "for", "med", "har",
+        "til", "ikke", "på", "en", "av", "men", "kan", "fra", "jeg",
+        "vil", "bli", "ble", "hun", "alle", "seg", "ved",
+    },
+    "Danish": {
+        "og", "det", "som", "han", "var", "den", "for", "med", "har",
+        "til", "ikke", "på", "en", "af", "men", "kan", "fra", "jeg",
+        "vil", "sig", "blev", "hun", "alle", "eller", "ved",
+    },
+    "Finnish": {
+        "ja", "on", "ei", "se", "kun", "oli", "niin", "hän", "ovat",
+        "että", "mutta", "sen", "tai", "jos", "nyt", "yli", "olen",
+        "tämä", "kuin", "olla", "myös", "itse", "voi", "tässä",
+    },
+    "Polish": {
+        "nie", "się", "jest", "jak", "ale", "czy", "jego", "tak",
+        "już", "był", "tego", "tylko", "jej", "jeszcze",
+        "może", "są", "przy", "dla", "aby", "bez", "przez", "ich",
+    },
+    "Czech": {
+        "že", "na", "je", "se", "ale", "jak", "jsem", "byl", "pro",
+        "jeho", "jsou", "aby", "tak", "její", "jsme", "již", "jen",
+        "když", "než", "být", "bez", "mezi", "pod", "nad", "ani",
+    },
+    "Hungarian": {
+        "hogy", "nem", "egy", "volt", "már", "csak", "még", "azt",
+        "van", "meg", "mint", "ami", "sem", "igen", "nagy", "lett",
+        "majd", "ahol", "után", "neki", "által", "fel", "kell",
+    },
+    "Romanian": {
+        "este", "care", "din", "lui", "sunt", "fost", "mai", "sau",
+        "prin", "acest", "această", "fiind", "avea", "doar", "cele",
+        "între", "aceste", "către", "despre", "toate",
+    },
+    "Turkish": {
+        "bir", "olan", "için", "ile", "gibi", "ama", "daha", "kadar",
+        "sonra", "çok", "bunu", "olarak", "ancak", "hem",
+        "hiç", "şey", "bazı", "aynı", "büyük", "nasıl",
+    },
 }
 
-# Pre-compile word tokenizer
-_WORD_PATTERN = re.compile(r"[a-zA-ZÀ-ÿ]+")
+# Non-Latin stop-word profiles for specific scripts
+# Keyed by dominant script name → (language_name, stop_words_set)
+NON_LATIN_STOP_WORDS: dict[str, tuple[str, set[str]]] = {
+    "Cyrillic": (
+        "Russian",
+        {
+            "и", "в", "не", "на", "что", "он", "как", "его", "это",
+            "она", "по", "из", "но", "от", "за", "для", "все", "так",
+            "был", "они", "мы", "уже", "при", "или", "бы", "до",
+        },
+    ),
+    "Devanagari": (
+        "Hindi",
+        {
+            "और", "के", "है", "में", "की", "को", "से", "का", "पर",
+            "ने", "यह", "हो", "कि", "जो", "कर", "वह", "था", "भी",
+            "नहीं", "तो", "हैं", "या", "एक", "अपने", "इस",
+        },
+    ),
+    "Arabic": (
+        "Arabic",
+        {
+            "في", "من", "على", "إلى", "أن", "هذا", "التي", "الذي",
+            "كان", "عن", "هو", "هي", "بين", "كل", "ذلك", "لم",
+            "هذه", "أو", "بعد", "ما", "عند", "قد", "لا", "حتى",
+        },
+    ),
+}
+
+# Pre-compile word tokenizers
+_WORD_PATTERN = re.compile(r"[a-zA-Z\u00C0-\u024F]+")
+_CYRILLIC_WORD = re.compile(r"[\u0400-\u04FF]+")
+_DEVANAGARI_WORD = re.compile(r"[\u0900-\u097F\uA8E0-\uA8FF]+")
+_ARABIC_WORD = re.compile(r"[\u0600-\u06FF\u0750-\u077F]+")
+_NON_LATIN_TOKENIZERS: dict[str, re.Pattern[str]] = {
+    "Cyrillic": _CYRILLIC_WORD,
+    "Devanagari": _DEVANAGARI_WORD,
+    "Arabic": _ARABIC_WORD,
+}
 
 
 @dataclass
@@ -194,6 +276,60 @@ def _detect_latin_language(text: str) -> str:
     return best_lang
 
 
+def _detect_non_latin_language(text: str, script: str) -> str | None:
+    """Try to identify a non-Latin language using stop-words.
+
+    Returns language name if matched, None otherwise (falls back to script).
+    """
+    profile = NON_LATIN_STOP_WORDS.get(script)
+    if profile is None:
+        return None
+    lang_name, stopwords = profile
+    tokenizer = _NON_LATIN_TOKENIZERS.get(script)
+    if tokenizer is None:
+        return None
+    words = [w.lower() for w in tokenizer.findall(text)]
+    if not words:
+        return None
+    count = sum(1 for w in words if w in stopwords)
+    if count >= MIN_STOPWORD_MATCHES:
+        return lang_name
+    return None
+
+
+def _try_fast_langdetect(text: str) -> str | None:
+    """Attempt language detection via fast-langdetect (optional).
+
+    Returns language display name if available, None otherwise.
+    """
+    try:
+        from fast_langdetect import detect  # type: ignore[import-untyped]
+
+        result = detect(text[:2000], low_memory=True)
+        lang_code = result.get("lang", "") if isinstance(result, dict) else ""
+        return _FASTLANG_NAMES.get(lang_code)
+    except ImportError:
+        return None
+    except Exception:
+        return None
+
+
+# ISO 639-1 → display name mapping for fast-langdetect results
+_FASTLANG_NAMES: dict[str, str] = {
+    "en": "English", "es": "Spanish", "fr": "French", "de": "German",
+    "pt": "Portuguese", "it": "Italian", "nl": "Dutch", "sv": "Swedish",
+    "no": "Norwegian", "da": "Danish", "fi": "Finnish", "pl": "Polish",
+    "cs": "Czech", "hu": "Hungarian", "ro": "Romanian", "tr": "Turkish",
+    "ru": "Russian", "hi": "Hindi", "ar": "Arabic", "zh": "Chinese",
+    "ja": "Japanese", "ko": "Korean", "th": "Thai", "el": "Greek",
+    "he": "Hebrew", "vi": "Vietnamese", "uk": "Ukrainian", "bg": "Bulgarian",
+    "hr": "Croatian", "sr": "Serbian", "sk": "Slovak", "sl": "Slovenian",
+    "lt": "Lithuanian", "lv": "Latvian", "et": "Estonian", "id": "Indonesian",
+    "ms": "Malay", "tl": "Filipino", "sw": "Swahili", "af": "Afrikaans",
+    "ca": "Catalan", "gl": "Galician", "eu": "Basque", "cy": "Welsh",
+}
+
+
 def detect_language(
     text: str,
     min_chars: int = MIN_CHARS_FOR_DETECTION,
@@ -241,7 +377,13 @@ def detect_language(
 
     # For Latin script, disambiguate with stop-words
     if dominant_script == "Latin":
-        return _detect_latin_language(text)
+        result = _detect_latin_language(text)
+        if result == "Latin (Unknown)":
+            # Try fast-langdetect as fallback for unknown Latin languages
+            fast = _try_fast_langdetect(text)
+            if fast:
+                return fast
+        return result
 
     # For Japanese: check if CJK + Kana are both present
     if dominant_script in ("CJK", "Japanese Kana"):
@@ -252,13 +394,26 @@ def detect_language(
         if dominant_script == "Japanese Kana":
             return "Japanese"
         # Pure CJK could be Chinese, Japanese, or Korean
-        # If Hangul is present, it's Korean
         if script_dist.get("Hangul", 0) > 0:
             return "Korean"
+        # Try fast-langdetect for CJK disambiguation
+        fast = _try_fast_langdetect(text)
+        if fast:
+            return fast
         return "CJK"
 
     if dominant_script == "Hangul":
         return "Korean"
+
+    # For non-Latin scripts with stop-word profiles (Cyrillic, Devanagari, Arabic)
+    non_latin = _detect_non_latin_language(text, dominant_script)
+    if non_latin:
+        return non_latin
+
+    # Try fast-langdetect as final fallback
+    fast = _try_fast_langdetect(text)
+    if fast:
+        return fast
 
     return dominant_script
 

@@ -11,6 +11,7 @@ from field_check.scanner.dedup import DedupResult
 from field_check.scanner.encoding import EncodingResult
 from field_check.scanner.inventory import InventoryResult
 from field_check.scanner.language import LanguageResult
+from field_check.scanner.mojibake import MojibakeResult
 from field_check.scanner.pii import PIIScanResult
 from field_check.scanner.sampling import SampleResult
 from field_check.scanner.simhash import SimHashResult
@@ -42,6 +43,7 @@ def render_csv_report(
     language_result: LanguageResult | None = None,
     encoding_result: EncodingResult | None = None,
     simhash_result: SimHashResult | None = None,
+    mojibake_result: MojibakeResult | None = None,
 ) -> str:
     """Render a file-level inventory as CSV.
 

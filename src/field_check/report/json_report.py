@@ -13,8 +13,9 @@ from field_check.scanner.dedup import DedupResult
 from field_check.scanner.encoding import EncodingResult
 from field_check.scanner.inventory import InventoryResult
 from field_check.scanner.language import LanguageResult
+from field_check.scanner.mojibake import MojibakeResult
 from field_check.scanner.pii import PIIScanResult
-from field_check.scanner.sampling import SampleResult
+from field_check.scanner.sampling import SampleResult, compute_confidence_interval
 from field_check.scanner.simhash import SimHashResult
 from field_check.scanner.text import TextExtractionResult
 
@@ -31,6 +32,7 @@ def render_json_report(
     language_result: LanguageResult | None = None,
     encoding_result: EncodingResult | None = None,
     simhash_result: SimHashResult | None = None,
+    mojibake_result: MojibakeResult | None = None,
 ) -> str:
     """Render a complete report as JSON.
 
@@ -52,8 +54,8 @@ def render_json_report(
         "duration_seconds": round(elapsed_seconds, 3),
         "summary": _build_summary(
             inventory, walk_result, dedup_result, corruption_result,
-            text_result, pii_result, language_result,
-            encoding_result, simhash_result,
+            sample_result, text_result, pii_result, language_result,
+            encoding_result, simhash_result, mojibake_result,
         ),
         "files": _build_files_array(
             walk_result, inventory, hash_lookup, dup_paths,
@@ -69,11 +71,13 @@ def _build_summary(
     walk_result: WalkResult,
     dedup: DedupResult | None,
     corruption: CorruptionResult | None,
+    sample: SampleResult | None,
     text: TextExtractionResult | None,
     pii: PIIScanResult | None,
     language: LanguageResult | None,
     encoding: EncodingResult | None,
     simhash: SimHashResult | None,
+    mojibake: MojibakeResult | None,
 ) -> dict:
     """Build the summary section of the JSON report."""
     sd = inventory.size_distribution
@@ -133,6 +137,7 @@ def _build_summary(
             "empty": corruption.empty_count,
             "near_empty": corruption.near_empty_count,
             "corrupt": corruption.corrupt_count,
+            "truncated": corruption.truncated_count,
             "encrypted": corruption.encrypted_count,
             "unreadable": corruption.unreadable_count,
         }
@@ -153,9 +158,20 @@ def _build_summary(
 
     # Language
     if language is not None:
+        pop = sample.total_population_size if sample else language.total_analyzed
+        lang_ci = {}
+        for lang, count in language.language_distribution.items():
+            ci = compute_confidence_interval(count, language.total_analyzed, pop)
+            lang_ci[lang] = {
+                "count": count,
+                "point_estimate": round(ci.point_estimate * 100, 2),
+                "lower_bound": round(ci.lower * 100, 2),
+                "upper_bound": round(ci.upper * 100, 2),
+            }
         summary["language"] = {
             "total_analyzed": language.total_analyzed,
             "distribution": dict(language.language_distribution),
+            "distribution_ci": lang_ci,
             "detection_errors": language.detection_errors,
         }
     else:
@@ -163,9 +179,22 @@ def _build_summary(
 
     # Encoding
     if encoding is not None:
+        enc_pop = sample.total_population_size if sample else encoding.total_analyzed
+        enc_ci = {}
+        for enc_name, count in encoding.encoding_distribution.items():
+            ci = compute_confidence_interval(
+                count, encoding.total_analyzed, enc_pop
+            )
+            enc_ci[enc_name] = {
+                "count": count,
+                "point_estimate": round(ci.point_estimate * 100, 2),
+                "lower_bound": round(ci.lower * 100, 2),
+                "upper_bound": round(ci.upper * 100, 2),
+            }
         summary["encoding"] = {
             "total_analyzed": encoding.total_analyzed,
             "distribution": dict(encoding.encoding_distribution),
+            "distribution_ci": enc_ci,
             "detection_errors": encoding.detection_errors,
         }
     else:
@@ -192,6 +221,16 @@ def _build_summary(
         }
     else:
         summary["near_duplicates"] = None
+
+    # Mojibake (encoding damage)
+    if mojibake is not None:
+        summary["mojibake"] = {
+            "total_checked": mojibake.total_checked,
+            "files_with_mojibake": mojibake.files_with_mojibake,
+            "affected_files": mojibake.mojibake_files,
+        }
+    else:
+        summary["mojibake"] = None
 
     return summary
 

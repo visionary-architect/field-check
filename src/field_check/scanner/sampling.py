@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import math
-import random
 from collections import defaultdict
 from dataclasses import dataclass, field
 
@@ -38,6 +37,7 @@ class SampleResult:
     total_population_size: int = 0
     sampling_rate: float = 0.0
     is_census: bool = False
+    deff: float = 1.0
 
 
 # z-scores for common confidence levels
@@ -46,6 +46,77 @@ _Z_SCORES: dict[float, float] = {
     0.95: 1.96,
     0.99: 2.576,
 }
+
+
+def _sample_by_directory(entries: list[FileEntry], target: int) -> list[FileEntry]:
+    """Sample files proportionally across directories.
+
+    Groups files by parent directory, allocates the sample budget
+    proportionally to each directory's share, then randomly selects
+    within each directory. Ensures at least 1 file per directory
+    when possible.
+
+    Args:
+        entries: Files to sample from (all same MIME type).
+        target: Number of files to select.
+
+    Returns:
+        Selected files drawn proportionally from directories.
+    """
+    import random
+    from pathlib import PurePath
+
+    # Group by parent directory
+    by_dir: dict[str, list[FileEntry]] = defaultdict(list)
+    for entry in entries:
+        parent = str(PurePath(entry.path).parent)
+        by_dir[parent].append(entry)
+
+    if len(by_dir) <= 1:
+        # Single directory: simple random sample
+        return random.sample(entries, target)
+
+    total = len(entries)
+    selected: list[FileEntry] = []
+    remaining = target
+
+    # Proportional allocation with minimum 1 per directory
+    # Sort by directory path for deterministic allocation order
+    allocations: list[tuple[str, int]] = []
+    for dir_path, dir_files in sorted(by_dir.items()):
+        alloc = max(1, round(len(dir_files) / total * target))
+        alloc = min(alloc, len(dir_files), remaining)
+        allocations.append((dir_path, alloc))
+        remaining -= alloc
+        if remaining <= 0:
+            break
+
+    # Distribute any remaining budget to largest directories
+    if remaining > 0:
+        for dir_path, dir_files in sorted(
+            by_dir.items(), key=lambda x: len(x[1]), reverse=True,
+        ):
+            current = dict(allocations).get(dir_path, 0)
+            extra = min(remaining, len(dir_files) - current)
+            if extra > 0:
+                allocations = [
+                    (d, a + extra) if d == dir_path else (d, a)
+                    for d, a in allocations
+                ]
+                remaining -= extra
+            if remaining <= 0:
+                break
+
+    # Sample within each directory
+    for dir_path, alloc in allocations:
+        dir_files = by_dir[dir_path]
+        n = min(alloc, len(dir_files))
+        if n >= len(dir_files):
+            selected.extend(dir_files)
+        else:
+            selected.extend(random.sample(dir_files, n))
+
+    return selected[:target]
 
 
 def select_sample(
@@ -94,7 +165,7 @@ def select_sample(
             sample = (
                 list(entries)
                 if target >= pop_size
-                else random.sample(entries, target)
+                else _sample_by_directory(entries, target)
             )
 
         per_type_sample[mime] = sample
@@ -173,6 +244,110 @@ def compute_confidence_interval(
         point_estimate=p_hat,
         lower=lower,
         upper=upper,
+        confidence_level=confidence,
+        sample_size=sample_size,
+        population_size=population_size,
+    )
+
+
+def estimate_design_effect(
+    files: list[FileEntry],
+    inventory: InventoryResult,
+) -> float:
+    """Estimate the design effect (DEFF) from directory clustering.
+
+    Uses one-way ANOVA decomposition to estimate intraclass correlation
+    (ICC/rho), then computes DEFF = 1 + rho * (m - 1) where m is the
+    average cluster (directory) size.
+
+    Args:
+        files: Sampled files.
+        inventory: Inventory with per-file MIME types.
+
+    Returns:
+        DEFF >= 1.0. Returns 1.0 if no clustering detected.
+    """
+    if len(files) < 2:
+        return 1.0
+
+    # Group files by parent directory
+    from pathlib import PurePath
+
+    groups: dict[str, list[int]] = defaultdict(list)
+    for f in files:
+        parent = str(PurePath(f.path).parent)
+        groups[parent].append(f.size)
+
+    k = len(groups)  # number of clusters
+    if k <= 1 or k == len(files):
+        # Single directory or every file in its own directory: no clustering
+        return 1.0
+
+    n = len(files)
+    m = n / k  # average cluster size
+
+    # One-way ANOVA: compute MSB and MSW from file sizes
+    grand_mean = sum(f.size for f in files) / n
+
+    ssb = 0.0  # between-group sum of squares
+    ssw = 0.0  # within-group sum of squares
+    for members in groups.values():
+        group_mean = sum(members) / len(members)
+        ssb += len(members) * (group_mean - grand_mean) ** 2
+        ssw += sum((x - group_mean) ** 2 for x in members)
+
+    msb = ssb / (k - 1) if k > 1 else 0.0
+    msw = ssw / (n - k) if n > k else 0.0
+
+    # ICC (rho) estimation
+    if msb + (m - 1) * msw == 0:
+        return 1.0
+    rho = (msb - msw) / (msb + (m - 1) * msw)
+    rho = max(0.0, rho)  # ICC can't be negative for DEFF purposes
+
+    deff = 1.0 + rho * (m - 1)
+    return max(1.0, deff)
+
+
+def compute_confidence_interval_adjusted(
+    successes: int,
+    sample_size: int,
+    population_size: int,
+    deff: float = 1.0,
+    confidence: float = 0.95,
+) -> ConfidenceInterval:
+    """Compute CI with design effect adjustment for clustered samples.
+
+    Widens the confidence interval by sqrt(DEFF) to account for
+    within-cluster correlation (files from the same directory tend
+    to be similar).
+
+    Args:
+        successes: Number of successes in the sample.
+        sample_size: Total sample size (n).
+        population_size: Total population size (N).
+        deff: Design effect (>= 1.0).
+        confidence: Confidence level (default 0.95).
+
+    Returns:
+        ConfidenceInterval with adjusted bounds.
+    """
+    ci = compute_confidence_interval(
+        successes, sample_size, population_size, confidence
+    )
+
+    if deff <= 1.0 or ci.sample_size >= ci.population_size:
+        return ci
+
+    # Widen the interval by sqrt(DEFF)
+    center = (ci.lower + ci.upper) / 2
+    half_width = (ci.upper - ci.lower) / 2
+    adjusted_half = half_width * math.sqrt(deff)
+
+    return ConfidenceInterval(
+        point_estimate=ci.point_estimate,
+        lower=max(0.0, center - adjusted_half),
+        upper=min(1.0, center + adjusted_half),
         confidence_level=confidence,
         sample_size=sample_size,
         population_size=population_size,

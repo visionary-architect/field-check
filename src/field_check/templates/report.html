@@ -183,10 +183,10 @@
         {% if encoding %}
         <h2 style="margin-top:16px;">Encoding Distribution</h2>
         <table class="narrow">
-            <thead><tr><th>Encoding</th><th class="text-right">Count</th><th class="text-right">%</th></tr></thead>
+            <thead><tr><th>Encoding</th><th class="text-right">Count</th><th class="text-right">Estimated %</th></tr></thead>
             <tbody>
             {% for row in encoding.rows %}
-            <tr><td>{{ row.encoding }}</td><td class="text-right">{{ row.count }}</td><td class="text-right">{{ row.pct }}%</td></tr>
+            <tr><td>{{ row.encoding }}</td><td class="text-right">{{ row.count }}</td><td class="text-right">{{ row.proportion }}</td></tr>
             {% endfor %}
             </tbody>
         </table>

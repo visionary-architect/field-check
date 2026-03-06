@@ -12,6 +12,13 @@ from dataclasses import dataclass, field
 from field_check.config import FieldCheckConfig
 from field_check.scanner import FileEntry
 from field_check.scanner.inventory import InventoryResult
+from field_check.scanner.pii_helpers import (
+    CONTEXT_CONFIG,
+    compute_context_confidence,
+    luhn_check,
+    scan_text_for_pii,
+    validate_phone,
+)
 from field_check.scanner.sampling import SampleResult
 
 logger = logging.getLogger(__name__)
@@ -43,14 +50,19 @@ BUILTIN_PATTERNS: list[dict[str, str | float]] = [
     {
         "name": "ssn",
         "label": "SSN (US)",
-        "pattern": r"\b(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b",
+        "pattern": (
+            r"(?<![#\w])"  # Negative lookbehind: not preceded by # or word char
+            r"(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}"
+            r"(?!\w)"  # Not followed by word char
+        ),
         "fp_rate": 0.30,
     },
     {
         "name": "phone",
         "label": "Phone Number",
         "pattern": (
-            r"\b(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)"
+            r"(?<![#\w])"  # Negative lookbehind: not preceded by # or word char
+            r"(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)"
             r"\d{3}[-.\s]?\d{4}\b"
         ),
         "fp_rate": 0.50,
@@ -95,6 +107,7 @@ class PIIMatch:
     pattern_name: str
     matched_text: str
     line_number: int
+    confidence: float = 1.0
 
 
 @dataclass
@@ -122,64 +135,21 @@ class PIIScanResult:
     show_pii_samples: bool = False
 
 
-def _luhn_check(number_str: str) -> bool:
-    """Validate a number string using the Luhn algorithm.
-
-    Args:
-        number_str: String potentially containing a credit card number.
-
-    Returns:
-        True if the digits pass the Luhn checksum.
-    """
-    digits = [int(d) for d in number_str if d.isdigit()]
-    if len(digits) < 13 or len(digits) > 19:
-        return False
-    checksum = 0
-    for i, d in enumerate(reversed(digits)):
-        if i % 2 == 1:
-            d *= 2
-            if d > 9:
-                d -= 9
-        checksum += d
-    return checksum % 10 == 0
+# Re-export helpers used by tests and other modules
+_luhn_check = luhn_check
+_validate_phone = validate_phone
+_compute_context_confidence = compute_context_confidence
+_scan_text_for_pii = scan_text_for_pii
 
 
 def _extract_text_for_pii(filepath: str, mime_type: str) -> str:
-    """Extract text content from a file for PII scanning.
+    """Extract text content from a file for PII scanning."""
+    from field_check.scanner.text_workers import _extract_text_for_cache
 
-    For PDF/DOCX: uses pdfplumber/python-docx.
-    For plain text types: reads raw bytes with charset-normalizer.
-
-    Args:
-        filepath: Absolute path to the file.
-        mime_type: MIME type of the file.
-
-    Returns:
-        Extracted text content as a string.
-    """
-    if mime_type == "application/pdf":
-        import pdfplumber
-
-        with pdfplumber.open(filepath) as pdf:
-            return "\n".join(page.extract_text() or "" for page in pdf.pages)
-    elif (
-        mime_type
-        == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    ):
-        from docx import Document
-
-        from field_check.scanner.text import _docx_full_text
-
-        doc = Document(filepath)
-        return _docx_full_text(doc)
-    else:
-        # Plain text types — read bytes, detect encoding
-        from charset_normalizer import from_bytes
-
-        with open(filepath, "rb") as f:
-            raw = f.read(_MAX_TEXT_READ)
-        result = from_bytes(raw).best()
-        return str(result) if result else raw.decode("utf-8", errors="replace")
+    text, _, _, error = _extract_text_for_cache(filepath, mime_type)
+    if error:
+        raise RuntimeError(error)
+    return text
 
 
 def _scan_single_file(
@@ -187,44 +157,18 @@ def _scan_single_file(
     mime_type: str,
     compiled_patterns: list[tuple[str, str, re.Pattern[str], str | None]],
     show_samples: bool,
+    context_config: dict[str, tuple[float, list[str], list[str]]] | None = None,
+    min_confidence: float = 0.0,
 ) -> PIIFileResult:
-    """Scan a single file for PII patterns.
-
-    Args:
-        filepath: Path to the file.
-        mime_type: MIME type for extraction dispatch.
-        compiled_patterns: List of (name, label, pattern, validator) tuples.
-        show_samples: Whether to store matched content.
-
-    Returns:
-        PII scan result for this file.
-    """
-    file_result = PIIFileResult(path=filepath)
+    """Scan a single file for PII patterns (extracts text first)."""
     try:
         text = _extract_text_for_pii(filepath, mime_type)
-        if not text:
-            return file_result
-
-        for line_num, line in enumerate(text.split("\n"), 1):
-            for name, _label, pattern, validator in compiled_patterns:
-                for match in pattern.finditer(line):
-                    matched = match.group()
-                    if validator == "luhn" and not _luhn_check(matched):
-                        continue
-                    file_result.matches_by_type[name] = (
-                        file_result.matches_by_type.get(name, 0) + 1
-                    )
-                    if show_samples and len(file_result.sample_matches) < 5:
-                        file_result.sample_matches.append(
-                            PIIMatch(
-                                pattern_name=name,
-                                matched_text=matched,
-                                line_number=line_num,
-                            )
-                        )
     except Exception as exc:
-        file_result.error = str(exc)
-    return file_result
+        return PIIFileResult(path=filepath, error=str(exc))
+    return scan_text_for_pii(
+        filepath, text, compiled_patterns, show_samples,
+        context_config=context_config, min_confidence=min_confidence,
+    )
 
 
 def _scan_single_file_from_specs(
@@ -232,6 +176,8 @@ def _scan_single_file_from_specs(
     mime_type: str,
     pattern_specs: list[tuple[str, str, str, str | None]],
     show_samples: bool,
+    context_config: dict[str, tuple[float, list[str], list[str]]] | None = None,
+    min_confidence: float = 0.0,
 ) -> PIIFileResult:
     """Worker entry point for ProcessPoolExecutor.
 
@@ -242,51 +188,10 @@ def _scan_single_file_from_specs(
         (name, label, re.compile(pat_str), validator)
         for name, label, pat_str, validator in pattern_specs
     ]
-    return _scan_single_file(filepath, mime_type, compiled, show_samples)
-
-
-def _scan_text_for_pii(
-    filepath: str,
-    text: str,
-    compiled_patterns: list[tuple[str, str, re.Pattern[str], str | None]],
-    show_samples: bool,
-) -> PIIFileResult:
-    """Scan pre-extracted text for PII patterns (no file I/O).
-
-    Used when text is available from the shared text cache.
-
-    Args:
-        filepath: Path to the file (for result metadata).
-        text: Pre-extracted text content.
-        compiled_patterns: List of (name, label, pattern, validator) tuples.
-        show_samples: Whether to store matched content.
-
-    Returns:
-        PII scan result for this file.
-    """
-    file_result = PIIFileResult(path=filepath)
-    if not text:
-        return file_result
-
-    for line_num, line in enumerate(text.split("\n"), 1):
-        for name, _label, pattern, validator in compiled_patterns:
-            for match in pattern.finditer(line):
-                matched = match.group()
-                if validator == "luhn" and not _luhn_check(matched):
-                    continue
-                file_result.matches_by_type[name] = (
-                    file_result.matches_by_type.get(name, 0) + 1
-                )
-                if show_samples and len(file_result.sample_matches) < 5:
-                    file_result.sample_matches.append(
-                        PIIMatch(
-                            pattern_name=name,
-                            matched_text=matched,
-                            line_number=line_num,
-                        )
-                    )
-
-    return file_result
+    return _scan_single_file(
+        filepath, mime_type, compiled, show_samples,
+        context_config=context_config, min_confidence=min_confidence,
+    )
 
 
 def scan_pii(
@@ -352,6 +257,8 @@ def scan_pii(
         for name, label, pat_str, validator in pattern_specs
     ]
 
+    min_conf = config.pii_min_confidence
+
     # Split into cached (direct scan) and uncached (process pool)
     cached_entries: list[tuple[FileEntry, str]] = []
     uncached_entries: list[tuple[FileEntry, str]] = []
@@ -370,11 +277,13 @@ def scan_pii(
     # Scan cached files directly (no process pool, no file I/O)
     for entry, _mime in cached_entries:
         path_str = str(entry.path)
-        file_result = _scan_text_for_pii(
+        file_result = scan_text_for_pii(
             path_str,
             text_cache[path_str],  # type: ignore[index]
             compiled_patterns,
             config.show_pii_samples,
+            context_config=CONTEXT_CONFIG,
+            min_confidence=min_conf,
         )
         _aggregate_file_result(result, file_result)
         completed_count += 1
@@ -394,6 +303,8 @@ def scan_pii(
                     mime,
                     pattern_specs,
                     config.show_pii_samples,
+                    CONTEXT_CONFIG,
+                    min_conf,
                 )
                 future_to_entry[future] = entry
 

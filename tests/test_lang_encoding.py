@@ -87,9 +87,76 @@ class TestDetectLanguage:
         text = "هذا نص باللغة العربية لاختبار نظام الكشف عن اللغة في البرنامج."
         assert detect_language(text) == "Arabic"
 
-    def test_detect_cyrillic(self) -> None:
+    def test_detect_russian(self) -> None:
         text = "Это текст на русском языке для тестирования системы определения языка."
-        assert detect_language(text) == "Cyrillic"
+        assert detect_language(text) == "Russian"
+
+    def test_detect_hindi(self) -> None:
+        text = "यह हिंदी में एक परीक्षण पाठ है। हम भाषा का पता लगाने की प्रणाली का परीक्षण कर रहे हैं।"
+        assert detect_language(text) == "Hindi"
+
+    def test_detect_swedish(self) -> None:
+        text = (
+            "Det är en test av det svenska språket. Vi har ett system "
+            "för att identifiera olika språk och den kan inte vara fel."
+        )
+        assert detect_language(text) == "Swedish"
+
+    def test_detect_polish(self) -> None:
+        text = (
+            "To jest tekst w języku polskim. Nie jest to bardzo długi tekst, "
+            "ale jego zawartość jest wystarczająca dla testu. Czy się zgadzasz?"
+        )
+        assert detect_language(text) == "Polish"
+
+    def test_detect_turkish(self) -> None:
+        text = (
+            "Bu bir Türkçe test metnidir. Daha fazla kelime için bu "
+            "cümleyi uzatıyoruz, ancak bu kadar yeterli olmalı gibi görünüyor."
+        )
+        assert detect_language(text) == "Turkish"
+
+    def test_detect_norwegian(self) -> None:
+        text = (
+            "Dette er en test av det norske systemet. Vi har mange ord "
+            "og vi kan ikke bli enige om alle ting, men det er ikke viktig."
+        )
+        assert detect_language(text) == "Norwegian"
+
+    def test_detect_danish(self) -> None:
+        text = (
+            "Dette er en test af det danske sprog. Vi har ikke mange "
+            "ord men vi kan godt klare os med det vi har. Alle ved det."
+        )
+        assert detect_language(text) == "Danish"
+
+    def test_detect_finnish(self) -> None:
+        text = (
+            "Tämä on testi suomen kielelle. Ei se ole niin vaikea "
+            "kun kuin olla myös itse voi ovat ja niin olen tässä."
+        )
+        assert detect_language(text) == "Finnish"
+
+    def test_detect_czech(self) -> None:
+        text = (
+            "Toto je test pro detekci jazyka. Jsem si jist, jsou to "
+            "aby se ale jak jeho pro na je bez mezi pod nad ani."
+        )
+        assert detect_language(text) == "Czech"
+
+    def test_detect_hungarian(self) -> None:
+        text = (
+            "Ez egy teszt a magyar nyelv felismerésére. Nem volt már "
+            "csak még azt van meg mint ami sem igen nagy lett majd kell."
+        )
+        assert detect_language(text) == "Hungarian"
+
+    def test_detect_romanian(self) -> None:
+        text = (
+            "Acesta este un test pentru detectarea limbii. Care sunt "
+            "din lui mai sau prin acest fost fiind doar cele toate."
+        )
+        assert detect_language(text) == "Romanian"
 
     def test_detect_short_text(self) -> None:
         assert detect_language("Hello") == "Unknown"
@@ -373,6 +440,83 @@ class TestPiiWithTextCache:
         # Empty cache — should fall back to process pool
         result = scan_pii(sample, inv, config, text_cache={}, max_workers=1)
         assert result.total_scanned >= 1
+
+
+# ---------------------------------------------------------------------------
+# Unified text extraction tests
+# ---------------------------------------------------------------------------
+
+
+class TestExtractTextUnified:
+    """Test extract_text_unified() single-pass extraction."""
+
+    def test_unified_returns_both_results(self, tmp_path: Path) -> None:
+        """Unified extraction returns both text and cache results."""
+        from field_check.scanner.text import extract_text_unified
+
+        (tmp_path / "hello.txt").write_text("Hello world.", encoding="utf-8")
+        create_pdf_with_text(tmp_path / "doc.pdf", "PDF content here")
+
+        config = FieldCheckConfig(sampling_rate=1.0)
+        walk = walk_directory(tmp_path, config)
+        inv = analyze_inventory(walk)
+        sample = select_sample(walk, inv, config)
+
+        text_result, cache_result = extract_text_unified(
+            sample, inv, max_workers=1
+        )
+
+        # TextExtractionResult covers PDF metadata
+        assert text_result.total_processed >= 1
+        # TextCacheResult covers all extracted text
+        assert cache_result.total_extracted >= 2
+        assert len(cache_result.text_cache) >= 2
+
+    def test_unified_pdf_text_in_cache(self, tmp_path: Path) -> None:
+        """PDF text appears in cache without double extraction."""
+        from field_check.scanner.text import extract_text_unified
+
+        create_pdf_with_text(tmp_path / "doc.pdf", "Unique PDF text 12345")
+        config = FieldCheckConfig(sampling_rate=1.0)
+        walk = walk_directory(tmp_path, config)
+        inv = analyze_inventory(walk)
+        sample = select_sample(walk, inv, config)
+
+        text_result, cache_result = extract_text_unified(
+            sample, inv, max_workers=1
+        )
+        assert text_result.total_processed == 1
+        cached = list(cache_result.text_cache.values())
+        assert any("Unique PDF text" in t for t in cached)
+
+    def test_unified_plain_text_encoding(self, tmp_path: Path) -> None:
+        """Plain text files get encoding detection in unified mode."""
+        from field_check.scanner.text import extract_text_unified
+
+        (tmp_path / "data.txt").write_text(
+            "Some plain text content.", encoding="utf-8"
+        )
+        config = FieldCheckConfig(sampling_rate=1.0)
+        walk = walk_directory(tmp_path, config)
+        inv = analyze_inventory(walk)
+        sample = select_sample(walk, inv, config)
+
+        _, cache_result = extract_text_unified(sample, inv, max_workers=1)
+        assert len(cache_result.encoding_map) >= 1
+
+    def test_unified_empty_sample(self) -> None:
+        """Unified extraction with empty sample returns empty results."""
+        from field_check.scanner.inventory import InventoryResult
+        from field_check.scanner.sampling import SampleResult
+        from field_check.scanner.text import extract_text_unified
+
+        sample = SampleResult()
+        inv = InventoryResult()
+        text_result, cache_result = extract_text_unified(
+            sample, inv, max_workers=1
+        )
+        assert text_result.total_processed == 0
+        assert cache_result.total_extracted == 0
 
 
 # ---------------------------------------------------------------------------

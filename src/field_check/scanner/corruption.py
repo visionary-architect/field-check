@@ -32,6 +32,7 @@ STATUS_NEAR_EMPTY = "near_empty"
 STATUS_CORRUPT = "corrupt"
 STATUS_ENCRYPTED_PDF = "encrypted_pdf"
 STATUS_ENCRYPTED_ZIP = "encrypted_zip"
+STATUS_TRUNCATED = "truncated"
 STATUS_UNREADABLE = "unreadable"
 
 
@@ -54,6 +55,7 @@ class CorruptionResult:
     empty_count: int = 0
     near_empty_count: int = 0
     corrupt_count: int = 0
+    truncated_count: int = 0
     encrypted_count: int = 0
     unreadable_count: int = 0
     flagged_files: list[FileHealth] = field(default_factory=list)
@@ -117,6 +119,75 @@ def _check_encrypted_zip(filepath: Path) -> bool:
                 return False
             flags = struct.unpack("<H", flag_bytes)[0]
             return bool(flags & 0x01)
+    except OSError:
+        return False
+
+
+def _check_truncated_pdf(filepath: Path) -> bool:
+    """Check if a PDF is truncated by looking for %%EOF marker.
+
+    A well-formed PDF must end with a %%EOF marker near the end of the file.
+    Missing %%EOF indicates the file was likely cut short (incomplete download,
+    storage failure, etc.).
+    """
+    try:
+        with open(filepath, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            # Read last 1KB to find %%EOF
+            read_size = min(1024, size)
+            f.seek(max(0, size - read_size))
+            tail = f.read()
+        return b"%%EOF" not in tail
+    except OSError:
+        return False
+
+
+def _check_docx_integrity(filepath: Path) -> str | None:
+    """Check DOCX/XLSX/PPTX structural integrity via ZIP validation.
+
+    Verifies CRC32 checksums and required OOXML entries.
+
+    Returns:
+        Error description if corrupt, None if valid.
+    """
+    import zipfile
+
+    try:
+        with zipfile.ZipFile(filepath) as zf:
+            bad_file = zf.testzip()
+            if bad_file is not None:
+                return f"CRC32 mismatch in {bad_file}"
+            names = zf.namelist()
+            if "[Content_Types].xml" not in names:
+                return "Missing [Content_Types].xml"
+        return None
+    except zipfile.BadZipFile:
+        return "Invalid ZIP structure"
+    except OSError:
+        return None
+
+
+def _check_truncated_image(filepath: Path, mime_type: str) -> bool:
+    """Check if an image file is truncated by verifying end markers.
+
+    JPEG files must end with 0xFF 0xD9 (EOI marker).
+    PNG files must end with an IEND chunk.
+    """
+    try:
+        with open(filepath, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            if size < 16:
+                return False  # Too small to validate
+            read_size = min(64, size)
+            f.seek(max(0, size - read_size))
+            tail = f.read()
+        if mime_type == "image/jpeg":
+            return tail[-2:] != b"\xff\xd9"
+        if mime_type == "image/png":
+            return b"IEND" not in tail
+        return False
     except OSError:
         return False
 
@@ -185,6 +256,40 @@ def _check_single_file(
             detail="ZIP has encryption flag set",
         )
 
+    # Truncation checks
+    if header.startswith(b"%PDF") and _check_truncated_pdf(entry_path):
+        return FileHealth(
+            path=entry_path, status=STATUS_TRUNCATED,
+            mime_type=mime_type or "application/pdf",
+            detail="PDF missing %%EOF marker (likely truncated)",
+        )
+
+    # DOCX/XLSX/PPTX integrity (ZIP-based Office formats)
+    ooxml_mimes = {
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    }
+    if header.startswith(b"PK\x03\x04") and mime_type in ooxml_mimes:
+        integrity_error = _check_docx_integrity(entry_path)
+        if integrity_error:
+            return FileHealth(
+                path=entry_path, status=STATUS_CORRUPT,
+                mime_type=mime_type,
+                detail=f"OOXML integrity: {integrity_error}",
+            )
+
+    # Image truncation checks
+    if (
+        mime_type in ("image/jpeg", "image/png")
+        and _check_truncated_image(entry_path, mime_type)
+    ):
+        return FileHealth(
+            path=entry_path, status=STATUS_TRUNCATED,
+            mime_type=mime_type,
+            detail=f"Missing end marker for {mime_type}",
+        )
+
     return FileHealth(
         path=entry_path, status=STATUS_OK,
         mime_type=mime_type, detail="",
@@ -224,6 +329,9 @@ def check_corruption(
             result.flagged_files.append(health)
         elif health.status == STATUS_CORRUPT:
             result.corrupt_count += 1
+            result.flagged_files.append(health)
+        elif health.status == STATUS_TRUNCATED:
+            result.truncated_count += 1
             result.flagged_files.append(health)
         elif health.status in (STATUS_ENCRYPTED_PDF, STATUS_ENCRYPTED_ZIP):
             result.encrypted_count += 1

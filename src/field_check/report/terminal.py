@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from pathlib import Path
 
 from rich.console import Console
 from rich.panel import Panel
@@ -11,6 +10,13 @@ from rich.table import Table
 from rich.text import Text
 
 from field_check import __version__
+from field_check.report.terminal_content import (
+    render_language_encoding,
+    render_mojibake_results,
+    render_near_duplicates,
+    render_pii_results,
+    render_text_analysis,
+)
 from field_check.report.utils import format_duration, format_size
 from field_check.scanner import WalkResult
 from field_check.scanner.corruption import CorruptionResult
@@ -18,10 +24,11 @@ from field_check.scanner.dedup import DedupResult
 from field_check.scanner.encoding import EncodingResult
 from field_check.scanner.inventory import InventoryResult
 from field_check.scanner.language import LanguageResult
+from field_check.scanner.mojibake import MojibakeResult
 from field_check.scanner.pii import PIIScanResult
-from field_check.scanner.sampling import SampleResult, compute_confidence_interval, format_ci
+from field_check.scanner.sampling import SampleResult
 from field_check.scanner.simhash import SimHashResult
-from field_check.scanner.text import METADATA_FIELDS, PAGE_COUNT_BUCKETS, TextExtractionResult
+from field_check.scanner.text import TextExtractionResult
 
 
 def _bar(fraction: float, width: int = 20) -> str:
@@ -43,6 +50,7 @@ def render_terminal_report(
     language_result: LanguageResult | None = None,
     encoding_result: EncodingResult | None = None,
     simhash_result: SimHashResult | None = None,
+    mojibake_result: MojibakeResult | None = None,
 ) -> None:
     """Render a complete terminal report using Rich.
 
@@ -59,6 +67,7 @@ def render_terminal_report(
         language_result: Language detection results (optional).
         encoding_result: Encoding detection results (optional).
         simhash_result: Near-duplicate detection results (optional).
+        mojibake_result: Mojibake (encoding damage) results (optional).
     """
     # Header
     header_lines = [
@@ -88,32 +97,36 @@ def render_terminal_report(
 
     # Section 4: Document Content Analysis
     if text_result is not None and sample_result is not None:
-        _render_text_analysis(text_result, sample_result, console)
+        render_text_analysis(text_result, sample_result, console)
 
     # Section 5: PII Risk Indicators
     if pii_result is not None and sample_result is not None:
-        _render_pii_results(pii_result, sample_result, console)
+        render_pii_results(pii_result, sample_result, console)
 
     # Section 6: Language & Encoding
     if language_result is not None or encoding_result is not None:
-        _render_language_encoding(
+        render_language_encoding(
             language_result, encoding_result, sample_result, console
         )
 
-    # Section 7: Near-Duplicate Detection
+    # Section 7: Encoding Damage (Mojibake)
+    if mojibake_result is not None:
+        render_mojibake_results(mojibake_result, console)
+
+    # Section 8: Near-Duplicate Detection
     if simhash_result is not None and sample_result is not None:
-        _render_near_duplicates(simhash_result, sample_result, walk_result, console)
+        render_near_duplicates(simhash_result, sample_result, walk_result, console)
 
     # Section 8: Size Distribution
     _render_size_distribution(inventory, console)
 
-    # Section 7: File Age Distribution
+    # Section 9: File Age Distribution
     _render_age_distribution(inventory, console)
 
-    # Section 8: Directory Structure
+    # Section 10: Directory Structure
     _render_dir_structure(inventory, console)
 
-    # Section 9: Issues
+    # Section 11: Issues
     _render_issues(inventory, dedup_result, text_result, pii_result, console)
 
     # Footer
@@ -363,6 +376,8 @@ def _render_corruption_summary(
         table.add_row("[dim]Near-empty (<50 B)[/dim]", f"{corruption.near_empty_count:,}")
     if corruption.corrupt_count:
         table.add_row("[red]Corrupt[/red]", f"{corruption.corrupt_count:,}")
+    if corruption.truncated_count:
+        table.add_row("[red]Truncated[/red]", f"{corruption.truncated_count:,}")
     if corruption.encrypted_count:
         table.add_row("[yellow]Encrypted[/yellow]", f"{corruption.encrypted_count:,}")
     if corruption.unreadable_count:
@@ -410,390 +425,3 @@ def _render_corruption_summary(
             ))
 
     console.print()
-
-
-def _render_text_analysis(
-    text: TextExtractionResult,
-    sample: SampleResult,
-    console: Console,
-) -> None:
-    """Render document content analysis with confidence intervals."""
-    if text.total_processed == 0:
-        return
-
-    # Summary
-    summary = Table(title="Document Content Analysis", show_lines=False)
-    summary.add_column("Metric", style="cyan")
-    summary.add_column("Value", justify="right")
-    summary.add_row("Files analyzed", f"{text.total_processed:,}")
-    summary.add_row("Total corpus files", f"{sample.total_population_size:,}")
-    rate_pct = sample.sampling_rate * 100
-    summary.add_row("Sampling rate", f"{rate_pct:.0f}%")
-    if text.extraction_errors:
-        summary.add_row("[yellow]Extraction errors[/yellow]", f"{text.extraction_errors:,}")
-    console.print(summary)
-
-    # Scanned PDF detection
-    _render_scanned_detection(text, sample, console)
-
-    # Content classification
-    _render_content_classification(text, sample, console)
-
-    # Metadata completeness
-    _render_metadata_completeness(text, sample, console)
-
-    # Page count distribution
-    _render_page_count_distribution(text, console)
-
-    console.print()
-
-
-def _render_scanned_detection(
-    text: TextExtractionResult,
-    sample: SampleResult,
-    console: Console,
-) -> None:
-    """Render scanned vs native PDF detection with confidence intervals."""
-    total_classified = text.scanned_count + text.native_count + text.mixed_scan_count
-    if total_classified == 0:
-        return
-
-    pdf_pop = sample.per_type_population.get("application/pdf", total_classified)
-
-    table = Table(title="Scanned PDF Detection", show_lines=False)
-    table.add_column("Category", style="cyan")
-    table.add_column("Count", justify="right")
-    table.add_column("Proportion", justify="right")
-
-    for label, count in [
-        ("Native (has text layer)", text.native_count),
-        ("Scanned (image-only)", text.scanned_count),
-        ("Mixed (partial text)", text.mixed_scan_count),
-    ]:
-        if count > 0 or label.startswith("Native"):
-            ci = compute_confidence_interval(count, total_classified, pdf_pop)
-            table.add_row(label, f"{count:,}", format_ci(ci))
-
-    console.print(table)
-
-
-def _render_content_classification(
-    text: TextExtractionResult,
-    sample: SampleResult,
-    console: Console,
-) -> None:
-    """Render text-heavy vs image-heavy classification with CIs."""
-    total = text.text_heavy_count + text.image_heavy_count + text.mixed_content_count
-    if total == 0:
-        return
-
-    pop = text.total_processed - text.extraction_errors
-    if pop <= 0:
-        pop = total
-
-    table = Table(title="Content Classification", show_lines=False)
-    table.add_column("Classification", style="cyan")
-    table.add_column("Count", justify="right")
-    table.add_column("Proportion", justify="right")
-
-    for label, count in [
-        ("Text-heavy (>500 chars/page)", text.text_heavy_count),
-        ("Image-heavy (<100 chars/page)", text.image_heavy_count),
-        ("Mixed (100-500 chars/page)", text.mixed_content_count),
-    ]:
-        if count > 0:
-            ci = compute_confidence_interval(count, total, pop)
-            table.add_row(label, f"{count:,}", format_ci(ci))
-
-    console.print(table)
-
-
-def _render_metadata_completeness(
-    text: TextExtractionResult,
-    sample: SampleResult,
-    console: Console,
-) -> None:
-    """Render per-field metadata completeness with confidence intervals."""
-    if text.metadata_total_checked == 0:
-        return
-
-    n = text.metadata_total_checked
-    pop = n  # population is the checked files
-
-    table = Table(title="Metadata Completeness", show_lines=False)
-    table.add_column("Field", style="cyan")
-    table.add_column("Files with value", justify="right")
-    table.add_column("Completeness", justify="right")
-
-    for field_name in METADATA_FIELDS:
-        count = text.metadata_field_counts.get(field_name, 0)
-        ci = compute_confidence_interval(count, n, pop)
-        display_name = field_name.replace("_", " ").title()
-        table.add_row(display_name, f"{count:,}", format_ci(ci))
-
-    console.print(table)
-
-
-def _render_page_count_distribution(
-    text: TextExtractionResult,
-    console: Console,
-) -> None:
-    """Render page count distribution for documents with pages."""
-    if not text.page_count_distribution:
-        return
-
-    total_docs_with_pages = sum(text.page_count_distribution.values())
-
-    table = Table(title="Page Count Distribution", show_lines=False)
-    table.add_column("Range", style="cyan")
-    table.add_column("Count", justify="right")
-    table.add_column("%", justify="right")
-
-    for _, _, label in PAGE_COUNT_BUCKETS:
-        count = text.page_count_distribution.get(label, 0)
-        if count > 0 or label in ("1 page", "2-5 pages"):
-            pct = count / total_docs_with_pages * 100 if total_docs_with_pages else 0
-            table.add_row(label, f"{count:,}", f"{pct:.1f}%")
-
-    console.print(table)
-    if total_docs_with_pages > 0:
-        mean = text.page_count_total / total_docs_with_pages
-        console.print(Text(
-            f"  Min: {text.page_count_min}  Max: {text.page_count_max}  "
-            f"Mean: {mean:.1f}",
-            style="dim",
-        ))
-
-
-def _render_pii_results(
-    pii: PIIScanResult,
-    sample: SampleResult,
-    console: Console,
-) -> None:
-    """Render PII risk indicators with per-type breakdown."""
-    if pii.total_scanned == 0:
-        return
-
-    # Warning banner if samples are shown
-    if pii.show_pii_samples:
-        console.print(Panel(
-            "[bold yellow]WARNING:[/bold yellow] PII samples shown below. "
-            "Do not share this report without redacting sensitive data.",
-            border_style="yellow",
-            title="Privacy Warning",
-        ))
-
-    # Summary table
-    summary = Table(title="PII Risk Indicators", show_lines=False)
-    summary.add_column("Metric", style="cyan")
-    summary.add_column("Value", justify="right")
-    summary.add_row("Files scanned for PII", f"{pii.total_scanned:,}")
-    summary.add_row("Files with PII indicators", f"{pii.files_with_pii:,}")
-    if pii.scan_errors:
-        summary.add_row("[yellow]Scan errors[/yellow]", f"{pii.scan_errors:,}")
-    console.print(summary)
-
-    # Per-type breakdown tables
-    if not pii.per_type_counts:
-        console.print(Text("  No PII risk indicators found.", style="dim"))
-        console.print()
-        return
-
-    for pattern_name in pii.per_type_counts:
-        label = pii.pattern_labels.get(pattern_name, pattern_name)
-        match_count = pii.per_type_counts[pattern_name]
-        file_count = pii.per_type_file_counts.get(pattern_name, 0)
-        fp_rate = pii.pattern_fp_rates.get(pattern_name, 0.0)
-
-        ci = compute_confidence_interval(
-            file_count, pii.total_scanned, sample.total_population_size
-        )
-
-        table = Table(title=f"  {label}", show_lines=False)
-        table.add_column("Metric", style="cyan")
-        table.add_column("Value", justify="right")
-        table.add_row("Total matches", f"{match_count:,}")
-        table.add_row("Files affected", f"{file_count:,}")
-        table.add_row("Corpus exposure", format_ci(ci))
-        if fp_rate > 0:
-            table.add_row("Expected FP rate", f"~{fp_rate:.0%}")
-        console.print(table)
-
-    # Show sample matches if --show-pii-samples
-    if pii.show_pii_samples:
-        _render_pii_samples(pii, console)
-
-    console.print()
-
-
-def _render_language_encoding(
-    language: LanguageResult | None,
-    encoding: EncodingResult | None,
-    sample: SampleResult | None,
-    console: Console,
-) -> None:
-    """Render combined Language & Encoding section with two sub-tables."""
-    # Language Distribution sub-table
-    if language is not None and language.total_analyzed > 0:
-        pop = sample.total_population_size if sample else language.total_analyzed
-
-        table = Table(title="Language Distribution", show_lines=False)
-        table.add_column("Language", style="cyan")
-        table.add_column("Count", justify="right")
-        table.add_column("Proportion", justify="right")
-
-        sorted_langs = sorted(
-            language.language_distribution.items(),
-            key=lambda x: x[1],
-            reverse=True,
-        )
-
-        displayed = sorted_langs[:10]
-        remaining = sorted_langs[10:]
-
-        for lang, count in displayed:
-            ci = compute_confidence_interval(
-                count, language.total_analyzed, pop
-            )
-            table.add_row(lang, f"{count:,}", format_ci(ci))
-
-        if remaining:
-            other_count = sum(c for _, c in remaining)
-            ci = compute_confidence_interval(
-                other_count, language.total_analyzed, pop
-            )
-            table.add_row(
-                f"[dim]Other ({len(remaining)} languages)[/dim]",
-                f"{other_count:,}",
-                format_ci(ci),
-            )
-
-        console.print(table)
-        if language.detection_errors:
-            console.print(Text(
-                f"  Detection errors: {language.detection_errors}",
-                style="yellow",
-            ))
-
-    # Encoding Distribution sub-table
-    if encoding is not None and encoding.total_analyzed > 0:
-        table = Table(title="Encoding Distribution", show_lines=False)
-        table.add_column("Encoding", style="cyan")
-        table.add_column("Count", justify="right")
-        table.add_column("%", justify="right")
-
-        sorted_encs = sorted(
-            encoding.encoding_distribution.items(),
-            key=lambda x: x[1],
-            reverse=True,
-        )
-
-        for enc_name, count in sorted_encs:
-            pct = count / encoding.total_analyzed * 100
-            table.add_row(enc_name, f"{count:,}", f"{pct:.1f}%")
-
-        console.print(table)
-        console.print(Text(
-            "  Encoding detected for plain text files only "
-            "(PDF/DOCX handle encoding internally)",
-            style="dim",
-        ))
-
-    console.print()
-
-
-def _render_near_duplicates(
-    simhash: SimHashResult,
-    sample: SampleResult,
-    walk_result: WalkResult,
-    console: Console,
-) -> None:
-    """Render near-duplicate detection results with cluster list."""
-    if simhash.total_analyzed == 0:
-        return
-
-    pop = sample.total_population_size
-
-    # Summary table
-    summary = Table(title="Near-Duplicate Detection (estimated)", show_lines=False)
-    summary.add_column("Metric", style="cyan")
-    summary.add_column("Value", justify="right")
-    summary.add_row("Files analyzed", f"{simhash.total_analyzed:,}")
-    summary.add_row("Near-duplicate clusters", f"{simhash.total_clusters:,}")
-    summary.add_row("Files in clusters", f"{simhash.total_files_in_clusters:,}")
-
-    if simhash.total_files_in_clusters > 0:
-        ci = compute_confidence_interval(
-            simhash.total_files_in_clusters, simhash.total_analyzed, pop
-        )
-        summary.add_row("Est. corpus near-dup %", format_ci(ci))
-
-    console.print(summary)
-    console.print(Text(
-        f"  Near-duplicates detected via SimHash fingerprinting "
-        f"(threshold: {simhash.threshold} bits)",
-        style="dim",
-    ))
-
-    # Cluster detail table (top 5)
-    if simhash.clusters:
-        shown = min(5, len(simhash.clusters))
-        detail = Table(
-            title=f"Top Near-Duplicate Clusters "
-                  f"(showing {shown} of {len(simhash.clusters)})",
-            show_lines=False,
-        )
-        detail.add_column("Cluster", justify="right", style="cyan")
-        detail.add_column("Files", justify="right")
-        detail.add_column("Similarity", justify="right")
-        detail.add_column("Paths")
-
-        for idx, cluster in enumerate(simhash.clusters[:5], 1):
-            sim_pct = f"{cluster.similarity * 100:.1f}%"
-
-            # Show paths as relative to scan root, or basenames
-            display_paths: list[str] = []
-            for p in cluster.paths[:5]:
-                try:
-                    rel = Path(p).relative_to(walk_result.scan_root)
-                    display_paths.append(str(rel))
-                except ValueError:
-                    display_paths.append(Path(p).name)
-
-            path_str = "\n".join(display_paths)
-            if len(cluster.paths) > 5:
-                path_str += f"\n[dim]... and {len(cluster.paths) - 5} more[/dim]"
-
-            detail.add_row(str(idx), str(len(cluster.paths)), sim_pct, path_str)
-
-        console.print(detail)
-
-    console.print()
-
-
-def _render_pii_samples(pii: PIIScanResult, console: Console) -> None:
-    """Render PII sample matches (only with --show-pii-samples)."""
-    samples: list[tuple[str, str, str, int]] = []
-    for fr in pii.file_results:
-        for m in fr.sample_matches:
-            samples.append((fr.path, m.pattern_name, m.matched_text, m.line_number))
-
-    if not samples:
-        return
-
-    table = Table(title="PII Samples (first 5 per file)", show_lines=False)
-    table.add_column("File", style="dim")
-    table.add_column("Type")
-    table.add_column("Match", style="red")
-    table.add_column("Line", justify="right")
-
-    for path, ptype, match, line in samples[:20]:
-        short_path = Path(path).name
-        label = pii.pattern_labels.get(ptype, ptype)
-        table.add_row(short_path, label, match, str(line))
-
-    console.print(table)
-    if len(samples) > 20:
-        console.print(Text(
-            f"  ... and {len(samples) - 20} more matches", style="dim"
-        ))

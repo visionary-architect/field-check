@@ -203,3 +203,112 @@ def test_unreadable_file(tmp_path: Path) -> None:
     assert result.unreadable_count == 1
     flagged = [f for f in result.flagged_files if f.status == "unreadable"]
     assert len(flagged) == 1
+
+
+def test_file_types_skips_filetype_guess(tmp_path: Path) -> None:
+    """Passing file_types should use pre-computed MIME, skipping filetype.guess."""
+    create_minimal_pdf(tmp_path / "a.pdf")
+    create_minimal_png(tmp_path / "b.png")
+
+    walk = _walk(tmp_path)
+    # Build file_types dict with known MIME types
+    file_types = {entry.path: "application/pdf" for entry in walk.files}
+
+    with patch(
+        "field_check.scanner.corruption._detect_mime",
+    ) as mock_detect:
+        result = check_corruption(walk, file_types=file_types)
+        # _detect_mime should NOT be called since we provided file_types
+        mock_detect.assert_not_called()
+
+    assert result.total_checked == len(walk.files)
+    # PNG file was told it's PDF — magic mismatch should flag it as corrupt
+    assert result.corrupt_count == 1
+
+
+class TestTruncationDetection:
+    """Tests for PDF, DOCX, and image truncation detection."""
+
+    def test_truncated_pdf_missing_eof(self, tmp_path: Path) -> None:
+        """PDF without %%EOF marker should be flagged as truncated."""
+        pdf = tmp_path / "trunc.pdf"
+        # Valid header but no %%EOF (>50 bytes to avoid near-empty)
+        pdf.write_bytes(b"%PDF-1.4\n1 0 obj\n<< >>\nendobj\n" + b"\x00" * 100)
+
+        walk = _walk(tmp_path)
+        file_types = {walk.files[0].path: "application/pdf"}
+        result = check_corruption(walk, file_types=file_types)
+        assert result.truncated_count == 1
+        flagged = [f for f in result.flagged_files if f.status == "truncated"]
+        assert len(flagged) == 1
+        assert "%%EOF" in flagged[0].detail
+
+    def test_valid_pdf_has_eof(self, tmp_path: Path) -> None:
+        """PDF with %%EOF marker should pass."""
+        pdf = tmp_path / "valid.pdf"
+        pdf.write_bytes(b"%PDF-1.4\n1 0 obj\n<< >>\nendobj\n%%EOF\n")
+
+        walk = _walk(tmp_path)
+        file_types = {walk.files[0].path: "application/pdf"}
+        result = check_corruption(walk, file_types=file_types)
+        assert result.truncated_count == 0
+
+    def test_corrupt_docx_bad_zip(self, tmp_path: Path) -> None:
+        """DOCX with invalid ZIP structure should be flagged."""
+        docx = tmp_path / "bad.docx"
+        # Valid PK header but garbage after
+        docx.write_bytes(b"PK\x03\x04" + b"\x00" * 100)
+
+        walk = _walk(tmp_path)
+        mime = ("application/vnd.openxmlformats-officedocument"
+               ".wordprocessingml.document")
+        file_types = {walk.files[0].path: mime}
+        result = check_corruption(walk, file_types=file_types)
+        assert result.corrupt_count == 1
+
+    def test_docx_missing_content_types(self, tmp_path: Path) -> None:
+        """DOCX missing [Content_Types].xml should be flagged."""
+        import zipfile
+
+        docx = tmp_path / "missing_ct.docx"
+        with zipfile.ZipFile(docx, "w") as zf:
+            zf.writestr("word/document.xml", "<document/>")
+
+        walk = _walk(tmp_path)
+        mime = ("application/vnd.openxmlformats-officedocument"
+               ".wordprocessingml.document")
+        file_types = {walk.files[0].path: mime}
+        result = check_corruption(walk, file_types=file_types)
+        assert result.corrupt_count == 1
+
+    def test_truncated_jpeg_missing_eoi(self, tmp_path: Path) -> None:
+        """JPEG without EOI marker should be flagged as truncated."""
+        jpg = tmp_path / "trunc.jpg"
+        # Valid JPEG header but no EOI (0xFF 0xD9)
+        jpg.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 100)
+
+        walk = _walk(tmp_path)
+        file_types = {walk.files[0].path: "image/jpeg"}
+        result = check_corruption(walk, file_types=file_types)
+        assert result.truncated_count == 1
+
+    def test_valid_jpeg_has_eoi(self, tmp_path: Path) -> None:
+        """JPEG with EOI marker should pass."""
+        jpg = tmp_path / "valid.jpg"
+        jpg.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 100 + b"\xff\xd9")
+
+        walk = _walk(tmp_path)
+        file_types = {walk.files[0].path: "image/jpeg"}
+        result = check_corruption(walk, file_types=file_types)
+        assert result.truncated_count == 0
+
+    def test_truncated_png_missing_iend(self, tmp_path: Path) -> None:
+        """PNG without IEND chunk should be flagged as truncated."""
+        png = tmp_path / "trunc.png"
+        # Valid PNG header but no IEND
+        png.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+
+        walk = _walk(tmp_path)
+        file_types = {walk.files[0].path: "image/png"}
+        result = check_corruption(walk, file_types=file_types)
+        assert result.truncated_count == 1

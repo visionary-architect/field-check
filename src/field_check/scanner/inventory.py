@@ -149,27 +149,30 @@ class InventoryResult:
     type_detection_errors: int = 0
 
 
-def _detect_file_type(filepath: Path) -> str:
+def _detect_file_type(filepath: Path) -> tuple[str, bool]:
     """Detect MIME type using magic bytes, falling back to extension.
 
     Short-circuits filetype.guess for known text extensions (no useful
     magic bytes) to avoid unnecessary file I/O.
+
+    Returns:
+        Tuple of (mime_type, had_error).
     """
     ext = filepath.suffix.lower()
     ext_mime = EXTENSION_MIME_MAP.get(ext)
     if ext_mime is not None:
-        return ext_mime
+        return ext_mime, False
 
     import filetype
 
     try:
         guess = filetype.guess(str(filepath))
         if guess is not None:
-            return guess.mime
+            return guess.mime, False
     except (PermissionError, OSError):
-        pass
+        return "application/octet-stream", True
 
-    return "application/octet-stream"
+    return "application/octet-stream", False
 
 
 def _compute_size_distribution(sizes: list[int]) -> SizeDistribution:
@@ -272,7 +275,9 @@ def analyze_inventory(
     detection_errors = 0
 
     for i, entry in enumerate(walk_result.files):
-        mime = _detect_file_type(entry.path)
+        mime, had_error = _detect_file_type(entry.path)
+        if had_error:
+            detection_errors += 1
         file_types[entry.path] = mime
         type_counts[mime] += 1
         type_sizes[mime] += entry.size

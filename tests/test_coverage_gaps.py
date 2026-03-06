@@ -47,12 +47,11 @@ from field_check.scanner.pii import (
     _scan_text_for_pii,
 )
 from field_check.scanner.sampling import SampleResult
-from field_check.scanner.text import (
-    TextResult,
+from field_check.scanner.text import TextResult, _page_count_bucket
+from field_check.scanner.text_workers import (
     _extract_docx,
     _extract_single,
     _extract_text_for_cache,
-    _page_count_bucket,
 )
 
 ROOT = Path("/corpus")
@@ -536,21 +535,27 @@ class TestInventoryGaps:
         """Known text extensions skip filetype.guess entirely."""
         p = tmp_path / "r.txt"
         p.write_text("x", encoding="utf-8")
-        assert _detect_file_type(p) == "text/plain"
+        mime, had_error = _detect_file_type(p)
+        assert mime == "text/plain"
+        assert had_error is False
 
     def test_filetype_guess_none_fallback(self, tmp_path):
         """Unknown extension + filetype returns None → octet-stream."""
         p = tmp_path / "data.xyz"
         p.write_bytes(b"\x00\x01\x02")
         with patch("filetype.guess", return_value=None):
-            assert _detect_file_type(p) == "application/octet-stream"
+            mime, had_error = _detect_file_type(p)
+            assert mime == "application/octet-stream"
+            assert had_error is False
 
     def test_filetype_oserror(self, tmp_path):
         """Unknown extension + filetype raises → octet-stream."""
         p = tmp_path / "data.xyz"
         p.write_bytes(b"\x00\x01\x02")
         with patch("filetype.guess", side_effect=PermissionError):
-            assert _detect_file_type(p) == "application/octet-stream"
+            mime, had_error = _detect_file_type(p)
+            assert mime == "application/octet-stream"
+            assert had_error is True
 
 
 # -- report/__init__.py -------------------------------------------------------

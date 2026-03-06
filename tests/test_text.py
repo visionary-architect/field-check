@@ -8,12 +8,8 @@ from field_check.config import FieldCheckConfig
 from field_check.scanner import WalkResult
 from field_check.scanner.inventory import InventoryResult, analyze_inventory
 from field_check.scanner.sampling import select_sample
-from field_check.scanner.text import (
-    TextExtractionResult,
-    _extract_docx,
-    _extract_pdf,
-    extract_text,
-)
+from field_check.scanner.text import TextExtractionResult, extract_text
+from field_check.scanner.text_workers import _extract_docx, _extract_pdf
 from tests.conftest import (
     create_minimal_docx,
     create_pdf_with_text,

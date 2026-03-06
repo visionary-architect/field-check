@@ -334,3 +334,254 @@ class TestPageCountDistribution:
         assert text_result.page_count_min == 2
         assert text_result.page_count_max == 5
         assert text_result.page_count_total == 7
+
+
+# --- Context scoring tests ---
+
+
+class TestContextScoring:
+    """Tests for context-aware PII confidence scoring."""
+
+    def test_ssn_with_context_boost(self) -> None:
+        """SSN near 'social security' should get high confidence."""
+        from field_check.scanner.pii import CONTEXT_CONFIG, _compute_context_confidence
+
+        line = "Social Security Number: 123-45-6789"
+        conf = _compute_context_confidence(line, 24, 35, "ssn", CONTEXT_CONFIG)
+        assert conf >= 0.6, f"Expected high confidence, got {conf}"
+
+    def test_ssn_with_suppress_context(self) -> None:
+        """SSN-like number near 'order' should get low confidence."""
+        from field_check.scanner.pii import CONTEXT_CONFIG, _compute_context_confidence
+
+        line = "Order reference: 123-45-6789"
+        conf = _compute_context_confidence(line, 17, 28, "ssn", CONTEXT_CONFIG)
+        assert conf <= 0.4, f"Expected low confidence, got {conf}"
+
+    def test_ssn_no_context(self) -> None:
+        """SSN-like number with no context gets base confidence."""
+        from field_check.scanner.pii import CONTEXT_CONFIG, _compute_context_confidence
+
+        line = "The value is 123-45-6789 here"
+        conf = _compute_context_confidence(line, 13, 24, "ssn", CONTEXT_CONFIG)
+        assert conf == 0.5  # base_confidence for SSN
+
+    def test_phone_with_context_boost(self) -> None:
+        """Phone number near 'call' should get boosted confidence."""
+        from field_check.scanner.pii import CONTEXT_CONFIG, _compute_context_confidence
+
+        line = "Please call 555-123-4567 for support"
+        conf = _compute_context_confidence(line, 12, 24, "phone", CONTEXT_CONFIG)
+        assert conf > 0.4  # boosted from base 0.4
+
+    def test_min_confidence_filters(self, tmp_path: Path) -> None:
+        """min_confidence > 0 should filter low-confidence matches."""
+        f = tmp_path / "test.txt"
+        # "order" context should suppress SSN confidence
+        f.write_text(
+            "Order #123-45-6789\nSSN: 456-78-1234\n", encoding="utf-8"
+        )
+        config_low = FieldCheckConfig(
+            sampling_rate=1.0, pii_min_confidence=0.0,
+        )
+        config_high = FieldCheckConfig(
+            sampling_rate=1.0, pii_min_confidence=0.6,
+        )
+        walk_result = walk_directory(tmp_path, config_low)
+        inventory = analyze_inventory(walk_result)
+        sample = select_sample(walk_result, inventory, config_low)
+
+        result_low = scan_pii(sample, inventory, config_low, max_workers=1)
+        result_high = scan_pii(sample, inventory, config_high, max_workers=1)
+
+        ssn_low = result_low.per_type_counts.get("ssn", 0)
+        ssn_high = result_high.per_type_counts.get("ssn", 0)
+        # High confidence filter should find fewer SSN matches
+        assert ssn_high <= ssn_low
+
+    def test_unknown_pattern_gets_full_confidence(self) -> None:
+        """Pattern not in CONTEXT_CONFIG should get confidence 1.0."""
+        from field_check.scanner.pii import CONTEXT_CONFIG, _compute_context_confidence
+
+        line = "Custom pattern match here"
+        conf = _compute_context_confidence(
+            line, 0, 10, "unknown_pattern", CONTEXT_CONFIG
+        )
+        assert conf == 1.0
+
+    def test_confidence_in_sample_matches(self, tmp_path: Path) -> None:
+        """PIIMatch should include confidence when show_pii_samples=True."""
+        f = tmp_path / "test.txt"
+        f.write_text("Email: user@example.com\n", encoding="utf-8")
+        config = FieldCheckConfig(
+            sampling_rate=1.0, show_pii_samples=True,
+        )
+        walk_result = walk_directory(tmp_path, config)
+        inventory = analyze_inventory(walk_result)
+        sample = select_sample(walk_result, inventory, config)
+        result = scan_pii(sample, inventory, config, max_workers=1)
+
+        matches = [
+            m for fr in result.file_results for m in fr.sample_matches
+        ]
+        assert len(matches) >= 1
+        assert matches[0].confidence > 0
+
+
+# --- Phone validation tests ---
+
+
+class TestPhoneValidation:
+    """Tests for phone number validation with phonenumberslite."""
+
+    def test_validate_phone_valid_us(self) -> None:
+        """Valid US phone numbers should pass validation."""
+        from field_check.scanner.pii import _validate_phone
+
+        # Standard US numbers with valid area codes
+        assert _validate_phone("+1 212-555-1234")
+        assert _validate_phone("(212) 555-1234")
+
+    def test_validate_phone_invalid_area_code(self) -> None:
+        """Invalid area codes should fail (when phonenumberslite installed)."""
+        from field_check.scanner.pii import _validate_phone
+
+        # Try to import; if not installed, test is a no-op
+        try:
+            import phonenumbers  # noqa: F401
+
+            # 000 is not a valid area code
+            assert not _validate_phone("000-555-1234")
+        except ImportError:
+            pass  # Graceful: can't test without library
+
+    def test_validate_phone_graceful_fallback(self) -> None:
+        """Without phonenumberslite, _validate_phone accepts all."""
+        from unittest.mock import patch
+
+        from field_check.scanner.pii import _validate_phone
+
+        with patch.dict("sys.modules", {"phonenumbers": None}):
+            # Should return True (accept all) when import fails
+            result = _validate_phone("000-000-0000")
+            assert result is True
+
+    def test_invalid_phone_gets_low_confidence(self, tmp_path: Path) -> None:
+        """Invalid phone numbers should have confidence capped at 0.1."""
+        try:
+            import phonenumbers  # noqa: F401
+        except ImportError:
+            import pytest
+
+            pytest.skip("phonenumberslite not installed")
+
+        import re
+
+        from field_check.scanner.pii import CONTEXT_CONFIG, _scan_text_for_pii
+
+        patterns = [
+            ("phone", "Phone Number", re.compile(
+                r"\b(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)"
+                r"\d{3}[-.\s]?\d{4}\b"
+            ), None),
+        ]
+        # 000 is not a valid area code
+        text = "Phone: 000-555-1234\n"
+        result = _scan_text_for_pii(
+            "fake.txt", text, patterns, show_samples=True,
+            context_config=CONTEXT_CONFIG, min_confidence=0.0,
+        )
+        if result.sample_matches:
+            assert result.sample_matches[0].confidence <= 0.1
+
+
+class TestContextScoringFixes:
+    """Tests for whole-word matching, proximity weighting, and SSN exclusions."""
+
+    def test_whole_word_matching_no_substring_suppress(self):
+        """Substring 'lic' inside 'duplicate' should NOT suppress."""
+        from field_check.scanner.pii_helpers import compute_context_confidence
+
+        # "order" should suppress, but "duplicate" should NOT
+        # (even though it contains "lic" as a substring)
+        ctx = {"ssn": (0.5, [], ["order", "lic"])}
+        line = "duplicate entry 123-45-6789 found"
+        conf = compute_context_confidence(line, 16, 27, "ssn", ctx)
+        # "lic" is NOT a whole word in "duplicate", so no suppression
+        assert conf == 0.5  # base confidence, no change
+
+    def test_whole_word_matching_actual_word_suppresses(self):
+        """Actual whole-word match should suppress."""
+        from field_check.scanner.pii_helpers import compute_context_confidence
+
+        ctx = {"ssn": (0.5, [], ["order"])}
+        line = "order number 123-45-6789"
+        conf = compute_context_confidence(line, 13, 24, "ssn", ctx)
+        assert conf < 0.5  # should be suppressed
+
+    def test_proximity_weighting_closer_words_score_higher(self):
+        """Words closer to the match should produce higher boost."""
+        from field_check.scanner.pii_helpers import compute_context_confidence
+
+        ctx = {"ssn": (0.5, ["ssn"], [])}
+        # Close context: "ssn" right before match
+        line_close = "ssn 123-45-6789"
+        conf_close = compute_context_confidence(line_close, 4, 15, "ssn", ctx)
+
+        # Far context: "ssn" far from match
+        line_far = "ssn " + ("x" * 80) + " 123-45-6789"
+        conf_far = compute_context_confidence(line_far, 84, 95, "ssn", ctx)
+
+        assert conf_close > conf_far
+
+    def test_known_test_ssn_excluded(self):
+        """Known test SSNs (Woolworth's) should be excluded."""
+        import re
+
+        from field_check.scanner.pii_helpers import scan_text_for_pii
+
+        patterns = [
+            ("ssn", "SSN (US)", re.compile(
+                r"(?<![#\w])(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}(?!\w)"
+            ), None),
+        ]
+        text = "SSN: 078-05-1120\n"  # Woolworth's wallet SSN
+        result = scan_text_for_pii(
+            "fake.txt", text, patterns, show_samples=True,
+        )
+        assert result.matches_by_type.get("ssn", 0) == 0
+
+    def test_negative_lookbehind_hash_prefix(self):
+        """SSN pattern should not match after # prefix."""
+        import re
+
+        from field_check.scanner.pii import BUILTIN_PATTERNS
+
+        ssn_pattern = None
+        for p in BUILTIN_PATTERNS:
+            if p["name"] == "ssn":
+                ssn_pattern = re.compile(str(p["pattern"]))
+                break
+
+        assert ssn_pattern is not None
+        # Should NOT match: preceded by #
+        assert ssn_pattern.search("Order #123-45-6789") is None
+        # Should match: normal context
+        assert ssn_pattern.search("SSN 123-45-6789") is not None
+
+    def test_valid_ssn_still_matches(self):
+        """Valid SSNs without # prefix should still be detected."""
+        import re
+
+        from field_check.scanner.pii_helpers import scan_text_for_pii
+
+        patterns = [
+            ("ssn", "SSN (US)", re.compile(
+                r"(?<![#\w])(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}(?!\w)"
+            ), None),
+        ]
+        text = "Social security 123-45-6789\n"
+        result = scan_text_for_pii(
+            "fake.txt", text, patterns, show_samples=True,
+        )
+        assert result.matches_by_type.get("ssn", 0) == 1

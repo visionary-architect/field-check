@@ -17,6 +17,7 @@ from field_check.scanner.dedup import DedupResult
 from field_check.scanner.encoding import EncodingResult
 from field_check.scanner.inventory import InventoryResult
 from field_check.scanner.language import LanguageResult
+from field_check.scanner.mojibake import MojibakeResult
 from field_check.scanner.pii import PIIScanResult
 from field_check.scanner.sampling import SampleResult
 from field_check.scanner.simhash import SimHashResult
@@ -38,6 +39,7 @@ def generate_report(
     language_result: LanguageResult | None = None,
     encoding_result: EncodingResult | None = None,
     simhash_result: SimHashResult | None = None,
+    mojibake_result: MojibakeResult | None = None,
 ) -> None:
     """Generate a report in the specified format.
 
@@ -56,6 +58,7 @@ def generate_report(
         language_result: Language detection results (optional).
         encoding_result: Encoding detection results (optional).
         simhash_result: Near-duplicate detection results (optional).
+        mojibake_result: Mojibake (encoding damage) results (optional).
 
     Raises:
         ValueError: If format is not yet supported.
@@ -69,6 +72,7 @@ def generate_report(
         "language_result": language_result,
         "encoding_result": encoding_result,
         "simhash_result": simhash_result,
+        "mojibake_result": mojibake_result,
     }
 
     if fmt == "terminal":

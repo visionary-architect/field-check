@@ -18,10 +18,11 @@ from field_check.scanner.dedup import compute_hashes
 from field_check.scanner.encoding import analyze_encodings
 from field_check.scanner.inventory import analyze_inventory
 from field_check.scanner.language import analyze_languages
+from field_check.scanner.mojibake import detect_mojibake
 from field_check.scanner.pii import scan_pii
-from field_check.scanner.sampling import select_sample
+from field_check.scanner.sampling import estimate_design_effect, select_sample
 from field_check.scanner.simhash import detect_near_duplicates
-from field_check.scanner.text import build_text_cache, extract_text
+from field_check.scanner.text import extract_text_unified
 
 console = Console()
 
@@ -61,6 +62,10 @@ def main() -> None:
     "--show-pii-samples", is_flag=True, default=False,
     help="Show matched PII content in report (WARNING: exposes sensitive data).",
 )
+@click.option(
+    "--pii-min-confidence", type=float, default=None,
+    help="Minimum confidence for PII matches (0.0-1.0, default: 0.0).",
+)
 def scan(
     path: str,
     config_path: str | None,
@@ -69,6 +74,7 @@ def scan(
     output: str | None,
     sampling_rate: float | None,
     show_pii_samples: bool,
+    pii_min_confidence: float | None,
 ) -> None:
     """Scan a document corpus and generate a health report."""
     scan_path = Path(path).resolve()
@@ -149,12 +155,19 @@ def scan(
     if sampling_rate is not None:
         config.sampling_rate = max(0.0, min(1.0, sampling_rate))
 
+    # Override PII min confidence from CLI if provided
+    if pii_min_confidence is not None:
+        config.pii_min_confidence = max(0.0, min(1.0, pii_min_confidence))
+
     # Select sample for content analysis
     with console.status("[bold blue]Selecting sample...", spinner="dots"):
         sample = select_sample(result, inventory, config)
+        if not sample.is_census:
+            sample.deff = estimate_design_effect(sample.selected_files, inventory)
 
-    # Extract text from sampled PDF/DOCX files
+    # Unified text extraction: metadata + classification + text cache in one pass
     text_result = None
+    text_cache_result = None
     if sample.total_sample_size > 0:
         with console.status(
             "[bold blue]Extracting text...", spinner="dots"
@@ -165,24 +178,8 @@ def scan(
                     f"[cyan]{current}[/cyan]/[cyan]{total}[/cyan]"
                 )
 
-            text_result = extract_text(
+            text_result, text_cache_result = extract_text_unified(
                 sample, inventory, progress_callback=on_extract
-            )
-
-    # Build shared text cache for PII + language + encoding
-    text_cache_result = None
-    if sample.total_sample_size > 0:
-        with console.status(
-            "[bold blue]Extracting text content...", spinner="dots"
-        ) as status:
-            def on_cache(current: int, total: int) -> None:
-                status.update(
-                    f"[bold blue]Extracting text content... "
-                    f"[cyan]{current}[/cyan]/[cyan]{total}[/cyan]"
-                )
-
-            text_cache_result = build_text_cache(
-                sample, inventory, progress_callback=on_cache
             )
 
     # Set show_pii_samples on config
@@ -224,6 +221,14 @@ def scan(
     if text_cache_result and text_cache_result.encoding_map:
         encoding_result = analyze_encodings(text_cache_result.encoding_map)
 
+    # Detect encoding damage (mojibake) in cached text
+    mojibake_result = None
+    if text_cache_result and text_cache_result.text_cache:
+        with console.status(
+            "[bold blue]Checking for encoding damage...", spinner="dots"
+        ):
+            mojibake_result = detect_mojibake(text_cache_result.text_cache)
+
     # Detect near-duplicates via SimHash
     simhash_result = None
     if text_cache_result and text_cache_result.text_cache:
@@ -257,6 +262,7 @@ def scan(
             language_result=language_result,
             encoding_result=encoding_result,
             simhash_result=simhash_result,
+            mojibake_result=mojibake_result,
         )
     except ValueError as exc:
         raise click.UsageError(str(exc)) from exc

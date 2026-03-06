@@ -48,13 +48,21 @@ PAGE_COUNT_BUCKETS: list[tuple[int, float, str]] = [
     (501, float("inf"), ">500 pages"),
 ]
 
+# MIME types for plain text content extraction
+PLAIN_TEXT_MIMES: set[str] = {
+    "text/plain",
+    "text/csv",
+    "text/json",
+    "text/xml",
+    "application/json",
+    "application/xml",
+}
 
-def _page_count_bucket(count: int) -> str:
-    """Map a page count to its distribution bucket label."""
-    for low, high, label in PAGE_COUNT_BUCKETS:
-        if low <= count <= high:
-            return label
-    return ">500 pages"
+# Combined set: all types we can extract text from for the cache
+CACHE_EXTRACTABLE_MIMES: set[str] = EXTRACTABLE_MIMES | PLAIN_TEXT_MIMES
+
+# Max bytes to read from plain text files
+_MAX_TEXT_READ = 1_000_000
 
 
 @dataclass
@@ -62,6 +70,7 @@ class TextResult:
     """Extraction result for a single file."""
 
     path: str
+    text: str = ""
     text_length: int = 0
     page_count: int = 0
     chars_per_page: float = 0.0
@@ -95,161 +104,70 @@ class TextExtractionResult:
     file_results: list[TextResult] = field(default_factory=list)
 
 
-def _extract_pdf(filepath: str) -> TextResult:
-    """Extract text, metadata, and classification from a PDF.
+@dataclass
+class TextCacheResult:
+    """Result of shared text cache extraction."""
 
-    Single-pass extraction: opens the file once to get text, page count,
-    scanned detection (via page.chars), content classification, and metadata.
-    """
-    import pdfplumber
-
-    result = TextResult(path=filepath)
-    file_size = os.path.getsize(filepath)
-
-    try:
-        with pdfplumber.open(filepath) as pdf:
-            result.page_count = len(pdf.pages)
-
-            # Extract metadata
-            meta = pdf.metadata or {}
-            result.metadata["title"] = meta.get("Title") or None
-            result.metadata["author"] = meta.get("Author") or None
-            creation = meta.get("CreationDate")
-            result.metadata["creation_date"] = str(creation) if creation else None
-
-            total_chars = 0
-            total_text_bytes = 0
-            scanned_pages = 0
-            native_pages = 0
-
-            total_text_len = 0
-            for page in pdf.pages:
-                # Count char objects for scanned detection
-                char_count = len(page.chars) if page.chars else 0
-                if char_count == 0:
-                    scanned_pages += 1
-                else:
-                    native_pages += 1
-                    total_chars += char_count
-
-                # Extract text
-                text = page.extract_text() or ""
-                total_text_len += len(text)
-                total_text_bytes += len(text.encode("utf-8", errors="replace"))
-
-            result.text_length = total_text_len
-
-            # Scanned detection
-            if result.page_count > 0:
-                if scanned_pages == result.page_count:
-                    result.is_scanned = True
-                elif scanned_pages > 0 and native_pages > 0:
-                    result.is_mixed_scan = True
-
-            # Content classification
-            if result.page_count > 0:
-                result.chars_per_page = total_chars / result.page_count
-                result.text_size_ratio = (
-                    total_text_bytes / file_size if file_size > 0 else 0.0
-                )
-
-                if (
-                    result.is_scanned
-                    or result.chars_per_page < CHARS_PER_PAGE_IMAGE_HEAVY
-                ):
-                    result.classification = CLASSIFICATION_IMAGE_HEAVY
-                elif result.chars_per_page > CHARS_PER_PAGE_TEXT_HEAVY:
-                    result.classification = CLASSIFICATION_TEXT_HEAVY
-                else:
-                    # Mixed zone -- check secondary metric
-                    if result.text_size_ratio < TEXT_SIZE_RATIO_IMAGE_HEAVY:
-                        result.classification = CLASSIFICATION_IMAGE_HEAVY
-                    else:
-                        result.classification = CLASSIFICATION_MIXED
-
-    except Exception as exc:
-        result.error = str(exc)
-
-    return result
+    text_cache: dict[str, str] = field(default_factory=dict)
+    encoding_map: dict[str, tuple[str, float]] = field(default_factory=dict)
+    total_extracted: int = 0
+    extraction_errors: int = 0
 
 
-def _docx_full_text(doc: object) -> str:
-    """Extract all text from a python-docx Document.
-
-    Includes body paragraphs, table cells, headers, and footers.
-    """
-    parts: list[str] = []
-
-    # Body paragraphs
-    for p in doc.paragraphs:  # type: ignore[attr-defined]
-        if p.text:
-            parts.append(p.text)
-
-    # Table cells
-    for table in doc.tables:  # type: ignore[attr-defined]
-        for row in table.rows:
-            for cell in row.cells:
-                if cell.text:
-                    parts.append(cell.text)
-
-    # Headers and footers
-    for section in doc.sections:  # type: ignore[attr-defined]
-        for hf in (section.header, section.footer):
-            if hf and hf.is_linked_to_previous is False:
-                for p in hf.paragraphs:
-                    if p.text:
-                        parts.append(p.text)
-
-    return "\n".join(parts)
+def _page_count_bucket(count: int) -> str:
+    """Map a page count to its distribution bucket label."""
+    for low, high, label in PAGE_COUNT_BUCKETS:
+        if low <= count <= high:
+            return label
+    return ">500 pages"
 
 
-def _extract_docx(filepath: str) -> TextResult:
-    """Extract text and metadata from a DOCX file."""
-    from docx import Document
+def _aggregate_extraction(
+    result: TextExtractionResult,
+    text_result: TextResult,
+    mime: str,
+) -> None:
+    """Aggregate a single file's extraction into the overall result."""
+    # Scanned detection counts (PDF-only concept)
+    if mime == "application/pdf":
+        if text_result.is_scanned:
+            result.scanned_count += 1
+        elif text_result.is_mixed_scan:
+            result.mixed_scan_count += 1
+        else:
+            result.native_count += 1
 
-    result = TextResult(path=filepath)
-    file_size = os.path.getsize(filepath)
+    # Content classification counts
+    if text_result.classification == CLASSIFICATION_TEXT_HEAVY:
+        result.text_heavy_count += 1
+    elif text_result.classification == CLASSIFICATION_IMAGE_HEAVY:
+        result.image_heavy_count += 1
+    elif text_result.classification == CLASSIFICATION_MIXED:
+        result.mixed_content_count += 1
 
-    try:
-        doc = Document(filepath)
+    # Metadata completeness
+    result.metadata_total_checked += 1
+    for mf in METADATA_FIELDS:
+        value = text_result.metadata.get(mf)
+        if value:
+            result.metadata_field_counts[mf] = (
+                result.metadata_field_counts.get(mf, 0) + 1
+            )
 
-        # Extract text from paragraphs, tables, headers, footers
-        text = _docx_full_text(doc)
-        text_bytes = len(text.encode("utf-8", errors="replace"))
-        result.text_length = len(text)
-        result.text_size_ratio = text_bytes / file_size if file_size > 0 else 0.0
-
-        # Extract metadata
-        props = doc.core_properties
-        result.metadata["title"] = props.title if props.title else None
-        result.metadata["author"] = props.author if props.author else None
-        result.metadata["creation_date"] = (
-            props.created.isoformat() if props.created else None
+    # Page count distribution (PDF only)
+    if text_result.page_count > 0:
+        result.page_count_total += text_result.page_count
+        if (
+            result.page_count_min == 0
+            or text_result.page_count < result.page_count_min
+        ):
+            result.page_count_min = text_result.page_count
+        if text_result.page_count > result.page_count_max:
+            result.page_count_max = text_result.page_count
+        bucket = _page_count_bucket(text_result.page_count)
+        result.page_count_distribution[bucket] = (
+            result.page_count_distribution.get(bucket, 0) + 1
         )
-
-        # DOCX is always text-based, never scanned
-        result.classification = CLASSIFICATION_TEXT_HEAVY
-
-    except Exception as exc:
-        result.error = str(exc)
-
-    return result
-
-
-def _extract_single(filepath: str, mime_type: str) -> TextResult:
-    """Worker function for ProcessPoolExecutor.
-
-    Must be top-level for pickling. Dispatches to type-specific extractors.
-    """
-    if mime_type == "application/pdf":
-        return _extract_pdf(filepath)
-    elif (
-        mime_type
-        == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    ):
-        return _extract_docx(filepath)
-    else:
-        return TextResult(path=filepath, error=f"Unsupported type: {mime_type}")
 
 
 def extract_text(
@@ -274,6 +192,8 @@ def extract_text(
     Returns:
         Aggregated text extraction results.
     """
+    from field_check.scanner.text_workers import _extract_single
+
     result = TextExtractionResult()
 
     # Filter to extractable types only
@@ -305,7 +225,9 @@ def extract_text(
                 )
                 result.timeout_errors += 1
             except Exception as exc:
-                text_result = TextResult(path=str(entry.path), error=str(exc))
+                text_result = TextResult(
+                    path=str(entry.path), error=str(exc)
+                )
 
             result.file_results.append(text_result)
             result.total_processed += 1
@@ -313,133 +235,12 @@ def extract_text(
             if text_result.error:
                 result.extraction_errors += 1
             else:
-                # Scanned detection counts (PDF-only concept)
-                if mime == "application/pdf":
-                    if text_result.is_scanned:
-                        result.scanned_count += 1
-                    elif text_result.is_mixed_scan:
-                        result.mixed_scan_count += 1
-                    else:
-                        result.native_count += 1
-
-                # Content classification counts
-                if text_result.classification == CLASSIFICATION_TEXT_HEAVY:
-                    result.text_heavy_count += 1
-                elif text_result.classification == CLASSIFICATION_IMAGE_HEAVY:
-                    result.image_heavy_count += 1
-                elif text_result.classification == CLASSIFICATION_MIXED:
-                    result.mixed_content_count += 1
-
-                # Metadata completeness
-                result.metadata_total_checked += 1
-                for mf in METADATA_FIELDS:
-                    value = text_result.metadata.get(mf)
-                    if value:
-                        result.metadata_field_counts[mf] = (
-                            result.metadata_field_counts.get(mf, 0) + 1
-                        )
-
-                # Page count distribution (PDF only)
-                if text_result.page_count > 0:
-                    result.page_count_total += text_result.page_count
-                    if (
-                        result.page_count_min == 0
-                        or text_result.page_count < result.page_count_min
-                    ):
-                        result.page_count_min = text_result.page_count
-                    if text_result.page_count > result.page_count_max:
-                        result.page_count_max = text_result.page_count
-                    bucket = _page_count_bucket(text_result.page_count)
-                    result.page_count_distribution[bucket] = (
-                        result.page_count_distribution.get(bucket, 0) + 1
-                    )
+                _aggregate_extraction(result, text_result, mime)
 
             if progress_callback is not None:
                 progress_callback(completed, total)
 
     return result
-
-
-# ---------------------------------------------------------------------------
-# Shared text cache for downstream analysis (PII, language, encoding)
-# ---------------------------------------------------------------------------
-
-# MIME types for plain text content extraction
-PLAIN_TEXT_MIMES: set[str] = {
-    "text/plain",
-    "text/csv",
-    "text/json",
-    "text/xml",
-    "application/json",
-    "application/xml",
-}
-
-# Combined set: all types we can extract text from for the cache
-CACHE_EXTRACTABLE_MIMES: set[str] = EXTRACTABLE_MIMES | PLAIN_TEXT_MIMES
-
-# Max bytes to read from plain text files
-_MAX_TEXT_READ = 1_000_000
-
-
-@dataclass
-class TextCacheResult:
-    """Result of shared text cache extraction."""
-
-    text_cache: dict[str, str] = field(default_factory=dict)
-    encoding_map: dict[str, tuple[str, float]] = field(default_factory=dict)
-    total_extracted: int = 0
-    extraction_errors: int = 0
-
-
-def _extract_text_for_cache(
-    filepath: str, mime_type: str
-) -> tuple[str, str | None, float, str | None]:
-    """Worker function to extract text content from any supported file.
-
-    Must be top-level for pickling (ProcessPoolExecutor).
-
-    Returns:
-        Tuple of (text, encoding_name, encoding_confidence, error).
-        encoding_name is only set for plain text files.
-    """
-    try:
-        if mime_type == "application/pdf":
-            import pdfplumber
-
-            with pdfplumber.open(filepath) as pdf:
-                text = "\n".join(
-                    page.extract_text() or "" for page in pdf.pages
-                )
-            return (text, None, 0.0, None)
-
-        if (
-            mime_type
-            == "application/vnd.openxmlformats-officedocument"
-               ".wordprocessingml.document"
-        ):
-            from docx import Document
-
-            doc = Document(filepath)
-            text = _docx_full_text(doc)
-            return (text, None, 0.0, None)
-
-        # Plain text types — read bytes, detect encoding
-        from charset_normalizer import from_bytes
-
-        with open(filepath, "rb") as f:
-            raw = f.read(_MAX_TEXT_READ)
-
-        result = from_bytes(raw).best()
-        if result:
-            return (str(result), result.encoding, 1.0 - result.chaos, None)
-        return (
-            raw.decode("utf-8", errors="replace"),
-            "utf-8",
-            0.0,
-            None,
-        )
-    except Exception as exc:
-        return ("", None, 0.0, str(exc))
 
 
 def build_text_cache(
@@ -449,7 +250,7 @@ def build_text_cache(
     timeout: float = DEFAULT_TIMEOUT,
     progress_callback: Callable[[int, int], None] | None = None,
 ) -> TextCacheResult:
-    """Build shared text cache for downstream analysis (PII, language, encoding).
+    """Build shared text cache for downstream analysis.
 
     Uses ProcessPoolExecutor for crash isolation. Extracts text from:
     - PDFs via pdfplumber
@@ -466,6 +267,8 @@ def build_text_cache(
     Returns:
         TextCacheResult with text_cache dict and encoding_map.
     """
+    from field_check.scanner.text_workers import _extract_text_for_cache
+
     cache_result = TextCacheResult()
 
     # Filter to cache-extractable types
@@ -526,3 +329,139 @@ def build_text_cache(
                 progress_callback(completed, total)
 
     return cache_result
+
+
+def extract_text_unified(
+    sample: SampleResult,
+    inventory: InventoryResult,
+    max_workers: int | None = None,
+    timeout: float = DEFAULT_TIMEOUT,
+    progress_callback: Callable[[int, int], None] | None = None,
+) -> tuple[TextExtractionResult, TextCacheResult]:
+    """Single-pass text extraction for metadata analysis and text cache.
+
+    Eliminates double PDF/DOCX parsing by retaining extracted text in
+    TextResult.text and populating the text cache from it. Plain text
+    files are extracted separately for encoding detection.
+
+    Args:
+        sample: Sampling result with selected files.
+        inventory: Inventory with per-file MIME type mapping.
+        max_workers: Max worker processes (default: min(4, cpu_count)).
+        timeout: Per-file timeout in seconds.
+        progress_callback: Called with (current, total) for progress display.
+
+    Returns:
+        Tuple of (TextExtractionResult, TextCacheResult).
+    """
+    from field_check.scanner.text_workers import (
+        _extract_plain_text,
+        _extract_single,
+    )
+
+    text_result = TextExtractionResult()
+    cache_result = TextCacheResult()
+
+    # Separate files into PDF/DOCX (rich extraction) and plain text
+    pdf_docx: list[tuple[FileEntry, str]] = []
+    plain_text: list[tuple[FileEntry, str]] = []
+
+    for entry in sample.selected_files:
+        mime = inventory.file_types.get(entry.path, "application/octet-stream")
+        if mime in EXTRACTABLE_MIMES:
+            pdf_docx.append((entry, mime))
+        elif mime in PLAIN_TEXT_MIMES:
+            plain_text.append((entry, mime))
+
+    total = len(pdf_docx) + len(plain_text)
+    if total == 0:
+        return text_result, cache_result
+
+    workers = max_workers or min(MAX_WORKERS, os.cpu_count() or 1)
+    completed = 0
+
+    # Phase A: PDF/DOCX — metadata + classification + text in one pass
+    if pdf_docx:
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            future_to_info: dict = {}
+            for entry, mime in pdf_docx:
+                future = pool.submit(
+                    _extract_single, str(entry.path), mime
+                )
+                future_to_info[future] = (entry, mime)
+
+            for future in as_completed(future_to_info):
+                entry, mime = future_to_info[future]
+                try:
+                    file_result = future.result(timeout=timeout)
+                except TimeoutError:
+                    file_result = TextResult(
+                        path=str(entry.path), error="Extraction timed out"
+                    )
+                    text_result.timeout_errors += 1
+                except Exception as exc:
+                    file_result = TextResult(
+                        path=str(entry.path), error=str(exc)
+                    )
+
+                text_result.file_results.append(file_result)
+                text_result.total_processed += 1
+
+                if file_result.error:
+                    text_result.extraction_errors += 1
+                    cache_result.extraction_errors += 1
+                else:
+                    _aggregate_extraction(text_result, file_result, mime)
+                    if file_result.text:
+                        cache_result.text_cache[str(entry.path)] = (
+                            file_result.text
+                        )
+                cache_result.total_extracted += 1
+
+                completed += 1
+                if progress_callback is not None:
+                    progress_callback(completed, total)
+
+    # Phase B: Plain text — encoding detection + text cache
+    if plain_text:
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            future_to_entry: dict = {}
+            for entry, _mime in plain_text:
+                future = pool.submit(
+                    _extract_plain_text, str(entry.path)
+                )
+                future_to_entry[future] = entry
+
+            for future in as_completed(future_to_entry):
+                entry = future_to_entry[future]
+                path_str = str(entry.path)
+                try:
+                    text, enc_name, enc_conf, error = future.result(
+                        timeout=timeout
+                    )
+                except (TimeoutError, Exception):
+                    cache_result.extraction_errors += 1
+                    cache_result.total_extracted += 1
+                    completed += 1
+                    if progress_callback is not None:
+                        progress_callback(completed, total)
+                    continue
+
+                cache_result.total_extracted += 1
+
+                if error:
+                    cache_result.extraction_errors += 1
+                else:
+                    if text:
+                        cache_result.text_cache[path_str] = text
+                    if enc_name:
+                        cache_result.encoding_map[path_str] = (
+                            enc_name,
+                            enc_conf,
+                        )
+
+                completed += 1
+                if progress_callback is not None:
+                    progress_callback(completed, total)
+
+    return text_result, cache_result
