@@ -69,6 +69,7 @@ lang-extra = ["fast-langdetect>=0.2"]
 accurate-lang = ["lingua-language-detector>=2.0"]
 dedup-extra = ["datasketch>=1.6"]
 fast-dedup = ["faiss-cpu>=1.7"]
+semantic = ["semhash>=0.3"]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=4.0",
