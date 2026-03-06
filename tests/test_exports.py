@@ -285,37 +285,60 @@ class TestExitCodes:
         dedup = DedupResult(duplicate_percentage=5.0)
         corruption = CorruptionResult(corrupt_count=0)
         pii = PIIScanResult(total_scanned=100, files_with_pii=1)
-        assert determine_exit_code(cfg, inv, dedup, corruption, pii) == 0
+        code, breaches = determine_exit_code(cfg, inv, dedup, corruption, pii)
+        assert code == 0
+        assert breaches == []
 
     def test_exit_code_pii_critical(self) -> None:
         cfg = FieldCheckConfig()  # pii_critical=0.05
         inv = InventoryResult(total_files=100)
         pii = PIIScanResult(total_scanned=100, files_with_pii=10)  # 10%
-        assert determine_exit_code(cfg, inv, pii_result=pii) == 1
+        code, breaches = determine_exit_code(cfg, inv, pii_result=pii)
+        assert code == 1
+        assert len(breaches) == 1
+        assert "PII" in breaches[0]
 
     def test_exit_code_duplicate_critical(self) -> None:
         cfg = FieldCheckConfig()  # duplicate_critical=0.10
         inv = InventoryResult(total_files=100)
         dedup = DedupResult(duplicate_percentage=15.0)  # 15%
-        assert determine_exit_code(cfg, inv, dedup_result=dedup) == 1
+        code, breaches = determine_exit_code(cfg, inv, dedup_result=dedup)
+        assert code == 1
+        assert "Duplicate" in breaches[0]
 
     def test_exit_code_corrupt_critical(self) -> None:
         cfg = FieldCheckConfig()  # corrupt_critical=0.01
         inv = InventoryResult(total_files=100)
         corruption = CorruptionResult(corrupt_count=2)  # 2%
-        assert determine_exit_code(cfg, inv, corruption_result=corruption) == 1
+        code, breaches = determine_exit_code(cfg, inv, corruption_result=corruption)
+        assert code == 1
+        assert "Corruption" in breaches[0]
 
     def test_exit_code_custom_thresholds(self) -> None:
         cfg = FieldCheckConfig(pii_critical=0.50)  # raise threshold to 50%
         inv = InventoryResult(total_files=100)
         pii = PIIScanResult(total_scanned=100, files_with_pii=10)  # 10%
         # 10% < 50% threshold → clean
-        assert determine_exit_code(cfg, inv, pii_result=pii) == 0
+        code, _ = determine_exit_code(cfg, inv, pii_result=pii)
+        assert code == 0
 
     def test_exit_code_no_results(self) -> None:
         cfg = FieldCheckConfig()
         inv = InventoryResult(total_files=100)
-        assert determine_exit_code(cfg, inv) == 0
+        code, _ = determine_exit_code(cfg, inv)
+        assert code == 0
+
+    def test_exit_code_multiple_breaches(self) -> None:
+        cfg = FieldCheckConfig()
+        inv = InventoryResult(total_files=100)
+        dedup = DedupResult(duplicate_percentage=15.0)
+        corruption = CorruptionResult(corrupt_count=5)
+        pii = PIIScanResult(total_scanned=100, files_with_pii=10)
+        code, breaches = determine_exit_code(
+            cfg, inv, dedup, corruption, pii
+        )
+        assert code == 1
+        assert len(breaches) == 3
 
 
 # ---------------------------------------------------------------------------

@@ -102,6 +102,11 @@ def scan(
             console.print("\n[yellow]Scan interrupted.[/yellow]")
             sys.exit(2)
 
+    if not result.files:
+        console.print("[yellow]No files found in the specified directory.[/yellow]")
+        console.print("Check your path and exclude patterns.")
+        sys.exit(0)
+
     # Analyze file inventory with progress
     with console.status(
         "[bold blue]Analyzing file types...", spinner="dots"
@@ -257,7 +262,7 @@ def scan(
         raise click.UsageError(str(exc)) from exc
 
     # Determine CI exit code based on thresholds
-    exit_code = determine_exit_code(
+    exit_code, breaches = determine_exit_code(
         config,
         inventory,
         dedup_result=dedup_result,
@@ -265,4 +270,6 @@ def scan(
         pii_result=pii_result,
     )
     if exit_code != 0:
+        for breach in breaches:
+            console.print(f"[red]CRITICAL:[/red] {breach}")
         sys.exit(exit_code)

@@ -149,7 +149,7 @@ class TestCLIExitCode:
         (tmp_path / "f.txt").write_text("x", encoding="utf-8")
         with patch(
             "field_check.cli.determine_exit_code",
-            return_value=1,
+            return_value=(1, ["Duplicate rate 15.0% >= threshold 10.0%"]),
         ):
             runner = CliRunner()
             result = runner.invoke(main, ["scan", str(tmp_path)])
@@ -863,27 +863,35 @@ class TestDetermineExitCode:
         config = FieldCheckConfig(duplicate_critical=0.10)
         inv = InventoryResult(total_files=10)
         dedup = DedupResult(duplicate_percentage=15.0)
-        assert determine_exit_code(config, inv, dedup_result=dedup) == 1
+        code, breaches = determine_exit_code(config, inv, dedup_result=dedup)
+        assert code == 1
+        assert len(breaches) == 1
 
     def test_corrupt_threshold_exceeded(self):
         """Threshold exceeded on corruption rate."""
         config = FieldCheckConfig(corrupt_critical=0.01)
         inv = InventoryResult(total_files=100)
         corruption = CorruptionResult(corrupt_count=2)
-        assert determine_exit_code(config, inv, corruption_result=corruption) == 1
+        code, breaches = determine_exit_code(config, inv, corruption_result=corruption)
+        assert code == 1
+        assert len(breaches) == 1
 
     def test_pii_threshold_exceeded(self):
         """Threshold exceeded on PII rate."""
         config = FieldCheckConfig(pii_critical=0.05)
         inv = InventoryResult(total_files=100)
         pii = PIIScanResult(total_scanned=100, files_with_pii=10)
-        assert determine_exit_code(config, inv, pii_result=pii) == 1
+        code, breaches = determine_exit_code(config, inv, pii_result=pii)
+        assert code == 1
+        assert len(breaches) == 1
 
     def test_no_threshold_exceeded(self):
         """No threshold exceeded -> exit 0."""
         config = FieldCheckConfig()
         inv = InventoryResult(total_files=100)
-        assert determine_exit_code(config, inv) == 0
+        code, breaches = determine_exit_code(config, inv)
+        assert code == 0
+        assert breaches == []
 
 
 # ---------------------------------------------------------------------------

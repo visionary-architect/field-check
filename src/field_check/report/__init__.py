@@ -110,8 +110,11 @@ def determine_exit_code(
     dedup_result: DedupResult | None = None,
     corruption_result: CorruptionResult | None = None,
     pii_result: PIIScanResult | None = None,
-) -> int:
+) -> tuple[int, list[str]]:
     """Determine CI exit code based on configured thresholds.
+
+    Checks ALL thresholds and returns all breaches so the user
+    can see every issue at once instead of fixing one at a time.
 
     Args:
         config: Configuration with threshold values.
@@ -121,21 +124,33 @@ def determine_exit_code(
         pii_result: PII scan results.
 
     Returns:
-        0 if no critical findings, 1 if any threshold exceeded.
+        Tuple of (exit_code, list of breach descriptions).
+        exit_code is 0 if no breaches, 1 if any threshold exceeded.
     """
+    breaches: list[str] = []
+
     if dedup_result is not None:
         dup_rate = dedup_result.duplicate_percentage / 100.0
         if dup_rate >= config.duplicate_critical:
-            return 1
+            breaches.append(
+                f"Duplicate rate {dup_rate:.1%} >= "
+                f"threshold {config.duplicate_critical:.1%}"
+            )
 
     if corruption_result is not None and inventory.total_files > 0:
         corrupt_rate = corruption_result.corrupt_count / inventory.total_files
         if corrupt_rate >= config.corrupt_critical:
-            return 1
+            breaches.append(
+                f"Corruption rate {corrupt_rate:.1%} >= "
+                f"threshold {config.corrupt_critical:.1%}"
+            )
 
     if pii_result is not None and pii_result.total_scanned > 0:
         pii_rate = pii_result.files_with_pii / pii_result.total_scanned
         if pii_rate >= config.pii_critical:
-            return 1
+            breaches.append(
+                f"PII rate {pii_rate:.1%} >= "
+                f"threshold {config.pii_critical:.1%}"
+            )
 
-    return 0
+    return (1 if breaches else 0, breaches)
