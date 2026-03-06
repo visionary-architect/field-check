@@ -26,6 +26,7 @@ class FieldCheckConfig:
     show_pii_samples: bool = False
     pii_min_confidence: float = 0.0
     simhash_threshold: int = 5
+    simhash_bits: int = 64
     pii_critical: float = 0.05
     duplicate_critical: float = 0.10
     corrupt_critical: float = 0.01
@@ -108,11 +109,15 @@ def load_config(scan_path: Path, config_path: Path | None = None) -> FieldCheckC
 
     # Parse SimHash config
     simhash_threshold = 5
+    simhash_bits = 64
     simhash_section = raw.get("simhash", {})
     if isinstance(simhash_section, dict):
         thresh = simhash_section.get("threshold")
         if isinstance(thresh, int):
             simhash_threshold = max(0, min(64, thresh))
+        bits = simhash_section.get("bits")
+        if isinstance(bits, int) and bits in (64, 128):
+            simhash_bits = bits
 
     # Parse thresholds config
     pii_critical = 0.05
@@ -137,6 +142,7 @@ def load_config(scan_path: Path, config_path: Path | None = None) -> FieldCheckC
         pii_custom_patterns=pii_custom_patterns,
         pii_min_confidence=pii_min_confidence,
         simhash_threshold=simhash_threshold,
+        simhash_bits=simhash_bits,
         pii_critical=pii_critical,
         duplicate_critical=duplicate_critical,
         corrupt_critical=corrupt_critical,

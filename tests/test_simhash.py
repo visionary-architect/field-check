@@ -261,3 +261,76 @@ class TestConfigThreshold:
         )
         config = load_config(tmp_path)
         assert config.simhash_threshold == 64  # Clamped to max
+
+    def test_yaml_bits_128(self, tmp_path: Path) -> None:
+        config_file = tmp_path / ".field-check.yaml"
+        config_file.write_text(
+            "simhash:\n  bits: 128\n", encoding="utf-8"
+        )
+        config = load_config(tmp_path)
+        assert config.simhash_bits == 128
+
+    def test_yaml_bits_invalid(self, tmp_path: Path) -> None:
+        config_file = tmp_path / ".field-check.yaml"
+        config_file.write_text(
+            "simhash:\n  bits: 256\n", encoding="utf-8"
+        )
+        config = load_config(tmp_path)
+        assert config.simhash_bits == 64  # Default — 256 not allowed
+
+
+# ---------------------------------------------------------------------------
+# 128-bit SimHash tests
+# ---------------------------------------------------------------------------
+
+
+class TestSimHash128:
+    """Test 128-bit SimHash fingerprinting."""
+
+    def test_128_deterministic(self) -> None:
+        text = "The quick brown fox jumps over the lazy dog in the park."
+        assert compute_simhash(text, bits=128) == compute_simhash(text, bits=128)
+
+    def test_128_different_from_64(self) -> None:
+        text = "The quick brown fox jumps over the lazy dog in the park."
+        fp64 = compute_simhash(text, bits=64)
+        fp128 = compute_simhash(text, bits=128)
+        assert fp128 != fp64  # Different widths → different fingerprints
+
+    def test_128_similarity(self) -> None:
+        text = (
+            "The quarterly report shows significant revenue growth "
+            "across all business segments with strong performance."
+        )
+        fp = compute_simhash(text, bits=128)
+        assert similarity_score(fp, fp, bits=128) == 1.0
+
+    def test_128_near_duplicates_detected(self) -> None:
+        base = (
+            "The quarterly report demonstrates growth across segments "
+            "with revenue increasing by fifteen percent this quarter."
+        )
+        cache = {
+            "a.txt": base,
+            "b.txt": base,  # Exact same text → distance 0
+            "c.txt": "Completely unrelated text about cooking pasta " * 5,
+        }
+        result = detect_near_duplicates(cache, threshold=10, bits=128)
+        assert result.total_analyzed >= 2
+        # a.txt and b.txt should cluster (identical text)
+        found = any(
+            "a.txt" in c.paths and "b.txt" in c.paths
+            for c in result.clusters
+        )
+        assert found
+
+    def test_128_auto_threshold_scaling(self) -> None:
+        """Default threshold scales proportionally for 128-bit."""
+        base = (
+            "The quarterly report demonstrates growth across segments "
+            "with revenue increasing by fifteen percent this quarter."
+        )
+        cache = {"a.txt": base, "b.txt": base}
+        result = detect_near_duplicates(cache, bits=128)
+        # Default threshold (5) should scale to 10 for 128-bit
+        assert result.threshold == 10

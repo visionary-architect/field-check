@@ -1,4 +1,4 @@
-"""SimHash near-duplicate detection via 64-bit fingerprinting."""
+"""SimHash near-duplicate detection via configurable-width fingerprinting."""
 
 from __future__ import annotations
 
@@ -35,35 +35,39 @@ def _tokenize(text: str) -> list[str]:
     return [f"{words[i]} {words[i + 1]} {words[i + 2]}" for i in range(len(words) - 2)]
 
 
-def compute_simhash(text: str) -> int:
-    """Compute a 64-bit SimHash fingerprint from text.
+def compute_simhash(text: str, bits: int = SIMHASH_BITS) -> int:
+    """Compute a SimHash fingerprint from text.
 
     Uses MD5 hashing of 3-shingles with weighted bit accumulation.
+    Supports 64-bit or 128-bit fingerprints.
 
     Args:
         text: Input text to fingerprint.
+        bits: Fingerprint width (64 or 128).
 
     Returns:
-        64-bit integer fingerprint.
+        Integer fingerprint of the specified width.
     """
     shingles = _tokenize(text)
     if not shingles:
         return 0
 
-    vector = [0] * SIMHASH_BITS
+    vector = [0] * bits
+    # MD5 produces 128 bits; use 8 bytes for 64-bit, 16 for 128-bit
+    hash_bytes = 8 if bits <= 64 else 16
 
     for shingle in shingles:
         digest = hashlib.md5(shingle.encode("utf-8")).digest()
-        hash_val = int.from_bytes(digest[:8], "big")
+        hash_val = int.from_bytes(digest[:hash_bytes], "big")
 
-        for i in range(SIMHASH_BITS):
+        for i in range(bits):
             if hash_val & (1 << i):
                 vector[i] += 1
             else:
                 vector[i] -= 1
 
     fingerprint = 0
-    for i in range(SIMHASH_BITS):
+    for i in range(bits):
         if vector[i] > 0:
             fingerprint |= 1 << i
 
@@ -74,26 +78,27 @@ def hamming_distance(a: int, b: int) -> int:
     """Compute Hamming distance between two fingerprints.
 
     Args:
-        a: First 64-bit fingerprint.
-        b: Second 64-bit fingerprint.
+        a: First fingerprint.
+        b: Second fingerprint.
 
     Returns:
-        Number of differing bits (0 to 64).
+        Number of differing bits.
     """
     return bin(a ^ b).count("1")
 
 
-def similarity_score(a: int, b: int) -> float:
+def similarity_score(a: int, b: int, bits: int = SIMHASH_BITS) -> float:
     """Compute similarity score between two fingerprints.
 
     Args:
-        a: First 64-bit fingerprint.
-        b: Second 64-bit fingerprint.
+        a: First fingerprint.
+        b: Second fingerprint.
+        bits: Fingerprint width for normalization.
 
     Returns:
         Similarity between 0.0 (completely different) and 1.0 (identical).
     """
-    return 1.0 - hamming_distance(a, b) / SIMHASH_BITS
+    return 1.0 - hamming_distance(a, b) / bits
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +163,7 @@ class SimHashResult:
 
 
 def _band_candidates(
-    fingerprints: list[int], num_bands: int,
+    fingerprints: list[int], num_bands: int, bits: int = SIMHASH_BITS,
 ) -> set[tuple[int, int]]:
     """Find candidate pairs using band bucketing (locality-sensitive hashing).
 
@@ -167,13 +172,13 @@ def _band_candidates(
     By pigeonhole, if Hamming distance ≤ num_bands-1, at least one
     segment must be identical — guaranteeing zero false negatives.
     """
-    bits_per_band = SIMHASH_BITS // num_bands
+    bits_per_band = bits // num_bands
     candidates: set[tuple[int, int]] = set()
 
     for band in range(num_bands):
         shift = band * bits_per_band
         # Last band gets remaining bits
-        width = bits_per_band if band < num_bands - 1 else SIMHASH_BITS - shift
+        width = bits_per_band if band < num_bands - 1 else bits - shift
         mask = (1 << width) - 1
 
         buckets: dict[int, list[int]] = defaultdict(list)
@@ -193,22 +198,27 @@ def _band_candidates(
 def detect_near_duplicates(
     text_cache: dict[str, str],
     threshold: int = DEFAULT_THRESHOLD,
+    bits: int = SIMHASH_BITS,
     progress_callback: Callable[[int, int], None] | None = None,
 ) -> SimHashResult:
     """Detect near-duplicate files using SimHash fingerprinting.
 
-    Computes 64-bit SimHash for each file, then performs pairwise
-    comparison to find files within the Hamming distance threshold.
-    Uses union-find for transitive clustering.
+    Computes SimHash for each file, then performs pairwise comparison
+    to find files within the Hamming distance threshold. Supports
+    64-bit or 128-bit fingerprints. Uses union-find for transitive clustering.
 
     Args:
         text_cache: Dict of filepath -> extracted text content.
-        threshold: Maximum Hamming distance to consider near-duplicate (0-64).
+        threshold: Maximum Hamming distance to consider near-duplicate.
+        bits: Fingerprint width (64 or 128). 128-bit reduces false positives.
         progress_callback: Called with (current, total) after each file.
 
     Returns:
         SimHashResult with clusters and statistics.
     """
+    # Scale threshold proportionally for 128-bit
+    if bits == 128 and threshold == DEFAULT_THRESHOLD:
+        threshold = threshold * 2  # proportional scaling
     result = SimHashResult(threshold=threshold)
 
     # Step 1: Compute fingerprints (skip short texts)
@@ -218,7 +228,7 @@ def detect_near_duplicates(
     total = len(text_cache)
     for i, (path, text) in enumerate(text_cache.items()):
         if len(text) >= MIN_TEXT_LENGTH:
-            fp = compute_simhash(text)
+            fp = compute_simhash(text, bits=bits)
             paths.append(path)
             fingerprints.append(fp)
             result.fingerprints[path] = fp
@@ -239,8 +249,8 @@ def detect_near_duplicates(
     for i in range(len(paths)):
         uf.find(paths[i])  # ensure all paths are in the union-find
 
-    num_bands = min(threshold + 1, SIMHASH_BITS)
-    candidates = _band_candidates(fingerprints, num_bands)
+    num_bands = min(threshold + 1, bits)
+    candidates = _band_candidates(fingerprints, num_bands, bits=bits)
 
     for i, j in candidates:
         dist = hamming_distance(fingerprints[i], fingerprints[j])
@@ -259,7 +269,7 @@ def detect_near_duplicates(
         pair_count = 0
         for mi in range(len(member_fps)):
             for mj in range(mi + 1, len(member_fps)):
-                total_sim += similarity_score(member_fps[mi], member_fps[mj])
+                total_sim += similarity_score(member_fps[mi], member_fps[mj], bits)
                 pair_count += 1
 
         avg_sim = total_sim / pair_count if pair_count > 0 else 0.0

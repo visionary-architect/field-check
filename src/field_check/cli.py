@@ -198,6 +198,7 @@ def _run_scan_pipeline(
             results["simhash"] = detect_near_duplicates(
                 text_cache_result.text_cache,
                 threshold=config.simhash_threshold,
+                bits=config.simhash_bits,
                 progress_callback=on_simhash,
             )
         progress.update(overall, advance=1, detail="done")
