@@ -47,7 +47,7 @@ def main() -> None:
 @click.option(
     "--format",
     "output_format",
-    type=click.Choice(["terminal", "html", "json", "csv", "sarif"], case_sensitive=False),
+    type=click.Choice(["terminal", "html", "json", "csv", "sarif", "junit"], case_sensitive=False),
     default="terminal",
     help="Report output format.",
 )
