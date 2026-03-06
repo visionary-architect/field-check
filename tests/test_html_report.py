@@ -8,12 +8,12 @@ from pathlib import Path
 import pytest
 
 from field_check.report.html import (
-    _format_duration,
-    _format_size,
     _try_relative,
     _try_relative_str,
     render_html_report,
 )
+from field_check.report.utils import format_duration as _format_duration
+from field_check.report.utils import format_size as _format_size
 from field_check.scanner import WalkResult
 from field_check.scanner.corruption import CorruptionResult
 from field_check.scanner.dedup import DedupResult, DuplicateGroup

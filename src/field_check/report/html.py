@@ -8,6 +8,7 @@ from pathlib import Path
 import jinja2
 
 from field_check import __version__
+from field_check.report.utils import format_duration, format_size
 from field_check.scanner import WalkResult
 from field_check.scanner.corruption import CorruptionResult
 from field_check.scanner.dedup import DedupResult
@@ -18,28 +19,6 @@ from field_check.scanner.pii import PIIScanResult
 from field_check.scanner.sampling import SampleResult, compute_confidence_interval, format_ci
 from field_check.scanner.simhash import SimHashResult
 from field_check.scanner.text import TextExtractionResult
-
-
-def _format_size(size_bytes: int | float) -> str:
-    """Format bytes into human-readable string."""
-    if size_bytes < 1024:
-        return f"{size_bytes} B"
-    if size_bytes < 1024 * 1024:
-        return f"{size_bytes / 1024:.1f} KB"
-    if size_bytes < 1024 * 1024 * 1024:
-        return f"{size_bytes / (1024 * 1024):.1f} MB"
-    return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
-
-
-def _format_duration(seconds: float) -> str:
-    """Format elapsed seconds into human-readable string."""
-    if seconds < 1:
-        return f"{seconds * 1000:.0f}ms"
-    if seconds < 60:
-        return f"{seconds:.1f}s"
-    minutes = int(seconds // 60)
-    secs = seconds % 60
-    return f"{minutes}m {secs:.0f}s"
 
 
 def render_html_report(
@@ -108,8 +87,8 @@ def _build_context(
         avg_size = total_size // count if count else 0
         type_rows.append({
             "mime": mime, "count": count, "pct": f"{pct:.1f}",
-            "total_size": _format_size(total_size),
-            "avg_size": _format_size(avg_size),
+            "total_size": format_size(total_size),
+            "avg_size": format_size(avg_size),
         })
 
     # Size distribution data
@@ -120,9 +99,9 @@ def _build_context(
         "version": __version__,
         "scan_path": str(walk_result.scan_root),
         "scan_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "duration": _format_duration(elapsed_seconds),
+        "duration": format_duration(elapsed_seconds),
         "total_files": f"{inventory.total_files:,}",
-        "total_size": _format_size(inventory.total_size),
+        "total_size": format_size(inventory.total_size),
         "total_dirs": f"{ds.total_dirs:,}",
         # Type distribution
         "type_labels": type_labels,
@@ -132,10 +111,10 @@ def _build_context(
         "size_labels": size_labels,
         "size_counts": size_counts,
         "size_stats": {
-            "min": _format_size(sd.min_size),
-            "max": _format_size(sd.max_size),
-            "median": _format_size(sd.median_size),
-            "mean": _format_size(sd.mean_size),
+            "min": format_size(sd.min_size),
+            "max": format_size(sd.max_size),
+            "median": format_size(sd.median_size),
+            "mean": format_size(sd.mean_size),
         },
         # Age distribution
         "age_rows": [
@@ -168,14 +147,14 @@ def _build_context(
             "unique_files": f"{dedup.unique_files:,}",
             "groups": f"{len(dedup.duplicate_groups):,}",
             "dup_files": f"{dedup.duplicate_file_count:,}",
-            "wasted": _format_size(dedup.duplicate_bytes),
+            "wasted": format_size(dedup.duplicate_bytes),
             "pct": f"{dedup.duplicate_percentage:.1f}",
             "top_groups": [
                 {
                     "hash": g.hash[:12],
-                    "size": _format_size(g.size),
+                    "size": format_size(g.size),
                     "copies": len(g.paths),
-                    "wasted": _format_size(g.size * (len(g.paths) - 1)),
+                    "wasted": format_size(g.size * (len(g.paths) - 1)),
                     "paths": [
                         str(_try_relative(p, walk_result.scan_root))
                         for p in g.paths[:5]

@@ -11,6 +11,7 @@ from rich.table import Table
 from rich.text import Text
 
 from field_check import __version__
+from field_check.report.utils import format_duration, format_size
 from field_check.scanner import WalkResult
 from field_check.scanner.corruption import CorruptionResult
 from field_check.scanner.dedup import DedupResult
@@ -21,28 +22,6 @@ from field_check.scanner.pii import PIIScanResult
 from field_check.scanner.sampling import SampleResult, compute_confidence_interval, format_ci
 from field_check.scanner.simhash import SimHashResult
 from field_check.scanner.text import METADATA_FIELDS, PAGE_COUNT_BUCKETS, TextExtractionResult
-
-
-def _format_size(size_bytes: int | float) -> str:
-    """Format bytes into human-readable string."""
-    if size_bytes < 1024:
-        return f"{size_bytes} B"
-    if size_bytes < 1024 * 1024:
-        return f"{size_bytes / 1024:.1f} KB"
-    if size_bytes < 1024 * 1024 * 1024:
-        return f"{size_bytes / (1024 * 1024):.1f} MB"
-    return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
-
-
-def _format_duration(seconds: float) -> str:
-    """Format elapsed seconds into human-readable string."""
-    if seconds < 1:
-        return f"{seconds * 1000:.0f}ms"
-    if seconds < 60:
-        return f"{seconds:.1f}s"
-    minutes = int(seconds // 60)
-    secs = seconds % 60
-    return f"{minutes}m {secs:.0f}s"
 
 
 def _bar(fraction: float, width: int = 20) -> str:
@@ -85,9 +64,9 @@ def render_terminal_report(
     header_lines = [
         f"[bold]Scan path:[/bold]  {walk_result.scan_root}",
         f"[bold]Scan date:[/bold]  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        f"[bold]Duration:[/bold]   {_format_duration(elapsed_seconds)}",
+        f"[bold]Duration:[/bold]   {format_duration(elapsed_seconds)}",
         f"[bold]Files:[/bold]      {inventory.total_files:,}",
-        f"[bold]Total size:[/bold] {_format_size(inventory.total_size)}",
+        f"[bold]Total size:[/bold] {format_size(inventory.total_size)}",
         f"[bold]Directories:[/bold] {inventory.dir_structure.total_dirs:,}",
     ]
     console.print(Panel(
@@ -174,8 +153,8 @@ def _render_type_distribution(inventory: InventoryResult, console: Console) -> N
             mime,
             f"{count:,}",
             f"{pct:.1f}%",
-            _format_size(total_size),
-            _format_size(avg_size),
+            format_size(total_size),
+            format_size(avg_size),
         )
 
     if remaining:
@@ -187,8 +166,8 @@ def _render_type_distribution(inventory: InventoryResult, console: Console) -> N
             f"[dim]Other ({len(remaining)} types)[/dim]",
             f"{other_count:,}",
             f"{pct:.1f}%",
-            _format_size(other_size),
-            _format_size(avg),
+            format_size(other_size),
+            format_size(avg),
         )
 
     console.print(table)
@@ -222,10 +201,10 @@ def _render_size_distribution(inventory: InventoryResult, console: Console) -> N
 
     if inventory.total_files:
         stats = (
-            f"  Min: {_format_size(sd.min_size)}  "
-            f"Max: {_format_size(sd.max_size)}  "
-            f"Median: {_format_size(sd.median_size)}  "
-            f"Mean: {_format_size(sd.mean_size)}"
+            f"  Min: {format_size(sd.min_size)}  "
+            f"Max: {format_size(sd.max_size)}  "
+            f"Median: {format_size(sd.median_size)}  "
+            f"Mean: {format_size(sd.mean_size)}"
         )
         console.print(Text(stats, style="dim"))
     console.print()
@@ -326,7 +305,7 @@ def _render_dedup_summary(dedup: DedupResult, console: Console) -> None:
     table.add_row("Unique files", f"{dedup.unique_files:,}")
     table.add_row("Duplicate groups", f"{len(dedup.duplicate_groups):,}")
     table.add_row("Duplicate files", f"{dedup.duplicate_file_count:,}")
-    table.add_row("Wasted space", _format_size(dedup.duplicate_bytes))
+    table.add_row("Wasted space", format_size(dedup.duplicate_bytes))
     table.add_row("Duplicate %", f"{dedup.duplicate_percentage:.1f}%")
 
     console.print(table)
@@ -356,9 +335,9 @@ def _render_dedup_summary(dedup: DedupResult, console: Console) -> None:
 
             detail.add_row(
                 group.hash[:12],
-                _format_size(group.size),
+                format_size(group.size),
                 str(len(group.paths)),
-                _format_size(wasted),
+                format_size(wasted),
                 path_str,
             )
 

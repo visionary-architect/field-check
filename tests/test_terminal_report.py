@@ -10,10 +10,10 @@ from rich.console import Console
 
 from field_check.report.terminal import (
     _bar,
-    _format_duration,
-    _format_size,
     render_terminal_report,
 )
+from field_check.report.utils import format_duration as _format_duration
+from field_check.report.utils import format_size as _format_size
 from field_check.scanner import WalkResult
 from field_check.scanner.corruption import CorruptionResult, FileHealth
 from field_check.scanner.dedup import DedupResult, DuplicateGroup
