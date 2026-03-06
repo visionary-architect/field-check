@@ -75,6 +75,7 @@ _STATUS_TO_RULE: dict[str, str] = {
     "encrypted_office": "FC003",
     "empty": "FC004",
     "near_empty": "FC004",
+    "unreadable": "FC001",
 }
 
 
@@ -153,7 +154,7 @@ def render_sarif_report(
                 _make_result(
                     rule_id="FC007",
                     message="File contains encoding damage (mojibake)",
-                    path=path,
+                    path=_try_relative(Path(path), walk_result.scan_root),
                 )
             )
 

@@ -211,6 +211,14 @@ def compute_context_confidence(
     context = before_text + " " + after_text
 
     match_center = (match_start + match_end) / 2
+    before_len = len(before_text)
+
+    def _ctx_pos_to_line_pos(ctx_pos: int) -> int:
+        """Map a position in the context string back to the original line."""
+        if ctx_pos < before_len:
+            return window_start + ctx_pos
+        # Skip the separator char between before_text and after_text
+        return match_end + (ctx_pos - before_len - 1)
 
     # Boost: +0.15 per keyword found (proximity-weighted), max +0.4
     # Uses whole-word matching to avoid substring false matches
@@ -219,8 +227,7 @@ def compute_context_confidence(
     for word in boost_words:
         match_obj = re.search(r"\b" + re.escape(word) + r"\b", context)
         if match_obj:
-            # Proximity weight: closer words get higher weight
-            word_pos = window_start + match_obj.start()
+            word_pos = _ctx_pos_to_line_pos(match_obj.start())
             distance = abs(word_pos - match_center)
             weight = max(0.2, 1.0 - distance / _CONTEXT_WINDOW)
             boost += 0.15 * weight
@@ -231,7 +238,7 @@ def compute_context_confidence(
     for word in suppress_words:
         match_obj = re.search(r"\b" + re.escape(word) + r"\b", context)
         if match_obj:
-            word_pos = window_start + match_obj.start()
+            word_pos = _ctx_pos_to_line_pos(match_obj.start())
             distance = abs(word_pos - match_center)
             weight = max(0.2, 1.0 - distance / _CONTEXT_WINDOW)
             suppress += 0.2 * weight

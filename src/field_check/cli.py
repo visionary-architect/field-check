@@ -76,11 +76,7 @@ def _run_scan_pipeline(
         def on_walk(count: int) -> None:
             progress.update(overall, detail=f"{count} files found")
 
-        try:
-            walk_result = walk_directory(scan_path, config, progress_callback=on_walk)
-        except KeyboardInterrupt:
-            con.print("\n[yellow]Scan interrupted.[/yellow]")
-            sys.exit(2)
+        walk_result = walk_directory(scan_path, config, progress_callback=on_walk)
 
         if not walk_result.files:
             con.print("[yellow]No files found in the specified directory.[/yellow]")
@@ -283,7 +279,11 @@ def scan(
         config.show_pii_samples = True
 
     # Run pipeline with overall progress tracking
-    scan_results = _run_scan_pipeline(scan_path, config, console)
+    try:
+        scan_results = _run_scan_pipeline(scan_path, config, console)
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Scan interrupted.[/yellow]")
+        sys.exit(2)
 
     elapsed = time.monotonic() - scan_start
 

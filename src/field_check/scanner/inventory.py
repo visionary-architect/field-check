@@ -290,18 +290,27 @@ def analyze_inventory(
     detection_errors = 0
 
     for i, entry in enumerate(walk_result.files):
-        mime, had_error = _detect_file_type(entry.path)
-        if had_error:
+        try:
+            mime, had_error = _detect_file_type(entry.path)
+            if had_error:
+                detection_errors += 1
+            file_types[entry.path] = mime
+            type_counts[mime] += 1
+            type_sizes[mime] += entry.size
+
+            ext = entry.path.suffix.lower() or "(no extension)"
+            ext_counts[ext] += 1
+
+            sizes.append(entry.size)
+            mtimes.append(entry.mtime)
+        except Exception:
+            logger.warning("Inventory analysis failed for %s", entry.path, exc_info=True)
             detection_errors += 1
-        file_types[entry.path] = mime
-        type_counts[mime] += 1
-        type_sizes[mime] += entry.size
-
-        ext = entry.path.suffix.lower() or "(no extension)"
-        ext_counts[ext] += 1
-
-        sizes.append(entry.size)
-        mtimes.append(entry.mtime)
+            # Still record basic info so file isn't silently dropped
+            file_types[entry.path] = "application/octet-stream"
+            type_counts["application/octet-stream"] += 1
+            sizes.append(entry.size)
+            mtimes.append(entry.mtime)
 
         if progress_callback is not None:
             progress_callback(i + 1, total)

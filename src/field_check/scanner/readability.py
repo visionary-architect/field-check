@@ -59,10 +59,9 @@ def analyze_readability(text_cache: dict[str, str]) -> ReadabilityResult:
         if len(text) < _MIN_TEXT_LENGTH:
             continue
 
-        result.total_checked += 1
-
         try:
             score = textstat.flesch_reading_ease(text)
+            result.total_checked += 1
             is_low = score < LOW_QUALITY_THRESHOLD
             if is_low:
                 result.low_quality_count += 1

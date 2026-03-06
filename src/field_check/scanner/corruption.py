@@ -372,33 +372,45 @@ def check_corruption(
     result = CorruptionResult(total_checked=total)
 
     for i, entry in enumerate(walk_result.files):
-        known_mime = file_types.get(entry.path) if file_types else None
-        health = _check_single_file(entry.path, entry.size, known_mime)
+        try:
+            known_mime = file_types.get(entry.path) if file_types else None
+            health = _check_single_file(entry.path, entry.size, known_mime)
 
-        if health.status == STATUS_OK:
-            result.ok_count += 1
-        elif health.status == STATUS_EMPTY:
-            result.empty_count += 1
-            result.flagged_files.append(health)
-        elif health.status == STATUS_NEAR_EMPTY:
-            result.near_empty_count += 1
-            result.flagged_files.append(health)
-        elif health.status == STATUS_CORRUPT:
-            result.corrupt_count += 1
-            result.flagged_files.append(health)
-        elif health.status == STATUS_TRUNCATED:
-            result.truncated_count += 1
-            result.flagged_files.append(health)
-        elif health.status in (
-            STATUS_ENCRYPTED_PDF,
-            STATUS_ENCRYPTED_ZIP,
-            STATUS_ENCRYPTED_OFFICE,
-        ):
-            result.encrypted_count += 1
-            result.flagged_files.append(health)
-        elif health.status == STATUS_UNREADABLE:
+            if health.status == STATUS_OK:
+                result.ok_count += 1
+            elif health.status == STATUS_EMPTY:
+                result.empty_count += 1
+                result.flagged_files.append(health)
+            elif health.status == STATUS_NEAR_EMPTY:
+                result.near_empty_count += 1
+                result.flagged_files.append(health)
+            elif health.status == STATUS_CORRUPT:
+                result.corrupt_count += 1
+                result.flagged_files.append(health)
+            elif health.status == STATUS_TRUNCATED:
+                result.truncated_count += 1
+                result.flagged_files.append(health)
+            elif health.status in (
+                STATUS_ENCRYPTED_PDF,
+                STATUS_ENCRYPTED_ZIP,
+                STATUS_ENCRYPTED_OFFICE,
+            ):
+                result.encrypted_count += 1
+                result.flagged_files.append(health)
+            elif health.status == STATUS_UNREADABLE:
+                result.unreadable_count += 1
+                result.flagged_files.append(health)
+        except Exception:
+            logger.warning("Corruption check failed for %s", entry.path, exc_info=True)
             result.unreadable_count += 1
-            result.flagged_files.append(health)
+            result.flagged_files.append(
+                FileHealth(
+                    path=entry.path,
+                    status=STATUS_UNREADABLE,
+                    mime_type="",
+                    detail="Corruption check raised an unexpected error",
+                )
+            )
 
         if progress_callback is not None:
             progress_callback(i + 1, total)

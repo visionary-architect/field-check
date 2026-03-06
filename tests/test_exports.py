@@ -163,8 +163,10 @@ class TestJSONReport:
         r = _make_results()
         output = render_json_report(**r)
         assert "matched_text" not in output
-        # Check no actual email addresses leak
-        assert "@" not in output or "scan_date" in output
+        # Verify no email addresses leak into file-level data
+        data = json.loads(output)
+        files_json = json.dumps(data.get("files", []))
+        assert "@" not in files_json, "Email content leaked into file entries"
 
     def test_json_dedup_data(self) -> None:
         r = _make_results()

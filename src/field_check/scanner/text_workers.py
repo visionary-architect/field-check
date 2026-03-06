@@ -194,16 +194,18 @@ def _extract_xlsx(filepath: str) -> TextResult:
         import openpyxl
 
         wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
-        parts: list[str] = []
-        for ws in wb.worksheets:
-            for row in ws.iter_rows(values_only=True):
-                cells = [str(c) for c in row if c is not None]
-                if cells:
-                    parts.append("\t".join(cells))
-        wb.close()
-        result.text = "\n".join(parts)
-        result.text_length = len(result.text)
-        result.classification = CLASSIFICATION_TEXT_HEAVY
+        try:
+            parts: list[str] = []
+            for ws in wb.worksheets:
+                for row in ws.iter_rows(values_only=True):
+                    cells = [str(c) for c in row if c is not None]
+                    if cells:
+                        parts.append("\t".join(cells))
+            result.text = "\n".join(parts)
+            result.text_length = len(result.text)
+            result.classification = CLASSIFICATION_TEXT_HEAVY
+        finally:
+            wb.close()
     except ImportError:
         result.error = "openpyxl not installed (pip install field-check[formats])"
     except Exception as exc:

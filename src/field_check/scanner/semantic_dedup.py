@@ -113,19 +113,22 @@ def detect_semantic_duplicates(
 
             cluster_paths = [paths[orig_idx]]
             clustered.add(orig_idx)
+            scores: list[float] = []
 
-            for dup_text, _score in dup_texts_and_scores:
+            for dup_text, score in dup_texts_and_scores:
                 dup_indices = text_to_indices.get(dup_text, [])
                 dup_idx = next((i for i in dup_indices if i not in clustered), None)
                 if dup_idx is not None:
                     cluster_paths.append(paths[dup_idx])
                     clustered.add(dup_idx)
+                    scores.append(float(score))
 
             if len(cluster_paths) >= 2:
+                avg_sim = sum(scores) / len(scores) if scores else threshold
                 result.clusters.append(
                     SemanticCluster(
                         paths=sorted(cluster_paths),
-                        similarity=threshold,
+                        similarity=avg_sim,
                     )
                 )
     except Exception:

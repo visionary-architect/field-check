@@ -135,6 +135,8 @@ def compute_hashes(
             size = entries[0][1]
             duplicate_groups.append(DuplicateGroup(hash=file_hash, size=size, paths=paths))
 
+    # total_hashed = all files minus errors (includes unique-size files skipped
+    # by pre-filter). duplicate_percentage is fraction of entire corpus.
     total_hashed = total - hash_errors
     # Unique files = those with unique sizes (never hashed) + hashes appearing once
     unique_by_size = sum(1 for g in size_groups.values() if len(g) == 1)

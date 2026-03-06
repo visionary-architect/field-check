@@ -4,10 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from field_check.scanner.semantic_dedup import (
-    SemanticDedupResult,
-    detect_semantic_duplicates,
-)
+from field_check.scanner.semantic_dedup import detect_semantic_duplicates
 
 # Check if semhash is available
 try:
@@ -23,7 +20,6 @@ class TestSemanticDedupGraceful:
 
     def test_empty_cache(self) -> None:
         result = detect_semantic_duplicates({})
-        assert isinstance(result, SemanticDedupResult)
         assert result.total_analyzed == 0
         assert result.clusters == []
 
@@ -34,7 +30,7 @@ class TestSemanticDedupGraceful:
         }
         result = detect_semantic_duplicates(cache)
         # Should either find duplicates (if installed) or return empty (if not)
-        assert isinstance(result, SemanticDedupResult)
+        assert result.total_analyzed >= 0
 
     @pytest.mark.skipif(not HAS_SEMHASH, reason="semhash not installed")
     def test_progress_callback(self) -> None:
