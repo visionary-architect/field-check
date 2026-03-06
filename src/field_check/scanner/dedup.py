@@ -72,15 +72,31 @@ def compute_hashes(
     hash_map: dict[str, list[tuple[Path, int]]] = {}
     hash_errors = 0
 
+    # Pre-filter: group by size, only hash files that share a size
+    # with at least one other file. Unique sizes can never be duplicates.
+    from collections import defaultdict
+
+    size_groups: dict[int, list] = defaultdict(list)
+    for entry in walk_result.files:
+        size_groups[entry.size].append(entry)
+
+    candidates = {
+        id(entry)
+        for entries in size_groups.values()
+        if len(entries) >= 2
+        for entry in entries
+    }
+
     for i, entry in enumerate(walk_result.files):
-        try:
-            file_hash = _hash_file(entry.path)
-            if file_hash not in hash_map:
-                hash_map[file_hash] = []
-            hash_map[file_hash].append((entry.path, entry.size))
-        except (PermissionError, OSError):
-            logger.debug("Could not hash file: %s", entry.path)
-            hash_errors += 1
+        if id(entry) in candidates:
+            try:
+                file_hash = _hash_file(entry.path)
+                if file_hash not in hash_map:
+                    hash_map[file_hash] = []
+                hash_map[file_hash].append((entry.path, entry.size))
+            except (PermissionError, OSError):
+                logger.debug("Could not hash file: %s", entry.path)
+                hash_errors += 1
 
         if progress_callback is not None:
             progress_callback(i + 1, total)
@@ -96,7 +112,9 @@ def compute_hashes(
             )
 
     total_hashed = total - hash_errors
-    unique_files = len(hash_map)
+    # Unique files = those with unique sizes (never hashed) + unique hashes
+    unique_by_size = sum(1 for g in size_groups.values() if len(g) == 1)
+    unique_files = unique_by_size + len(hash_map)
     duplicate_file_count = sum(len(g.paths) for g in duplicate_groups)
     duplicate_bytes = sum(
         g.size * (len(g.paths) - 1) for g in duplicate_groups

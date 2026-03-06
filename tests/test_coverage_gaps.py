@@ -501,8 +501,12 @@ class TestDedupGaps:
         p.write_bytes(b"d")
         e = _e("x.bin")
         e.path = p
+        # Need two files with same size so size pre-filter picks them up
+        e2 = _e("y.bin")
+        e2.path = tmp_path / "y.bin"
+        (tmp_path / "y.bin").write_bytes(b"e")
         with patch("field_check.scanner.dedup._hash_file", side_effect=PermissionError):
-            assert compute_hashes(WalkResult(files=[e], total_size=1)).hash_errors == 1
+            assert compute_hashes(WalkResult(files=[e, e2], total_size=2)).hash_errors == 2
 
 
 # -- inventory.py -------------------------------------------------------------
