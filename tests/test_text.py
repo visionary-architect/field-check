@@ -247,3 +247,36 @@ class TestFormatExtractors:
         result = _extract_epub(str(epub))
         assert result.error is None
         assert result.text == ""
+
+    def test_pdf_quality_good(self, tmp_path: Path) -> None:
+        """PDF with clean text should have 'good' extraction quality."""
+        pdf_path = tmp_path / "clean.pdf"
+        create_pdf_with_text(pdf_path)
+        result = _extract_pdf(str(pdf_path))
+        if result.text_length > 0:
+            assert result.extraction_quality == "good"
+
+    def test_pdf_quality_degraded(self) -> None:
+        """PDF with many U+FFFD chars should have 'degraded' quality."""
+        from unittest.mock import MagicMock, patch
+
+        mock_page = MagicMock()
+        mock_page.chars = [{"c": "a"}] * 10
+        mock_page.extract_text.return_value = "\ufffd" * 100
+        mock_page.width = 612
+        mock_page.height = 792
+        mock_page.images = []
+
+        mock_pdf = MagicMock()
+        mock_pdf.pages = [mock_page]
+        mock_pdf.metadata = {}
+        mock_pdf.__enter__ = lambda s: s
+        mock_pdf.__exit__ = MagicMock(return_value=False)
+
+        with (
+            patch("pdfplumber.open", return_value=mock_pdf),
+            patch("os.path.getsize", return_value=10000),
+        ):
+            result = _extract_pdf("fake.pdf")
+
+        assert result.extraction_quality == "degraded"

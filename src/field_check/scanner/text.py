@@ -82,6 +82,7 @@ class TextResult:
     is_scanned: bool = False
     is_mixed_scan: bool = False
     classification: str = ""
+    extraction_quality: str = ""  # "good", "degraded" (high U+FFFD ratio)
     metadata: dict[str, str | None] = field(default_factory=dict)
     error: str | None = None
 

@@ -82,6 +82,7 @@ def _extract_pdf(filepath: str) -> TextResult:
             native_pages = 0
 
             page_texts: list[str] = []
+            high_image_pages = 0
             for page in pdf.pages:
                 # Count char objects for scanned detection
                 char_count = len(page.chars) if page.chars else 0
@@ -90,6 +91,21 @@ def _extract_pdf(filepath: str) -> TextResult:
                 else:
                     native_pages += 1
                     total_chars += char_count
+
+                # Image coverage heuristic: check if page is image-dominated
+                try:
+                    images = page.images if hasattr(page, "images") else []
+                    page_w = float(page.width) if page.width else 1.0
+                    page_h = float(page.height) if page.height else 1.0
+                    page_area = page_w * page_h
+                    img_area = sum(
+                        float(img.get("width", 0)) * float(img.get("height", 0))
+                        for img in images
+                    )
+                    if page_area > 0 and img_area / page_area >= 0.9:
+                        high_image_pages += 1
+                except Exception:
+                    pass  # Image analysis is best-effort
 
                 # Extract text
                 page_text = page.extract_text() or ""
@@ -101,12 +117,25 @@ def _extract_pdf(filepath: str) -> TextResult:
             result.text = "\n".join(page_texts)
             result.text_length = len(result.text)
 
-            # Scanned detection
+            # Scanned detection — enhanced with image coverage heuristic
             if result.page_count > 0:
-                if scanned_pages == result.page_count:
+                chars_pp = total_chars / result.page_count
+                # OCR'd scanned PDFs: have text but are image-dominated
+                if (
+                    (high_image_pages >= result.page_count * 0.8 and chars_pp < 200)
+                    or scanned_pages == result.page_count
+                ):
                     result.is_scanned = True
                 elif scanned_pages > 0 and native_pages > 0:
                     result.is_mixed_scan = True
+
+            # Text quality check: high U+FFFD ratio indicates extraction issues
+            if result.text_length > 0:
+                fffd_count = result.text.count("\ufffd")
+                if fffd_count > result.text_length * 0.10:
+                    result.extraction_quality = "degraded"
+                else:
+                    result.extraction_quality = "good"
 
             # Content classification
             if result.page_count > 0:
