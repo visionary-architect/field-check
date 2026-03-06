@@ -297,6 +297,26 @@ def _detect_non_latin_language(text: str, script: str) -> str | None:
     return None
 
 
+def _try_lingua(text: str) -> str | None:
+    """Attempt language detection via Lingua (optional, most accurate).
+
+    Returns language display name if available, None otherwise.
+    Install with: pip install field-check[accurate-lang]
+    """
+    try:
+        from lingua import LanguageDetectorBuilder  # type: ignore[import-untyped]
+
+        detector = LanguageDetectorBuilder.from_all_languages().build()
+        lang = detector.detect_language_of(text[:2000])
+        if lang is not None:
+            return lang.name.title()
+        return None
+    except ImportError:
+        return None
+    except Exception:
+        return None
+
+
 def _try_fast_langdetect(text: str) -> str | None:
     """Attempt language detection via fast-langdetect (optional).
 
@@ -379,10 +399,10 @@ def detect_language(
     if dominant_script == "Latin":
         result = _detect_latin_language(text)
         if result == "Latin (Unknown)":
-            # Try fast-langdetect as fallback for unknown Latin languages
-            fast = _try_fast_langdetect(text)
-            if fast:
-                return fast
+            # Try Lingua → fast-langdetect as fallback
+            fallback = _try_lingua(text) or _try_fast_langdetect(text)
+            if fallback:
+                return fallback
         return result
 
     # For Japanese: check if CJK + Kana are both present
@@ -396,10 +416,10 @@ def detect_language(
         # Pure CJK could be Chinese, Japanese, or Korean
         if script_dist.get("Hangul", 0) > 0:
             return "Korean"
-        # Try fast-langdetect for CJK disambiguation
-        fast = _try_fast_langdetect(text)
-        if fast:
-            return fast
+        # Try Lingua → fast-langdetect for CJK disambiguation
+        fallback = _try_lingua(text) or _try_fast_langdetect(text)
+        if fallback:
+            return fallback
         return "CJK"
 
     if dominant_script == "Hangul":
@@ -410,8 +430,8 @@ def detect_language(
     if non_latin:
         return non_latin
 
-    # Try fast-langdetect as final fallback
-    fast = _try_fast_langdetect(text)
+    # Try Lingua → fast-langdetect as final fallback
+    fast = _try_lingua(text) or _try_fast_langdetect(text)
     if fast:
         return fast
 

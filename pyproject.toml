@@ -66,6 +66,7 @@ formats = ["openpyxl>=3.1", "python-pptx>=1.0"]
 fast-pdf = ["pdf-oxide>=0.3"]
 quality = ["textstat>=0.7"]
 lang-extra = ["fast-langdetect>=0.2"]
+accurate-lang = ["lingua-language-detector>=2.0"]
 dedup-extra = ["datasketch>=1.6"]
 fast-dedup = ["faiss-cpu>=1.7"]
 dev = [
