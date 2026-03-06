@@ -76,6 +76,33 @@ BUILTIN_PATTERNS: list[dict[str, str | float]] = [
         ),
         "fp_rate": 0.15,
     },
+    {
+        "name": "iban",
+        "label": "IBAN (International)",
+        "pattern": r"\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b",
+        "fp_rate": 0.20,
+        "validator": "iban",
+    },
+    {
+        "name": "uk_nino",
+        "label": "UK National Insurance Number",
+        "pattern": r"\b[A-CEGHJ-PR-TW-Z]{2}\d{6}[A-D]\b",
+        "fp_rate": 0.25,
+    },
+    {
+        "name": "de_tax_id",
+        "label": "German Tax ID (Steuer-IdNr)",
+        "pattern": r"\b\d{11}\b",
+        "fp_rate": 0.40,
+        "validator": "de_tax_id",
+    },
+    {
+        "name": "es_dni",
+        "label": "Spanish DNI",
+        "pattern": r"\b\d{8}[A-Z]\b",
+        "fp_rate": 0.30,
+        "validator": "es_dni",
+    },
 ]
 
 # MIME types that PII scanner can extract text from

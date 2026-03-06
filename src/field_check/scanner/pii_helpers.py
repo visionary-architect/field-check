@@ -46,6 +46,26 @@ CONTEXT_CONFIG: dict[str, tuple[float, list[str], list[str]]] = {
         ["ip", "host", "server", "network", "address", "dns"],
         ["version"],
     ),
+    "iban": (
+        0.6,
+        ["iban", "bank", "account", "transfer", "payment", "swift", "bic"],
+        ["serial", "reference", "order", "tracking"],
+    ),
+    "uk_nino": (
+        0.5,
+        ["national insurance", "nino", "ni number", "tax", "hmrc"],
+        ["serial", "reference", "order", "model"],
+    ),
+    "de_tax_id": (
+        0.3,
+        ["steuer", "tax", "finanzamt", "identifikationsnummer", "idnr"],
+        ["phone", "zip", "postal", "order", "serial", "isbn"],
+    ),
+    "es_dni": (
+        0.5,
+        ["dni", "documento", "identidad", "nie", "nif"],
+        ["order", "reference", "serial", "code", "postal"],
+    ),
 }
 
 
@@ -86,6 +106,59 @@ def validate_phone(number_str: str) -> bool:
         return True  # Accept all matches without the library
     except Exception:
         return False  # Parse failure = likely not a real number
+
+
+def validate_iban(iban_str: str) -> bool:
+    """Validate an IBAN using python-stdnum (if installed), else Mod-97.
+
+    Returns True if the IBAN passes check digit validation.
+    """
+    try:
+        from stdnum import iban
+        return iban.is_valid(iban_str)
+    except ImportError:
+        # Fallback: basic Mod-97 check (ISO 7064)
+        clean = iban_str.replace(" ", "").upper()
+        if len(clean) < 15:
+            return False
+        rearranged = clean[4:] + clean[:4]
+        numeric = ""
+        for ch in rearranged:
+            if ch.isdigit():
+                numeric += ch
+            else:
+                numeric += str(ord(ch) - ord("A") + 10)
+        return int(numeric) % 97 == 1
+    except Exception:
+        return False
+
+
+def validate_de_tax_id(tax_id_str: str) -> bool:
+    """Validate a German Tax ID (Steuer-IdNr) using python-stdnum.
+
+    Returns True if valid, or True if stdnum is not installed (graceful).
+    """
+    try:
+        from stdnum.de import idnr
+        return idnr.is_valid(tax_id_str)
+    except ImportError:
+        return True  # Accept without library
+    except Exception:
+        return False
+
+
+def validate_es_dni(dni_str: str) -> bool:
+    """Validate a Spanish DNI using python-stdnum.
+
+    Returns True if valid, or True if stdnum is not installed (graceful).
+    """
+    try:
+        from stdnum.es import dni
+        return dni.is_valid(dni_str)
+    except ImportError:
+        return True  # Accept without library
+    except Exception:
+        return False
 
 
 def compute_context_confidence(
@@ -190,6 +263,12 @@ def scan_text_for_pii(
             for match in pattern.finditer(line):
                 matched = match.group()
                 if validator == "luhn" and not luhn_check(matched):
+                    continue
+                if validator == "iban" and not validate_iban(matched):
+                    continue
+                if validator == "de_tax_id" and not validate_de_tax_id(matched):
+                    continue
+                if validator == "es_dni" and not validate_es_dni(matched):
                     continue
                 # Exclude known test SSNs
                 if name == "ssn":

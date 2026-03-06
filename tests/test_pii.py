@@ -585,3 +585,123 @@ class TestContextScoringFixes:
             "fake.txt", text, patterns, show_samples=True,
         )
         assert result.matches_by_type.get("ssn", 0) == 1
+
+
+class TestInternationalPII:
+    """Tests for international PII patterns (IBAN, UK NINO, DE Tax ID, ES DNI)."""
+
+    def test_valid_iban_detected(self):
+        """Valid IBAN should be detected."""
+        import re
+
+        from field_check.scanner.pii_helpers import scan_text_for_pii
+
+        patterns = [
+            ("iban", "IBAN", re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b"), "iban"),
+        ]
+        # DE89370400440532013000 is a known valid German IBAN
+        text = "IBAN: DE89370400440532013000\n"
+        result = scan_text_for_pii("fake.txt", text, patterns, show_samples=True)
+        assert result.matches_by_type.get("iban", 0) == 1
+
+    def test_invalid_iban_rejected(self):
+        """IBAN with invalid check digits should be rejected."""
+        import re
+
+        from field_check.scanner.pii_helpers import scan_text_for_pii
+
+        patterns = [
+            ("iban", "IBAN", re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b"), "iban"),
+        ]
+        # Invalid check digits
+        text = "IBAN: DE00370400440532013000\n"
+        result = scan_text_for_pii("fake.txt", text, patterns, show_samples=True)
+        assert result.matches_by_type.get("iban", 0) == 0
+
+    def test_uk_nino_pattern_matches(self):
+        """Valid UK NINO format should be detected."""
+        import re
+
+        from field_check.scanner.pii_helpers import scan_text_for_pii
+
+        patterns = [
+            ("uk_nino", "UK NINO",
+             re.compile(r"\b[A-CEGHJ-PR-TW-Z]{2}\d{6}[A-D]\b"), None),
+        ]
+        text = "NI Number: AB123456C\n"
+        result = scan_text_for_pii("fake.txt", text, patterns, show_samples=True)
+        assert result.matches_by_type.get("uk_nino", 0) == 1
+
+    def test_uk_nino_invalid_prefix_rejected(self):
+        """UK NINO with invalid prefix letters should not match."""
+        import re
+
+        pattern = re.compile(r"\b[A-CEGHJ-PR-TW-Z]{2}\d{6}[A-D]\b")
+        # D and F are excluded prefixes
+        assert pattern.search("DF123456A") is None
+
+    def test_de_tax_id_valid(self):
+        """Valid German Tax ID should pass validation."""
+        from field_check.scanner.pii_helpers import validate_de_tax_id
+
+        try:
+            from stdnum.de import idnr  # noqa: F401
+            # 86095742719 passes check digit validation
+            assert validate_de_tax_id("86095742719") is True
+        except ImportError:
+            # Without stdnum, all pass (graceful)
+            assert validate_de_tax_id("12345678901") is True
+
+    def test_de_tax_id_invalid(self):
+        """Invalid German Tax ID should fail validation."""
+        from field_check.scanner.pii_helpers import validate_de_tax_id
+
+        try:
+            from stdnum.de import idnr  # noqa: F401
+            assert validate_de_tax_id("00000000000") is False
+        except ImportError:
+            pass  # Can't test without library
+
+    def test_es_dni_valid(self):
+        """Valid Spanish DNI should pass validation."""
+        from field_check.scanner.pii_helpers import validate_es_dni
+
+        try:
+            from stdnum.es import dni  # noqa: F401
+            # 12345678Z is a known valid DNI
+            assert validate_es_dni("12345678Z") is True
+        except ImportError:
+            assert validate_es_dni("12345678Z") is True
+
+    def test_es_dni_invalid_letter(self):
+        """Spanish DNI with wrong check letter should fail."""
+        from field_check.scanner.pii_helpers import validate_es_dni
+
+        try:
+            from stdnum.es import dni  # noqa: F401
+            # Wrong letter for this number
+            assert validate_es_dni("12345678A") is False
+        except ImportError:
+            pass  # Can't test without library
+
+    def test_validate_iban_fallback_mod97(self):
+        """IBAN validation should work with Mod-97 fallback."""
+        from unittest.mock import patch
+
+        from field_check.scanner.pii_helpers import validate_iban
+
+        with patch.dict("sys.modules", {"stdnum": None, "stdnum.iban": None}):
+            # Valid IBAN should pass Mod-97
+            assert validate_iban("GB29NWBK60161331926819") is True
+            # Short string should fail
+            assert validate_iban("GB00") is False
+
+    def test_international_patterns_in_builtin(self):
+        """All international patterns should be in BUILTIN_PATTERNS."""
+        from field_check.scanner.pii import BUILTIN_PATTERNS
+
+        names = {str(p["name"]) for p in BUILTIN_PATTERNS}
+        assert "iban" in names
+        assert "uk_nino" in names
+        assert "de_tax_id" in names
+        assert "es_dni" in names
