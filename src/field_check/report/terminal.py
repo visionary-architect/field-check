@@ -399,8 +399,10 @@ def _render_corruption_summary(
             "empty": "dim",
             "near_empty": "dim",
             "corrupt": "red",
+            "truncated": "red",
             "encrypted_pdf": "yellow",
             "encrypted_zip": "yellow",
+            "encrypted_office": "yellow",
             "unreadable": "yellow",
         }
 

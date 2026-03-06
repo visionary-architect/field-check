@@ -32,8 +32,16 @@ STATUS_NEAR_EMPTY = "near_empty"
 STATUS_CORRUPT = "corrupt"
 STATUS_ENCRYPTED_PDF = "encrypted_pdf"
 STATUS_ENCRYPTED_ZIP = "encrypted_zip"
+STATUS_ENCRYPTED_OFFICE = "encrypted_office"
 STATUS_TRUNCATED = "truncated"
 STATUS_UNREADABLE = "unreadable"
+
+# OOXML MIME types (DOCX, XLSX, PPTX)
+_OOXML_MIMES: set[str] = {
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
 
 
 @dataclass
@@ -121,6 +129,23 @@ def _check_encrypted_zip(filepath: Path) -> bool:
             return bool(flags & 0x01)
     except OSError:
         return False
+
+
+def _check_encrypted_office(filepath: Path) -> bool:
+    """Check if an Office file is OOXML-encrypted using msoffcrypto-tool.
+
+    Falls back gracefully if msoffcrypto-tool is not installed.
+    """
+    try:
+        import msoffcrypto
+
+        with open(filepath, "rb") as f:
+            office_file = msoffcrypto.OfficeFile(f)
+            return office_file.is_encrypted()
+    except ImportError:
+        return False  # Graceful: can't detect without library
+    except Exception:
+        return False  # Malformed or unsupported format
 
 
 def _check_truncated_pdf(filepath: Path) -> bool:
@@ -256,6 +281,14 @@ def _check_single_file(
             detail="ZIP has encryption flag set",
         )
 
+    # OOXML Office encryption check (requires msoffcrypto-tool)
+    if mime_type in _OOXML_MIMES and _check_encrypted_office(entry_path):
+        return FileHealth(
+            path=entry_path, status=STATUS_ENCRYPTED_OFFICE,
+            mime_type=mime_type,
+            detail="OOXML file is encrypted",
+        )
+
     # Truncation checks
     if header.startswith(b"%PDF") and _check_truncated_pdf(entry_path):
         return FileHealth(
@@ -265,12 +298,7 @@ def _check_single_file(
         )
 
     # DOCX/XLSX/PPTX integrity (ZIP-based Office formats)
-    ooxml_mimes = {
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    }
-    if header.startswith(b"PK\x03\x04") and mime_type in ooxml_mimes:
+    if header.startswith(b"PK\x03\x04") and mime_type in _OOXML_MIMES:
         integrity_error = _check_docx_integrity(entry_path)
         if integrity_error:
             return FileHealth(
@@ -333,7 +361,9 @@ def check_corruption(
         elif health.status == STATUS_TRUNCATED:
             result.truncated_count += 1
             result.flagged_files.append(health)
-        elif health.status in (STATUS_ENCRYPTED_PDF, STATUS_ENCRYPTED_ZIP):
+        elif health.status in (
+            STATUS_ENCRYPTED_PDF, STATUS_ENCRYPTED_ZIP, STATUS_ENCRYPTED_OFFICE,
+        ):
             result.encrypted_count += 1
             result.flagged_files.append(health)
         elif health.status == STATUS_UNREADABLE:

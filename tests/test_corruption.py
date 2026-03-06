@@ -226,6 +226,70 @@ def test_file_types_skips_filetype_guess(tmp_path: Path) -> None:
     assert result.corrupt_count == 1
 
 
+class TestOfficeEncryption:
+    """Tests for Office file (OOXML) encryption detection."""
+
+    def test_encrypted_office_detected(self, tmp_path: Path) -> None:
+        """OOXML file detected as encrypted should be flagged."""
+        import zipfile
+
+        docx = tmp_path / "encrypted.docx"
+        with zipfile.ZipFile(docx, "w") as zf:
+            zf.writestr("[Content_Types].xml", "<Types/>")
+            zf.writestr("word/document.xml", "<document/>")
+
+        walk = _walk(tmp_path)
+        mime = ("application/vnd.openxmlformats-officedocument"
+               ".wordprocessingml.document")
+        file_types = {walk.files[0].path: mime}
+
+        with patch(
+            "field_check.scanner.corruption._check_encrypted_office",
+            return_value=True,
+        ):
+            result = check_corruption(walk, file_types=file_types)
+
+        assert result.encrypted_count == 1
+        flagged = [f for f in result.flagged_files if f.status == "encrypted_office"]
+        assert len(flagged) == 1
+
+    def test_unencrypted_office_passes(self, tmp_path: Path) -> None:
+        """Non-encrypted OOXML file should pass."""
+        import zipfile
+
+        docx = tmp_path / "normal.docx"
+        with zipfile.ZipFile(docx, "w") as zf:
+            zf.writestr("[Content_Types].xml", "<Types/>")
+            zf.writestr("word/document.xml", "<document/>")
+
+        walk = _walk(tmp_path)
+        mime = ("application/vnd.openxmlformats-officedocument"
+               ".wordprocessingml.document")
+        file_types = {walk.files[0].path: mime}
+
+        with patch(
+            "field_check.scanner.corruption._check_encrypted_office",
+            return_value=False,
+        ):
+            result = check_corruption(walk, file_types=file_types)
+
+        assert result.encrypted_count == 0
+        assert result.ok_count == 1
+
+    def test_graceful_without_msoffcrypto(self, tmp_path: Path) -> None:
+        """Without msoffcrypto-tool, detection should return False."""
+        import zipfile
+
+        from field_check.scanner.corruption import _check_encrypted_office
+
+        docx = tmp_path / "test.docx"
+        with zipfile.ZipFile(docx, "w") as zf:
+            zf.writestr("[Content_Types].xml", "<Types/>")
+
+        with patch.dict("sys.modules", {"msoffcrypto": None}):
+            assert _check_encrypted_office(docx) is False
+
+
 class TestTruncationDetection:
     """Tests for PDF, DOCX, and image truncation detection."""
 
