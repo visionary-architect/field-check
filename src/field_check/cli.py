@@ -8,6 +8,7 @@ from pathlib import Path
 
 import click
 from rich.console import Console
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 from field_check import __version__
 from field_check.config import load_config
@@ -26,6 +27,182 @@ from field_check.scanner.simhash import detect_near_duplicates
 from field_check.scanner.text import extract_text_unified
 
 console = Console()
+
+# Scan phases for progress display
+_PHASES = [
+    "Scanning files",
+    "Analyzing file types",
+    "Hashing files",
+    "Checking file health",
+    "Selecting sample",
+    "Extracting text",
+    "Scanning for PII",
+    "Detecting languages",
+    "Analyzing encodings",
+    "Checking for encoding damage",
+    "Analyzing readability",
+    "Detecting near-duplicates",
+]
+
+
+def _run_scan_pipeline(
+    scan_path: Path,
+    config: object,
+    con: Console,
+) -> dict:
+    """Run the full scan pipeline with overall progress tracking.
+
+    Returns dict of all scan results keyed by name.
+    """
+    results: dict = {}
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(bar_width=30),
+        TextColumn("[cyan]{task.fields[detail]}"),
+        TimeElapsedColumn(),
+        console=con,
+        transient=True,
+    ) as progress:
+        overall = progress.add_task(
+            "Scanning corpus", total=len(_PHASES), detail=""
+        )
+
+        def _advance(phase_name: str) -> None:
+            progress.update(overall, advance=1, description=phase_name)
+
+        # Phase 1: Walk directory
+        progress.update(overall, description="Scanning files", detail="")
+
+        def on_walk(count: int) -> None:
+            progress.update(overall, detail=f"{count} files found")
+
+        try:
+            walk_result = walk_directory(
+                scan_path, config, progress_callback=on_walk
+            )
+        except KeyboardInterrupt:
+            con.print("\n[yellow]Scan interrupted.[/yellow]")
+            sys.exit(2)
+
+        if not walk_result.files:
+            con.print("[yellow]No files found in the specified directory.[/yellow]")
+            con.print("Check your path and exclude patterns.")
+            sys.exit(0)
+
+        results["walk"] = walk_result
+        _advance("Analyzing file types")
+
+        # Phase 2: Inventory
+        def on_inventory(current: int, total: int) -> None:
+            progress.update(overall, detail=f"{current}/{total}")
+
+        results["inventory"] = analyze_inventory(
+            walk_result, progress_callback=on_inventory
+        )
+        _advance("Hashing files")
+
+        # Phase 3: Dedup hashing
+        def on_hash(current: int, total: int) -> None:
+            progress.update(overall, detail=f"{current}/{total}")
+
+        results["dedup"] = compute_hashes(
+            walk_result, progress_callback=on_hash
+        )
+        _advance("Checking file health")
+
+        # Phase 4: Corruption
+        def on_corruption(current: int, total: int) -> None:
+            progress.update(overall, detail=f"{current}/{total}")
+
+        results["corruption"] = check_corruption(
+            walk_result,
+            progress_callback=on_corruption,
+            file_types=results["inventory"].file_types,
+        )
+        _advance("Selecting sample")
+
+        # Phase 5: Sampling
+        progress.update(overall, detail="")
+        sample = select_sample(walk_result, results["inventory"], config)
+        if not sample.is_census:
+            sample.deff = estimate_design_effect(
+                sample.selected_files, results["inventory"]
+            )
+        results["sample"] = sample
+        _advance("Extracting text")
+
+        # Phase 6: Text extraction
+        has_sample = sample.total_sample_size > 0
+        if has_sample:
+            def on_extract(current: int, total: int) -> None:
+                progress.update(overall, detail=f"{current}/{total}")
+
+            text_result, text_cache_result = extract_text_unified(
+                sample, results["inventory"], progress_callback=on_extract
+            )
+            results["text"] = text_result
+            results["text_cache"] = text_cache_result
+        _advance("Scanning for PII")
+
+        # Phase 7: PII scan
+        text_cache_result = results.get("text_cache")
+        if has_sample:
+            def on_pii(current: int, total: int) -> None:
+                progress.update(overall, detail=f"{current}/{total}")
+
+            results["pii"] = scan_pii(
+                sample, results["inventory"], config,
+                text_cache=(
+                    text_cache_result.text_cache if text_cache_result else None
+                ),
+                progress_callback=on_pii,
+            )
+        _advance("Detecting languages")
+
+        # Phase 8: Language detection
+        progress.update(overall, detail="")
+        if text_cache_result and text_cache_result.text_cache:
+            results["language"] = analyze_languages(
+                text_cache_result.text_cache
+            )
+        _advance("Analyzing encodings")
+
+        # Phase 9: Encoding analysis
+        if text_cache_result and text_cache_result.encoding_map:
+            results["encoding"] = analyze_encodings(
+                text_cache_result.encoding_map
+            )
+        _advance("Checking for encoding damage")
+
+        # Phase 10: Mojibake
+        if text_cache_result and text_cache_result.text_cache:
+            results["mojibake"] = detect_mojibake(
+                text_cache_result.text_cache
+            )
+        _advance("Analyzing readability")
+
+        # Phase 11: Readability
+        if text_cache_result and text_cache_result.text_cache:
+            results["readability"] = analyze_readability(
+                text_cache_result.text_cache
+            )
+        _advance("Detecting near-duplicates")
+
+        # Phase 12: SimHash
+        if text_cache_result and text_cache_result.text_cache:
+            def on_simhash(current: int, total: int) -> None:
+                progress.update(overall, detail=f"{current}/{total}")
+
+            results["simhash"] = detect_near_duplicates(
+                text_cache_result.text_cache,
+                threshold=config.simhash_threshold,
+                progress_callback=on_simhash,
+            )
+        progress.update(overall, advance=1, detail="done")
+
+    return results
 
 
 @click.group()
@@ -94,64 +271,6 @@ def scan(
 
     scan_start = time.monotonic()
 
-    # Walk directory with progress
-    with console.status("[bold blue]Scanning files...", spinner="dots") as status:
-        def on_progress(count: int) -> None:
-            status.update(
-                f"[bold blue]Scanning files... [cyan]{count}[/cyan] found"
-            )
-
-        try:
-            result = walk_directory(
-                scan_path, config, progress_callback=on_progress
-            )
-        except KeyboardInterrupt:
-            console.print("\n[yellow]Scan interrupted.[/yellow]")
-            sys.exit(2)
-
-    if not result.files:
-        console.print("[yellow]No files found in the specified directory.[/yellow]")
-        console.print("Check your path and exclude patterns.")
-        sys.exit(0)
-
-    # Analyze file inventory with progress
-    with console.status(
-        "[bold blue]Analyzing file types...", spinner="dots"
-    ) as status:
-        def on_analysis(current: int, total: int) -> None:
-            status.update(
-                f"[bold blue]Analyzing file types... "
-                f"[cyan]{current}[/cyan]/[cyan]{total}[/cyan]"
-            )
-
-        inventory = analyze_inventory(result, progress_callback=on_analysis)
-
-    # Hash files for duplicate detection
-    with console.status(
-        "[bold blue]Hashing files...", spinner="dots"
-    ) as status:
-        def on_hash(current: int, total: int) -> None:
-            status.update(
-                f"[bold blue]Hashing files... "
-                f"[cyan]{current}[/cyan]/[cyan]{total}[/cyan]"
-            )
-
-        dedup_result = compute_hashes(result, progress_callback=on_hash)
-
-    # Check file health (corruption, encryption, emptiness)
-    with console.status(
-        "[bold blue]Checking file health...", spinner="dots"
-    ) as status:
-        def on_check(current: int, total: int) -> None:
-            status.update(
-                f"[bold blue]Checking file health... "
-                f"[cyan]{current}[/cyan]/[cyan]{total}[/cyan]"
-            )
-
-        corruption_result = check_corruption(
-            result, progress_callback=on_check, file_types=inventory.file_types,
-        )
-
     # Override sampling rate from CLI if provided
     if sampling_rate is not None:
         config.sampling_rate = max(0.0, min(1.0, sampling_rate))
@@ -160,103 +279,29 @@ def scan(
     if pii_min_confidence is not None:
         config.pii_min_confidence = max(0.0, min(1.0, pii_min_confidence))
 
-    # Select sample for content analysis
-    with console.status("[bold blue]Selecting sample...", spinner="dots"):
-        sample = select_sample(result, inventory, config)
-        if not sample.is_census:
-            sample.deff = estimate_design_effect(sample.selected_files, inventory)
-
-    # Unified text extraction: metadata + classification + text cache in one pass
-    text_result = None
-    text_cache_result = None
-    if sample.total_sample_size > 0:
-        with console.status(
-            "[bold blue]Extracting text...", spinner="dots"
-        ) as status:
-            def on_extract(current: int, total: int) -> None:
-                status.update(
-                    f"[bold blue]Extracting text... "
-                    f"[cyan]{current}[/cyan]/[cyan]{total}[/cyan]"
-                )
-
-            text_result, text_cache_result = extract_text_unified(
-                sample, inventory, progress_callback=on_extract
-            )
-
     # Set show_pii_samples on config
     if show_pii_samples:
         config.show_pii_samples = True
 
-    # Scan for PII patterns (using text cache to avoid re-reading)
-    pii_result = None
-    if sample.total_sample_size > 0:
-        with console.status(
-            "[bold blue]Scanning for PII...", spinner="dots"
-        ) as status:
-            def on_pii(current: int, total: int) -> None:
-                status.update(
-                    f"[bold blue]Scanning for PII... "
-                    f"[cyan]{current}[/cyan]/[cyan]{total}[/cyan]"
-                )
-
-            pii_result = scan_pii(
-                sample, inventory, config,
-                text_cache=(
-                    text_cache_result.text_cache if text_cache_result else None
-                ),
-                progress_callback=on_pii,
-            )
-
-    # Detect languages from cached text
-    language_result = None
-    if text_cache_result and text_cache_result.text_cache:
-        with console.status(
-            "[bold blue]Detecting languages...", spinner="dots"
-        ):
-            language_result = analyze_languages(
-                text_cache_result.text_cache
-            )
-
-    # Analyze encodings from cached detection results
-    encoding_result = None
-    if text_cache_result and text_cache_result.encoding_map:
-        encoding_result = analyze_encodings(text_cache_result.encoding_map)
-
-    # Detect encoding damage (mojibake) in cached text
-    mojibake_result = None
-    if text_cache_result and text_cache_result.text_cache:
-        with console.status(
-            "[bold blue]Checking for encoding damage...", spinner="dots"
-        ):
-            mojibake_result = detect_mojibake(text_cache_result.text_cache)
-
-    # Analyze readability (optional — requires textstat)
-    readability_result = None
-    if text_cache_result and text_cache_result.text_cache:
-        with console.status(
-            "[bold blue]Analyzing readability...", spinner="dots"
-        ):
-            readability_result = analyze_readability(text_cache_result.text_cache)
-
-    # Detect near-duplicates via SimHash
-    simhash_result = None
-    if text_cache_result and text_cache_result.text_cache:
-        with console.status(
-            "[bold blue]Detecting near-duplicates...", spinner="dots"
-        ) as status:
-            def on_simhash(current: int, total: int) -> None:
-                status.update(
-                    f"[bold blue]Detecting near-duplicates... "
-                    f"[cyan]{current}[/cyan]/[cyan]{total}[/cyan]"
-                )
-
-            simhash_result = detect_near_duplicates(
-                text_cache_result.text_cache,
-                threshold=config.simhash_threshold,
-                progress_callback=on_simhash,
-            )
+    # Run pipeline with overall progress tracking
+    scan_results = _run_scan_pipeline(scan_path, config, console)
 
     elapsed = time.monotonic() - scan_start
+
+    # Unpack results
+    result = scan_results["walk"]
+    inventory = scan_results["inventory"]
+    dedup_result = scan_results["dedup"]
+    corruption_result = scan_results["corruption"]
+    sample = scan_results["sample"]
+    text_result = scan_results.get("text")
+    text_cache_result = scan_results.get("text_cache")
+    pii_result = scan_results.get("pii")
+    language_result = scan_results.get("language")
+    encoding_result = scan_results.get("encoding")
+    mojibake_result = scan_results.get("mojibake")
+    readability_result = scan_results.get("readability")
+    simhash_result = scan_results.get("simhash")
 
     # Generate report
     output_path = Path(output) if output else None
