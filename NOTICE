@@ -1,0 +1,20 @@
+Field Check
+Copyright 2024-2026 Field (https://usefield.co)
+
+Licensed under the Apache License, Version 2.0.
+
+This product includes the following third-party software:
+
+---
+
+chardet - Universal encoding detector
+  License: MIT (since v7.0.0; previously LGPL-2.1)
+  Copyright: Dan Blanchard
+  Homepage: https://github.com/chardet/chardet
+
+python-stdnum - International standard number validation
+  License: LGPL-2.1
+  Copyright: Arthur de Jong
+  Homepage: https://github.com/arthurdejong/python-stdnum
+  Note: Optional dependency (pii-extra). LGPL-2.1 is compatible
+        with Apache-2.0 distribution.

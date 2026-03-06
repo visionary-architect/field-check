@@ -401,22 +401,50 @@ def _extract_text_for_cache(
             return (r.text, None, 0.0, r.error)
 
         # Plain text types — read bytes, detect encoding
-        from charset_normalizer import from_bytes
-
         with open(filepath, "rb") as f:
             raw = f.read(_MAX_TEXT_READ)
 
-        result = from_bytes(raw).best()
-        if result:
-            return (str(result), result.encoding, 1.0 - result.chaos, None)
-        return (
-            raw.decode("utf-8", errors="replace"),
-            "utf-8",
-            0.0,
-            None,
-        )
+        text, enc, conf = _detect_encoding(raw)
+        return (text, enc, conf, None)
     except Exception as exc:
         return ("", None, 0.0, str(exc))
+
+
+def _detect_encoding(raw: bytes) -> tuple[str, str, float]:
+    """Detect encoding of raw bytes, preferring chardet over charset-normalizer.
+
+    Returns:
+        Tuple of (decoded_text, encoding_name, confidence).
+    """
+    # Try chardet first (faster, MIT licensed since v7.0)
+    try:
+        import chardet
+
+        detection = chardet.detect(raw)
+        enc = detection.get("encoding")
+        conf = detection.get("confidence", 0.0) or 0.0
+        if enc and conf > 0.5:
+            text = raw.decode(enc, errors="replace")
+            return (text, enc, conf)
+    except ImportError:
+        pass
+    except Exception:
+        pass
+
+    # Fallback to charset-normalizer
+    try:
+        from charset_normalizer import from_bytes
+
+        result = from_bytes(raw).best()
+        if result:
+            return (str(result), result.encoding, 1.0 - result.chaos)
+    except ImportError:
+        pass
+    except Exception:
+        pass
+
+    # Last resort: assume UTF-8
+    return (raw.decode("utf-8", errors="replace"), "utf-8", 0.0)
 
 
 def _extract_plain_text(
@@ -430,14 +458,10 @@ def _extract_plain_text(
         Tuple of (text, encoding_name, encoding_confidence, error).
     """
     try:
-        from charset_normalizer import from_bytes
-
         with open(filepath, "rb") as f:
             raw = f.read(_MAX_TEXT_READ)
 
-        result = from_bytes(raw).best()
-        if result:
-            return (str(result), result.encoding, 1.0 - result.chaos, None)
-        return (raw.decode("utf-8", errors="replace"), "utf-8", 0.0, None)
+        text, enc, conf = _detect_encoding(raw)
+        return (text, enc, conf, None)
     except Exception as exc:
         return ("", None, 0.0, str(exc))
