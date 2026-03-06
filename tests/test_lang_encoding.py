@@ -8,11 +8,151 @@ from field_check.config import FieldCheckConfig
 from field_check.scanner import walk_directory
 from field_check.scanner.encoding import analyze_encodings
 from field_check.scanner.inventory import analyze_inventory
-from field_check.scanner.language import analyze_languages, detect_language
+from field_check.scanner.language import (
+    LanguageFileResult,
+    LanguageResult,
+    _apply_corpus_correction,
+    analyze_languages,
+    detect_language,
+)
 from field_check.scanner.pii import scan_pii
 from field_check.scanner.sampling import select_sample
 from field_check.scanner.text import build_text_cache
 from tests.conftest import create_minimal_docx, create_pdf_with_text
+
+# ---------------------------------------------------------------------------
+# Corpus correction tests (Item 12)
+# ---------------------------------------------------------------------------
+
+
+class TestCorpusCorrection:
+    """Test _apply_corpus_correction() reclassification logic."""
+
+    def test_reclassifies_unknown_to_dominant(self) -> None:
+        """Unknown files get reclassified when corpus is >50% one language."""
+        result = LanguageResult(
+            total_analyzed=5,
+            language_distribution={"English": 4, "Unknown": 1},
+            file_results=[
+                LanguageFileResult(path="a.txt", language="English", script="Latin"),
+                LanguageFileResult(path="b.txt", language="English", script="Latin"),
+                LanguageFileResult(path="c.txt", language="English", script="Latin"),
+                LanguageFileResult(path="d.txt", language="English", script="Latin"),
+                LanguageFileResult(path="e.txt", language="Unknown", script="Unknown"),
+            ],
+        )
+        _apply_corpus_correction(result)
+        assert result.language_distribution.get("English") == 5
+        assert "Unknown" not in result.language_distribution
+        assert result.file_results[4].language == "English"
+
+    def test_reclassifies_latin_unknown_to_dominant(self) -> None:
+        """Latin (Unknown) files get reclassified too."""
+        result = LanguageResult(
+            total_analyzed=4,
+            language_distribution={"Spanish": 3, "Latin (Unknown)": 1},
+            file_results=[
+                LanguageFileResult(path="a.txt", language="Spanish", script="Latin"),
+                LanguageFileResult(path="b.txt", language="Spanish", script="Latin"),
+                LanguageFileResult(path="c.txt", language="Spanish", script="Latin"),
+                LanguageFileResult(
+                    path="d.txt", language="Latin (Unknown)", script="Latin"
+                ),
+            ],
+        )
+        _apply_corpus_correction(result)
+        assert result.language_distribution.get("Spanish") == 4
+        assert "Latin (Unknown)" not in result.language_distribution
+
+    def test_no_correction_below_threshold(self) -> None:
+        """No correction when dominant language is <50%."""
+        result = LanguageResult(
+            total_analyzed=5,
+            language_distribution={
+                "English": 2, "Spanish": 2, "Unknown": 1,
+            },
+            file_results=[
+                LanguageFileResult(path="a.txt", language="English", script="Latin"),
+                LanguageFileResult(path="b.txt", language="English", script="Latin"),
+                LanguageFileResult(path="c.txt", language="Spanish", script="Latin"),
+                LanguageFileResult(path="d.txt", language="Spanish", script="Latin"),
+                LanguageFileResult(path="e.txt", language="Unknown", script="Unknown"),
+            ],
+        )
+        _apply_corpus_correction(result)
+        assert result.language_distribution.get("Unknown") == 1
+
+    def test_no_correction_for_non_latin_dominant(self) -> None:
+        """Don't reclassify Unknown to non-Latin scripts like CJK."""
+        result = LanguageResult(
+            total_analyzed=4,
+            language_distribution={"CJK": 3, "Unknown": 1},
+            file_results=[
+                LanguageFileResult(path="a.txt", language="CJK", script="CJK"),
+                LanguageFileResult(path="b.txt", language="CJK", script="CJK"),
+                LanguageFileResult(path="c.txt", language="CJK", script="CJK"),
+                LanguageFileResult(path="d.txt", language="Unknown", script="Unknown"),
+            ],
+        )
+        _apply_corpus_correction(result)
+        # CJK is not in STOP_WORDS or _FASTLANG_NAMES.values()
+        assert result.language_distribution.get("Unknown") == 1
+
+    def test_no_correction_empty_results(self) -> None:
+        """Empty result set doesn't crash."""
+        result = LanguageResult()
+        _apply_corpus_correction(result)
+        assert result.total_analyzed == 0
+
+    def test_no_correction_all_unknown(self) -> None:
+        """All-Unknown corpus has no meaningful dominant language."""
+        result = LanguageResult(
+            total_analyzed=3,
+            language_distribution={"Unknown": 3},
+            file_results=[
+                LanguageFileResult(path="a.txt", language="Unknown", script="Unknown"),
+                LanguageFileResult(path="b.txt", language="Unknown", script="Unknown"),
+                LanguageFileResult(path="c.txt", language="Unknown", script="Unknown"),
+            ],
+        )
+        _apply_corpus_correction(result)
+        assert result.language_distribution.get("Unknown") == 3
+
+    def test_mixed_script_not_reclassified(self) -> None:
+        """Mixed Script files are left alone."""
+        result = LanguageResult(
+            total_analyzed=4,
+            language_distribution={"English": 3, "Mixed Script": 1},
+            file_results=[
+                LanguageFileResult(path="a.txt", language="English", script="Latin"),
+                LanguageFileResult(path="b.txt", language="English", script="Latin"),
+                LanguageFileResult(path="c.txt", language="English", script="Latin"),
+                LanguageFileResult(
+                    path="d.txt", language="Mixed Script", script="Latin"
+                ),
+            ],
+        )
+        _apply_corpus_correction(result)
+        assert result.language_distribution.get("Mixed Script") == 1
+
+    def test_integration_with_analyze_languages(self) -> None:
+        """Corpus correction runs automatically in analyze_languages."""
+        en_text = (
+            "The quick brown fox jumps over the lazy dog. "
+            "This is a test of the English detection system."
+        )
+        cache = {
+            "a.txt": en_text,
+            "b.txt": en_text,
+            "c.txt": en_text,
+            "d.txt": en_text,
+            # Short text → Unknown, should be reclassified to English
+            "e.txt": "xyzzy plugh quux garply" * 3,
+        }
+        result = analyze_languages(cache)
+        # The short gibberish file should be reclassified to English
+        assert result.language_distribution.get("English", 0) >= 4
+
 
 # ---------------------------------------------------------------------------
 # Language detection unit tests

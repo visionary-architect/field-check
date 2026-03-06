@@ -418,6 +418,68 @@ def detect_language(
     return dominant_script
 
 
+def _apply_corpus_correction(result: LanguageResult) -> None:
+    """Apply corpus-level correction to reclassify ambiguous files.
+
+    When a corpus has a clear dominant language (>50% of files), files
+    classified as "Unknown" or "Latin (Unknown)" are reclassified to
+    the dominant language — but only if the dominant language is Latin-script.
+
+    This exploits the corpus prior: if 80% of files are English, an
+    ambiguous Latin file is more likely English than unknown.
+
+    Modifies result in-place.
+    """
+    if not result.file_results:
+        return
+
+    # Find dominant language (excluding Unknown / Latin (Unknown))
+    meaningful = {
+        lang: count
+        for lang, count in result.language_distribution.items()
+        if lang not in ("Unknown", "Latin (Unknown)", "Mixed Script")
+    }
+    if not meaningful:
+        return
+
+    total_meaningful = sum(meaningful.values())
+    if total_meaningful == 0:
+        return
+
+    dominant_lang = max(meaningful, key=lambda k: meaningful[k])
+    dominant_fraction = meaningful[dominant_lang] / result.total_analyzed
+
+    # Only correct if dominant language is strong (>50%) and Latin-script
+    if dominant_fraction < 0.5:
+        return
+
+    # Only reclassify to Latin-script languages (stop-word based)
+    if dominant_lang not in STOP_WORDS and dominant_lang not in _FASTLANG_NAMES.values():
+        return
+
+    # Reclassify ambiguous files
+    reclassified = 0
+    for fr in result.file_results:
+        if fr.language in ("Unknown", "Latin (Unknown)"):
+            old_lang = fr.language
+            fr.language = dominant_lang
+            # Update distribution counts
+            result.language_distribution[old_lang] -= 1
+            if result.language_distribution[old_lang] <= 0:
+                del result.language_distribution[old_lang]
+            result.language_distribution[dominant_lang] = (
+                result.language_distribution.get(dominant_lang, 0) + 1
+            )
+            reclassified += 1
+
+    if reclassified > 0:
+        logger.debug(
+            "Corpus correction: reclassified %d ambiguous files as %s",
+            reclassified,
+            dominant_lang,
+        )
+
+
 def analyze_languages(
     text_cache: dict[str, str],
     progress_callback: Callable[[int, int], None] | None = None,
@@ -466,5 +528,8 @@ def analyze_languages(
 
         if progress_callback is not None:
             progress_callback(idx, total)
+
+    # Corpus-level correction: reclassify ambiguous files using dominant language
+    _apply_corpus_correction(result)
 
     return result
