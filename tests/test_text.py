@@ -182,3 +182,68 @@ def test_extract_text_progress_callback(tmp_corpus_with_documents: Path) -> None
     # Last call should have current == total
     last_current, last_total = progress_calls[-1]
     assert last_current == last_total
+
+
+class TestFormatExtractors:
+    """Tests for EML and EPUB text extraction (stdlib, no extra deps)."""
+
+    def test_extract_eml(self, tmp_path: Path) -> None:
+        """EML extraction should capture headers and body."""
+        from field_check.scanner.text_workers import _extract_eml
+
+        eml = tmp_path / "test.eml"
+        eml.write_bytes(
+            b"From: sender@example.com\r\n"
+            b"To: recipient@example.com\r\n"
+            b"Subject: Test Email\r\n"
+            b"Date: Wed, 01 Jan 2025 12:00:00 +0000\r\n"
+            b"Content-Type: text/plain\r\n\r\n"
+            b"Hello, this is a test email body.\r\n"
+        )
+        result = _extract_eml(str(eml))
+        assert result.error is None
+        assert "Test Email" in result.text
+        assert "Hello" in result.text
+        assert result.metadata["title"] == "Test Email"
+        assert result.metadata["author"] == "sender@example.com"
+
+    def test_extract_epub(self, tmp_path: Path) -> None:
+        """EPUB extraction should parse XHTML content."""
+        import zipfile
+
+        from field_check.scanner.text_workers import _extract_epub
+
+        epub = tmp_path / "test.epub"
+        with zipfile.ZipFile(epub, "w") as zf:
+            zf.writestr("mimetype", "application/epub+zip")
+            zf.writestr(
+                "OEBPS/chapter1.xhtml",
+                "<html><body><p>Chapter one text here.</p></body></html>",
+            )
+        result = _extract_epub(str(epub))
+        assert result.error is None
+        assert "Chapter one text here." in result.text
+
+    def test_extract_eml_malformed(self, tmp_path: Path) -> None:
+        """Malformed EML should not crash."""
+        from field_check.scanner.text_workers import _extract_eml
+
+        eml = tmp_path / "bad.eml"
+        eml.write_bytes(b"This is not a valid email at all\x00\xff\xfe")
+        result = _extract_eml(str(eml))
+        # Should not crash — may have text or error
+        assert isinstance(result.text, str)
+
+    def test_extract_epub_no_html(self, tmp_path: Path) -> None:
+        """EPUB with no HTML files should return empty text."""
+        import zipfile
+
+        from field_check.scanner.text_workers import _extract_epub
+
+        epub = tmp_path / "empty.epub"
+        with zipfile.ZipFile(epub, "w") as zf:
+            zf.writestr("mimetype", "application/epub+zip")
+            zf.writestr("META-INF/container.xml", "<container/>")
+        result = _extract_epub(str(epub))
+        assert result.error is None
+        assert result.text == ""

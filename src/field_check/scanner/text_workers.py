@@ -169,6 +169,123 @@ def _extract_docx(filepath: str) -> TextResult:
     return result
 
 
+def _extract_xlsx(filepath: str) -> TextResult:
+    """Extract text from an XLSX file using openpyxl (if installed)."""
+    result = TextResult(path=filepath)
+    try:
+        import openpyxl
+
+        wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
+        parts: list[str] = []
+        for ws in wb.worksheets:
+            for row in ws.iter_rows(values_only=True):
+                cells = [str(c) for c in row if c is not None]
+                if cells:
+                    parts.append("\t".join(cells))
+        wb.close()
+        result.text = "\n".join(parts)
+        result.text_length = len(result.text)
+        result.classification = CLASSIFICATION_TEXT_HEAVY
+    except ImportError:
+        result.error = "openpyxl not installed (pip install field-check[formats])"
+    except Exception as exc:
+        result.error = str(exc)
+    return result
+
+
+def _extract_pptx(filepath: str) -> TextResult:
+    """Extract text from a PPTX file using python-pptx (if installed)."""
+    result = TextResult(path=filepath)
+    try:
+        from pptx import Presentation
+
+        prs = Presentation(filepath)
+        parts: list[str] = []
+        for slide in prs.slides:
+            for shape in slide.shapes:
+                if shape.has_text_frame:
+                    for para in shape.text_frame.paragraphs:
+                        if para.text:
+                            parts.append(para.text)
+        result.text = "\n".join(parts)
+        result.text_length = len(result.text)
+        result.page_count = len(prs.slides)
+        result.classification = CLASSIFICATION_TEXT_HEAVY
+    except ImportError:
+        result.error = "python-pptx not installed (pip install field-check[formats])"
+    except Exception as exc:
+        result.error = str(exc)
+    return result
+
+
+def _extract_eml(filepath: str) -> TextResult:
+    """Extract text from an EML (RFC 822) email file using stdlib."""
+    import email
+    import email.policy
+
+    result = TextResult(path=filepath)
+    try:
+        with open(filepath, "rb") as f:
+            msg = email.message_from_binary_file(f, policy=email.policy.default)
+        parts: list[str] = []
+        for header in ("Subject", "From", "To", "Date"):
+            val = msg.get(header)
+            if val:
+                parts.append(f"{header}: {val}")
+        body = msg.get_body(preferencelist=("plain", "html"))
+        if body:
+            content = body.get_content()
+            if isinstance(content, str):
+                parts.append(content)
+        result.text = "\n".join(parts)
+        result.text_length = len(result.text)
+        result.metadata["title"] = msg.get("Subject") or None
+        result.metadata["author"] = msg.get("From") or None
+        result.metadata["creation_date"] = msg.get("Date") or None
+        result.classification = CLASSIFICATION_TEXT_HEAVY
+    except Exception as exc:
+        result.error = str(exc)
+    return result
+
+
+def _extract_epub(filepath: str) -> TextResult:
+    """Extract text from an EPUB file using stdlib zipfile + html.parser."""
+    import re
+    import zipfile
+    from html.parser import HTMLParser
+
+    class _TextExtractor(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__()
+            self.parts: list[str] = []
+
+        def handle_data(self, data: str) -> None:
+            stripped = data.strip()
+            if stripped:
+                self.parts.append(stripped)
+
+    result = TextResult(path=filepath)
+    try:
+        with zipfile.ZipFile(filepath) as zf:
+            parts: list[str] = []
+            for name in zf.namelist():
+                if re.search(r"\.(xhtml|html|htm)$", name, re.IGNORECASE):
+                    raw = zf.read(name).decode("utf-8", errors="replace")
+                    parser = _TextExtractor()
+                    parser.feed(raw)
+                    parts.extend(parser.parts)
+        result.text = "\n".join(parts)
+        result.text_length = len(result.text)
+        result.classification = CLASSIFICATION_TEXT_HEAVY
+    except Exception as exc:
+        result.error = str(exc)
+    return result
+
+
+_XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+_PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+
+
 def _extract_single(filepath: str, mime_type: str) -> TextResult:
     """Worker function for ProcessPoolExecutor.
 
@@ -176,13 +293,20 @@ def _extract_single(filepath: str, mime_type: str) -> TextResult:
     """
     if mime_type == "application/pdf":
         return _extract_pdf(filepath)
-    elif (
+    if (
         mime_type
         == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     ):
         return _extract_docx(filepath)
-    else:
-        return TextResult(path=filepath, error=f"Unsupported type: {mime_type}")
+    if mime_type == _XLSX_MIME:
+        return _extract_xlsx(filepath)
+    if mime_type == _PPTX_MIME:
+        return _extract_pptx(filepath)
+    if mime_type == "message/rfc822":
+        return _extract_eml(filepath)
+    if mime_type == "application/epub+zip":
+        return _extract_epub(filepath)
+    return TextResult(path=filepath, error=f"Unsupported type: {mime_type}")
 
 
 def _extract_text_for_cache(
@@ -216,6 +340,22 @@ def _extract_text_for_cache(
             doc = Document(filepath)
             text = _docx_full_text(doc)
             return (text, None, 0.0, None)
+
+        if mime_type == _XLSX_MIME:
+            r = _extract_xlsx(filepath)
+            return (r.text, None, 0.0, r.error)
+
+        if mime_type == _PPTX_MIME:
+            r = _extract_pptx(filepath)
+            return (r.text, None, 0.0, r.error)
+
+        if mime_type == "message/rfc822":
+            r = _extract_eml(filepath)
+            return (r.text, None, 0.0, r.error)
+
+        if mime_type == "application/epub+zip":
+            r = _extract_epub(filepath)
+            return (r.text, None, 0.0, r.error)
 
         # Plain text types — read bytes, detect encoding
         from charset_normalizer import from_bytes

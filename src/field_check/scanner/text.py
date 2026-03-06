@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 EXTRACTABLE_MIMES: set[str] = {
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/epub+zip",
+    "message/rfc822",
 }
 
 # Standard metadata fields to check for completeness

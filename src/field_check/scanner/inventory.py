@@ -34,6 +34,8 @@ EXTENSION_MIME_MAP: dict[str, str] = {
     ".cfg": "text/plain",
     ".conf": "text/plain",
     ".log": "text/plain",
+    ".eml": "message/rfc822",
+    ".epub": "application/epub+zip",
     ".py": "text/x-python",
     ".js": "text/javascript",
     ".ts": "text/typescript",
