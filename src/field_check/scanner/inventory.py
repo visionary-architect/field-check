@@ -11,8 +11,6 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-import filetype
-
 from field_check.scanner import WalkResult
 
 logger = logging.getLogger(__name__)
@@ -161,6 +159,8 @@ def _detect_file_type(filepath: Path) -> str:
     ext_mime = EXTENSION_MIME_MAP.get(ext)
     if ext_mime is not None:
         return ext_mime
+
+    import filetype
 
     try:
         guess = filetype.guess(str(filepath))

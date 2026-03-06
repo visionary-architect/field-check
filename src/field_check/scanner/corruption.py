@@ -8,8 +8,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import filetype
-
 from field_check.scanner import WalkResult
 
 logger = logging.getLogger(__name__)
@@ -66,6 +64,8 @@ def _detect_mime(filepath: Path) -> str:
 
     Falls back to empty string if detection fails.
     """
+    import filetype
+
     kind = filetype.guess(str(filepath))
     return kind.mime if kind else ""
 

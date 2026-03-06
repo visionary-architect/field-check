@@ -532,19 +532,25 @@ class TestDedupGaps:
 
 
 class TestInventoryGaps:
-    def test_extension_fallback(self, tmp_path):
+    def test_extension_shortcircuit(self, tmp_path):
+        """Known text extensions skip filetype.guess entirely."""
         p = tmp_path / "r.txt"
         p.write_text("x", encoding="utf-8")
-        with patch("field_check.scanner.inventory.filetype") as m:
-            m.guess.return_value = None
-            assert _detect_file_type(p) == "text/plain"
+        assert _detect_file_type(p) == "text/plain"
+
+    def test_filetype_guess_none_fallback(self, tmp_path):
+        """Unknown extension + filetype returns None → octet-stream."""
+        p = tmp_path / "data.xyz"
+        p.write_bytes(b"\x00\x01\x02")
+        with patch("filetype.guess", return_value=None):
+            assert _detect_file_type(p) == "application/octet-stream"
 
     def test_filetype_oserror(self, tmp_path):
-        p = tmp_path / "l.txt"
-        p.write_text("x", encoding="utf-8")
-        with patch("field_check.scanner.inventory.filetype") as m:
-            m.guess.side_effect = PermissionError
-            assert _detect_file_type(p) == "text/plain"
+        """Unknown extension + filetype raises → octet-stream."""
+        p = tmp_path / "data.xyz"
+        p.write_bytes(b"\x00\x01\x02")
+        with patch("filetype.guess", side_effect=PermissionError):
+            assert _detect_file_type(p) == "application/octet-stream"
 
 
 # -- report/__init__.py -------------------------------------------------------

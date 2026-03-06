@@ -8,8 +8,6 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import yaml
-
 logger = logging.getLogger(__name__)
 
 DEFAULT_EXCLUDES = [".git", "__pycache__", "node_modules", ".venv", ".env"]
@@ -48,6 +46,8 @@ def load_config(scan_path: Path, config_path: Path | None = None) -> FieldCheckC
         return FieldCheckConfig()
 
     try:
+        import yaml
+
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     except Exception:
         logger.warning("Failed to parse %s, using defaults", path)

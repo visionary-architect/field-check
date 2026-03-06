@@ -10,8 +10,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import blake3
-
 from field_check.scanner import WalkResult
 
 logger = logging.getLogger(__name__)
@@ -54,6 +52,8 @@ def _hash_file(filepath: Path) -> str:
     Returns:
         Hex digest string.
     """
+    import blake3
+
     hasher = blake3.blake3()
     with open(filepath, "rb") as f:
         while chunk := f.read(_CHUNK_SIZE):
