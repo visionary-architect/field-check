@@ -152,7 +152,16 @@ class InventoryResult:
 
 
 def _detect_file_type(filepath: Path) -> str:
-    """Detect MIME type using magic bytes, falling back to extension."""
+    """Detect MIME type using magic bytes, falling back to extension.
+
+    Short-circuits filetype.guess for known text extensions (no useful
+    magic bytes) to avoid unnecessary file I/O.
+    """
+    ext = filepath.suffix.lower()
+    ext_mime = EXTENSION_MIME_MAP.get(ext)
+    if ext_mime is not None:
+        return ext_mime
+
     try:
         guess = filetype.guess(str(filepath))
         if guess is not None:
@@ -160,8 +169,7 @@ def _detect_file_type(filepath: Path) -> str:
     except (PermissionError, OSError):
         pass
 
-    ext = filepath.suffix.lower()
-    return EXTENSION_MIME_MAP.get(ext, "application/octet-stream")
+    return "application/octet-stream"
 
 
 def _compute_size_distribution(sizes: list[int]) -> SizeDistribution:
