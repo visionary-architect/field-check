@@ -78,10 +78,16 @@ class TestPatternMatching:
         assert not pat.search("not an email at all")
 
     def test_ssn_pattern_matches(self) -> None:
-        """XXX-XX-XXXX format should be detected."""
+        """XXX-XX-XXXX format should be detected (valid SSA ranges only)."""
         pat = self._compile_pattern("ssn")
         assert pat.search("SSN: 123-45-6789")
-        assert pat.search("number 987-65-4321 here")
+        assert pat.search("number 456-78-1234 here")
+        # Invalid SSN ranges must NOT match
+        assert not pat.search("000-12-3456")  # Area 000 invalid
+        assert not pat.search("666-12-3456")  # Area 666 invalid
+        assert not pat.search("900-12-3456")  # Area 900-999 invalid
+        assert not pat.search("123-00-4567")  # Group 00 invalid
+        assert not pat.search("123-45-0000")  # Serial 0000 invalid
         assert not pat.search("123456789")  # No dashes
         assert not pat.search("12-345-6789")  # Wrong grouping
 

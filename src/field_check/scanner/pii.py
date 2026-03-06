@@ -27,15 +27,24 @@ BUILTIN_PATTERNS: list[dict[str, str | float]] = [
     {
         "name": "credit_card",
         "label": "Credit Card Number",
-        "pattern": r"\b(?:\d[ -]*?){13,19}\b",
-        "fp_rate": 0.20,
+        "pattern": (
+            r"\b(?:"
+            r"4\d{3}|"  # Visa
+            r"5[1-5]\d{2}|"  # Mastercard
+            r"2(?:2[2-9]\d|[3-6]\d{2}|7[01]\d|720)|"  # Mastercard 2-series
+            r"3[47]\d{2}|"  # Amex
+            r"6(?:011|5\d{2})|"  # Discover
+            r"3(?:0[0-5]|[68]\d)\d"  # Diners
+            r")[ -]?(?:\d[ -]?){8,14}\d\b"
+        ),
+        "fp_rate": 0.15,
         "validator": "luhn",
     },
     {
         "name": "ssn",
         "label": "SSN (US)",
-        "pattern": r"\b\d{3}-\d{2}-\d{4}\b",
-        "fp_rate": 0.40,
+        "pattern": r"\b(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b",
+        "fp_rate": 0.30,
     },
     {
         "name": "phone",
