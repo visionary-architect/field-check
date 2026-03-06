@@ -171,6 +171,36 @@ def _extract_pdf(filepath: str) -> TextResult:
     return result
 
 
+def _docx_full_text(doc: object) -> str:
+    """Extract all text from a python-docx Document.
+
+    Includes body paragraphs, table cells, headers, and footers.
+    """
+    parts: list[str] = []
+
+    # Body paragraphs
+    for p in doc.paragraphs:  # type: ignore[attr-defined]
+        if p.text:
+            parts.append(p.text)
+
+    # Table cells
+    for table in doc.tables:  # type: ignore[attr-defined]
+        for row in table.rows:
+            for cell in row.cells:
+                if cell.text:
+                    parts.append(cell.text)
+
+    # Headers and footers
+    for section in doc.sections:  # type: ignore[attr-defined]
+        for hf in (section.header, section.footer):
+            if hf and hf.is_linked_to_previous is False:
+                for p in hf.paragraphs:
+                    if p.text:
+                        parts.append(p.text)
+
+    return "\n".join(parts)
+
+
 def _extract_docx(filepath: str) -> TextResult:
     """Extract text and metadata from a DOCX file."""
     from docx import Document
@@ -181,8 +211,8 @@ def _extract_docx(filepath: str) -> TextResult:
     try:
         doc = Document(filepath)
 
-        # Extract text from paragraphs
-        text = "\n".join(p.text for p in doc.paragraphs)
+        # Extract text from paragraphs, tables, headers, footers
+        text = _docx_full_text(doc)
         text_bytes = len(text.encode("utf-8", errors="replace"))
         result.text_length = len(text)
         result.text_size_ratio = text_bytes / file_size if file_size > 0 else 0.0
@@ -388,7 +418,7 @@ def _extract_text_for_cache(
             from docx import Document
 
             doc = Document(filepath)
-            text = "\n".join(p.text for p in doc.paragraphs)
+            text = _docx_full_text(doc)
             return (text, None, 0.0, None)
 
         # Plain text types — read bytes, detect encoding

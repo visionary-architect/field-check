@@ -168,8 +168,10 @@ def _extract_text_for_pii(filepath: str, mime_type: str) -> str:
     ):
         from docx import Document
 
+        from field_check.scanner.text import _docx_full_text
+
         doc = Document(filepath)
-        return "\n".join(p.text for p in doc.paragraphs)
+        return _docx_full_text(doc)
     else:
         # Plain text types — read bytes, detect encoding
         from charset_normalizer import from_bytes
