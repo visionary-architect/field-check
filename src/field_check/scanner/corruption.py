@@ -85,12 +85,20 @@ def _check_magic_bytes(header: bytes, mime_type: str) -> bool:
 def _check_encrypted_pdf(filepath: Path) -> bool:
     """Check if a PDF file contains an /Encrypt dictionary.
 
-    Reads the first 4KB and searches for the /Encrypt marker.
+    Reads the first and last 4KB since the encryption dictionary
+    reference is often in the trailer at the end of the file.
     """
     try:
         with open(filepath, "rb") as f:
-            chunk = f.read(4096)
-        return b"/Encrypt" in chunk
+            head = f.read(4096)
+            f.seek(0, 2)
+            size = f.tell()
+            if size > 4096:
+                f.seek(max(0, size - 4096))
+                tail = f.read()
+            else:
+                tail = b""
+        return b"/Encrypt" in head or b"/Encrypt" in tail
     except OSError:
         return False
 
