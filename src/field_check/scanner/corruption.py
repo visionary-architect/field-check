@@ -122,13 +122,14 @@ def _check_encrypted_zip(filepath: Path) -> bool:
 
 
 def _check_single_file(
-    entry_path: Path, entry_size: int,
+    entry_path: Path, entry_size: int, known_mime: str | None = None,
 ) -> FileHealth:
     """Assess the health of a single file.
 
     Args:
         entry_path: Path to the file.
         entry_size: Known file size from walk.
+        known_mime: Pre-computed MIME type from inventory (skips filetype.guess).
 
     Returns:
         FileHealth with status and detail.
@@ -157,8 +158,8 @@ def _check_single_file(
             mime_type="", detail="Could not read file",
         )
 
-    # Detect MIME type
-    mime_type = _detect_mime(entry_path)
+    # Reuse pre-computed MIME type or detect fresh
+    mime_type = known_mime if known_mime is not None else _detect_mime(entry_path)
 
     # Magic byte validation - only for types we have signatures for
     if mime_type in MAGIC_SIGNATURES and not _check_magic_bytes(header, mime_type):
@@ -193,12 +194,15 @@ def _check_single_file(
 def check_corruption(
     walk_result: WalkResult,
     progress_callback: Callable[[int, int], None] | None = None,
+    file_types: dict[Path, str] | None = None,
 ) -> CorruptionResult:
     """Check all files for corruption, encryption, and emptiness.
 
     Args:
         walk_result: Results from directory walk.
         progress_callback: Called with (current, total) after each file.
+        file_types: Pre-computed MIME types from inventory (avoids
+            redundant filetype.guess calls).
 
     Returns:
         CorruptionResult with counts and flagged files.
@@ -207,7 +211,8 @@ def check_corruption(
     result = CorruptionResult(total_checked=total)
 
     for i, entry in enumerate(walk_result.files):
-        health = _check_single_file(entry.path, entry.size)
+        known_mime = file_types.get(entry.path) if file_types else None
+        health = _check_single_file(entry.path, entry.size, known_mime)
 
         if health.status == STATUS_OK:
             result.ok_count += 1

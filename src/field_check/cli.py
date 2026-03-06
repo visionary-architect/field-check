@@ -136,7 +136,9 @@ def scan(
                 f"[cyan]{current}[/cyan]/[cyan]{total}[/cyan]"
             )
 
-        corruption_result = check_corruption(result, progress_callback=on_check)
+        corruption_result = check_corruption(
+            result, progress_callback=on_check, file_types=inventory.file_types,
+        )
 
     # Override sampling rate from CLI if provided
     if sampling_rate is not None:
