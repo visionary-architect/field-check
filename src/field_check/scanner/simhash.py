@@ -157,6 +157,39 @@ class SimHashResult:
 # ---------------------------------------------------------------------------
 
 
+def _band_candidates(
+    fingerprints: list[int], num_bands: int,
+) -> set[tuple[int, int]]:
+    """Find candidate pairs using band bucketing (locality-sensitive hashing).
+
+    Divides each fingerprint into num_bands segments. Pairs sharing any
+    identical segment are candidates for exact Hamming distance check.
+    By pigeonhole, if Hamming distance ≤ num_bands-1, at least one
+    segment must be identical — guaranteeing zero false negatives.
+    """
+    bits_per_band = SIMHASH_BITS // num_bands
+    candidates: set[tuple[int, int]] = set()
+
+    for band in range(num_bands):
+        shift = band * bits_per_band
+        # Last band gets remaining bits
+        width = bits_per_band if band < num_bands - 1 else SIMHASH_BITS - shift
+        mask = (1 << width) - 1
+
+        buckets: dict[int, list[int]] = defaultdict(list)
+        for idx, fp in enumerate(fingerprints):
+            band_val = (fp >> shift) & mask
+            buckets[band_val].append(idx)
+
+        for indices in buckets.values():
+            if len(indices) >= 2:
+                for i in range(len(indices)):
+                    for j in range(i + 1, len(indices)):
+                        candidates.add((indices[i], indices[j]))
+
+    return candidates
+
+
 def detect_near_duplicates(
     text_cache: dict[str, str],
     threshold: int = DEFAULT_THRESHOLD,
@@ -198,16 +231,21 @@ def detect_near_duplicates(
     if result.total_analyzed < 2:
         return result
 
-    # Step 2: Pairwise comparison + union-find clustering
+    # Step 2: Band bucketing + union-find clustering
+    # Pigeonhole principle: split 64-bit hash into (threshold+1) bands.
+    # If Hamming distance ≤ threshold, at least one band must match exactly.
+    # This reduces O(n²) pairwise comparison to O(n * candidates).
     uf = _UnionFind()
     for i in range(len(paths)):
         uf.find(paths[i])  # ensure all paths are in the union-find
 
-    for i in range(len(paths)):
-        for j in range(i + 1, len(paths)):
-            dist = hamming_distance(fingerprints[i], fingerprints[j])
-            if dist <= threshold:
-                uf.union(paths[i], paths[j])
+    num_bands = min(threshold + 1, SIMHASH_BITS)
+    candidates = _band_candidates(fingerprints, num_bands)
+
+    for i, j in candidates:
+        dist = hamming_distance(fingerprints[i], fingerprints[j])
+        if dist <= threshold:
+            uf.union(paths[i], paths[j])
 
     # Step 3: Build clusters (only groups with 2+ members)
     groups = uf.groups()
