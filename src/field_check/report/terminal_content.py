@@ -18,6 +18,7 @@ from field_check.scanner.encoding import EncodingResult
 from field_check.scanner.language import LanguageResult
 from field_check.scanner.mojibake import MojibakeResult
 from field_check.scanner.pii import PIIScanResult
+from field_check.scanner.readability import ReadabilityResult
 from field_check.scanner.sampling import (
     ConfidenceInterval,
     SampleResult,
@@ -460,3 +461,42 @@ def _render_pii_samples(pii: PIIScanResult, console: Console) -> None:
         console.print(Text(
             f"  ... and {len(samples) - 20} more matches", style="dim"
         ))
+
+
+def render_readability_results(
+    readability: ReadabilityResult,
+    console: Console,
+) -> None:
+    """Render readability scoring results."""
+    if readability.total_checked == 0:
+        return
+
+    table = Table(title="Readability Analysis", show_lines=False)
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", justify="right")
+    table.add_row("Documents scored", f"{readability.total_checked:,}")
+    table.add_row("Avg Flesch Reading Ease", f"{readability.avg_flesch_score:.1f}")
+    table.add_row("Low quality (<30)", f"{readability.low_quality_count:,}")
+    console.print(table)
+
+    if readability.low_quality_count > 0:
+        low_scores = [s for s in readability.scores if s.is_low_quality]
+        low_scores.sort(key=lambda s: s.flesch_reading_ease)
+        shown = low_scores[:10]
+
+        detail = Table(
+            title="Low Quality Documents (likely OCR garbage or binary)",
+            show_lines=False,
+        )
+        detail.add_column("Path", style="yellow")
+        detail.add_column("Flesch Score", justify="right")
+        for s in shown:
+            detail.add_row(Path(s.path).name, f"{s.flesch_reading_ease:.1f}")
+        console.print(detail)
+        if len(low_scores) > 10:
+            console.print(Text(
+                f"  ... and {len(low_scores) - 10} more low-quality files",
+                style="dim",
+            ))
+
+    console.print()

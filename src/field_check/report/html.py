@@ -17,6 +17,7 @@ from field_check.scanner.inventory import InventoryResult
 from field_check.scanner.language import LanguageResult
 from field_check.scanner.mojibake import MojibakeResult
 from field_check.scanner.pii import PIIScanResult
+from field_check.scanner.readability import ReadabilityResult
 from field_check.scanner.sampling import SampleResult, compute_confidence_interval, format_ci
 from field_check.scanner.simhash import SimHashResult
 from field_check.scanner.text import TextExtractionResult
@@ -35,6 +36,7 @@ def render_html_report(
     encoding_result: EncodingResult | None = None,
     simhash_result: SimHashResult | None = None,
     mojibake_result: MojibakeResult | None = None,
+    readability_result: ReadabilityResult | None = None,
 ) -> str:
     """Render a complete report as self-contained HTML.
 
@@ -53,6 +55,7 @@ def render_html_report(
         dedup_result, corruption_result, sample_result,
         text_result, pii_result, language_result,
         encoding_result, simhash_result, mojibake_result,
+        readability_result,
     )
 
     return template.render(**context)
@@ -71,6 +74,7 @@ def _build_context(
     encoding: EncodingResult | None,
     simhash: SimHashResult | None,
     mojibake: MojibakeResult | None,
+    readability: ReadabilityResult | None,
 ) -> dict:
     """Build the template context dict."""
     sd = inventory.size_distribution
@@ -277,6 +281,14 @@ def _build_context(
             "total_checked": f"{mojibake.total_checked:,}",
             "files_with_mojibake": mojibake.files_with_mojibake,
             "files": [Path(p).name for p in mojibake.mojibake_files[:20]],
+        }
+
+    # Readability section
+    if readability is not None and readability.total_checked > 0:
+        context["readability"] = {
+            "total_checked": f"{readability.total_checked:,}",
+            "avg_flesch_score": f"{readability.avg_flesch_score:.1f}",
+            "low_quality_count": readability.low_quality_count,
         }
 
     return context

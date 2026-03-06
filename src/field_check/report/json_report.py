@@ -15,6 +15,7 @@ from field_check.scanner.inventory import InventoryResult
 from field_check.scanner.language import LanguageResult
 from field_check.scanner.mojibake import MojibakeResult
 from field_check.scanner.pii import PIIScanResult
+from field_check.scanner.readability import ReadabilityResult
 from field_check.scanner.sampling import SampleResult, compute_confidence_interval
 from field_check.scanner.simhash import SimHashResult
 from field_check.scanner.text import TextExtractionResult
@@ -33,6 +34,7 @@ def render_json_report(
     encoding_result: EncodingResult | None = None,
     simhash_result: SimHashResult | None = None,
     mojibake_result: MojibakeResult | None = None,
+    readability_result: ReadabilityResult | None = None,
 ) -> str:
     """Render a complete report as JSON.
 
@@ -56,6 +58,7 @@ def render_json_report(
             inventory, walk_result, dedup_result, corruption_result,
             sample_result, text_result, pii_result, language_result,
             encoding_result, simhash_result, mojibake_result,
+            readability_result,
         ),
         "files": _build_files_array(
             walk_result, inventory, hash_lookup, dup_paths,
@@ -78,6 +81,7 @@ def _build_summary(
     encoding: EncodingResult | None,
     simhash: SimHashResult | None,
     mojibake: MojibakeResult | None,
+    readability: ReadabilityResult | None,
 ) -> dict:
     """Build the summary section of the JSON report."""
     sd = inventory.size_distribution
@@ -231,6 +235,16 @@ def _build_summary(
         }
     else:
         summary["mojibake"] = None
+
+    # Readability
+    if readability is not None and readability.total_checked > 0:
+        summary["readability"] = {
+            "total_checked": readability.total_checked,
+            "avg_flesch_score": readability.avg_flesch_score,
+            "low_quality_count": readability.low_quality_count,
+        }
+    else:
+        summary["readability"] = None
 
     return summary
 

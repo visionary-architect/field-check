@@ -15,6 +15,7 @@ from field_check.report.terminal_content import (
     render_mojibake_results,
     render_near_duplicates,
     render_pii_results,
+    render_readability_results,
     render_text_analysis,
 )
 from field_check.report.utils import format_duration, format_size
@@ -26,6 +27,7 @@ from field_check.scanner.inventory import InventoryResult
 from field_check.scanner.language import LanguageResult
 from field_check.scanner.mojibake import MojibakeResult
 from field_check.scanner.pii import PIIScanResult
+from field_check.scanner.readability import ReadabilityResult
 from field_check.scanner.sampling import SampleResult
 from field_check.scanner.simhash import SimHashResult
 from field_check.scanner.text import TextExtractionResult
@@ -51,6 +53,7 @@ def render_terminal_report(
     encoding_result: EncodingResult | None = None,
     simhash_result: SimHashResult | None = None,
     mojibake_result: MojibakeResult | None = None,
+    readability_result: ReadabilityResult | None = None,
 ) -> None:
     """Render a complete terminal report using Rich.
 
@@ -68,6 +71,7 @@ def render_terminal_report(
         encoding_result: Encoding detection results (optional).
         simhash_result: Near-duplicate detection results (optional).
         mojibake_result: Mojibake (encoding damage) results (optional).
+        readability_result: Readability scoring results (optional).
     """
     # Header
     header_lines = [
@@ -112,6 +116,10 @@ def render_terminal_report(
     # Section 7: Encoding Damage (Mojibake)
     if mojibake_result is not None:
         render_mojibake_results(mojibake_result, console)
+
+    # Section 7b: Readability Analysis
+    if readability_result is not None:
+        render_readability_results(readability_result, console)
 
     # Section 8: Near-Duplicate Detection
     if simhash_result is not None and sample_result is not None:

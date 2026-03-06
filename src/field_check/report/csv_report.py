@@ -44,6 +44,7 @@ def render_csv_report(
     encoding_result: EncodingResult | None = None,
     simhash_result: SimHashResult | None = None,
     mojibake_result: MojibakeResult | None = None,
+    readability_result: object = None,
 ) -> str:
     """Render a file-level inventory as CSV.
 

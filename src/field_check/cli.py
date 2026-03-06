@@ -20,6 +20,7 @@ from field_check.scanner.inventory import analyze_inventory
 from field_check.scanner.language import analyze_languages
 from field_check.scanner.mojibake import detect_mojibake
 from field_check.scanner.pii import scan_pii
+from field_check.scanner.readability import analyze_readability
 from field_check.scanner.sampling import estimate_design_effect, select_sample
 from field_check.scanner.simhash import detect_near_duplicates
 from field_check.scanner.text import extract_text_unified
@@ -229,6 +230,14 @@ def scan(
         ):
             mojibake_result = detect_mojibake(text_cache_result.text_cache)
 
+    # Analyze readability (optional — requires textstat)
+    readability_result = None
+    if text_cache_result and text_cache_result.text_cache:
+        with console.status(
+            "[bold blue]Analyzing readability...", spinner="dots"
+        ):
+            readability_result = analyze_readability(text_cache_result.text_cache)
+
     # Detect near-duplicates via SimHash
     simhash_result = None
     if text_cache_result and text_cache_result.text_cache:
@@ -263,6 +272,7 @@ def scan(
             encoding_result=encoding_result,
             simhash_result=simhash_result,
             mojibake_result=mojibake_result,
+            readability_result=readability_result,
         )
     except ValueError as exc:
         raise click.UsageError(str(exc)) from exc
