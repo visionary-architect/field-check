@@ -338,6 +338,26 @@ def _extract_single(filepath: str, mime_type: str) -> TextResult:
     return TextResult(path=filepath, error=f"Unsupported type: {mime_type}")
 
 
+def _extract_pdf_text_fast(filepath: str) -> tuple[str, str | None, float, str | None]:
+    """Extract PDF text using pdf_oxide (fast) with pdfplumber fallback."""
+    try:
+        from pdf_oxide import PdfDocument
+
+        doc = PdfDocument(filepath)
+        text = doc.to_plain_text_all()
+        return (text, None, 0.0, None)
+    except ImportError:
+        pass
+    except Exception:
+        pass  # Fall through to pdfplumber
+
+    import pdfplumber
+
+    with pdfplumber.open(filepath) as pdf:
+        text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+    return (text, None, 0.0, None)
+
+
 def _extract_text_for_cache(
     filepath: str, mime_type: str
 ) -> tuple[str, str | None, float, str | None]:
@@ -351,13 +371,7 @@ def _extract_text_for_cache(
     """
     try:
         if mime_type == "application/pdf":
-            import pdfplumber
-
-            with pdfplumber.open(filepath) as pdf:
-                text = "\n".join(
-                    page.extract_text() or "" for page in pdf.pages
-                )
-            return (text, None, 0.0, None)
+            return _extract_pdf_text_fast(filepath)
 
         if (
             mime_type

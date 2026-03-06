@@ -62,6 +62,7 @@ all-cloud = [
 ]
 pii-extra = ["phonenumberslite>=8.13", "python-stdnum>=1.20"]
 formats = ["openpyxl>=3.1", "python-pptx>=1.0"]
+fast-pdf = ["pdf-oxide>=0.3"]
 lang-extra = ["fast-langdetect>=0.2"]
 dev = [
     "pytest>=8.0",
