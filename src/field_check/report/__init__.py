@@ -10,6 +10,7 @@ from field_check.config import FieldCheckConfig
 from field_check.report.csv_report import render_csv_report
 from field_check.report.html import render_html_report
 from field_check.report.json_report import render_json_report
+from field_check.report.sarif_report import render_sarif_report
 from field_check.report.terminal import render_terminal_report
 from field_check.scanner import WalkResult
 from field_check.scanner.corruption import CorruptionResult
@@ -105,10 +106,17 @@ def generate_report(
         path = output_path or Path("field-check-report.html")
         path.write_text(content, encoding="utf-8")
         console.print(f"Report saved to [bold]{path}[/bold]")
+    elif fmt == "sarif":
+        content = render_sarif_report(
+            inventory, walk_result, **kwargs,
+        )
+        path = output_path or Path("field-check-report.sarif.json")
+        path.write_text(content, encoding="utf-8")
+        console.print(f"Report saved to [bold]{path}[/bold]")
     else:
         raise ValueError(
             f"Format '{fmt}' not yet supported. "
-            "Available: terminal, html, json, csv"
+            "Available: terminal, html, json, csv, sarif"
         )
 
 
