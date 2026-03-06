@@ -6,6 +6,7 @@ Hashing for Jaccard similarity estimation. Requires `datasketch` package.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import re
 from collections import defaultdict
@@ -95,13 +96,16 @@ def detect_near_duplicates_minhash(
 
     for i, (path, text) in enumerate(text_cache.items()):
         if len(text) >= MIN_TEXT_LENGTH:
-            shingles = _tokenize_shingles(text)
-            if shingles:
-                mh = MinHash(num_perm=num_perm)
-                for s in shingles:
-                    mh.update(s.encode("utf-8"))
-                paths.append(path)
-                signatures.append(mh)
+            try:
+                shingles = _tokenize_shingles(text)
+                if shingles:
+                    mh = MinHash(num_perm=num_perm)
+                    for s in shingles:
+                        mh.update(s.encode("utf-8"))
+                    paths.append(path)
+                    signatures.append(mh)
+            except Exception:
+                logger.warning("MinHash failed for %s", path, exc_info=True)
 
         if progress_callback is not None:
             progress_callback(i + 1, total)
@@ -113,12 +117,9 @@ def detect_near_duplicates_minhash(
 
     # Step 2: Build LSH index and query for candidates
     lsh = MinHashLSH(threshold=threshold, num_perm=num_perm)
-    for idx, (path, sig) in enumerate(zip(paths, signatures)):
-        try:
+    for idx, sig in enumerate(signatures):
+        with contextlib.suppress(ValueError):
             lsh.insert(str(idx), sig)
-        except ValueError:
-            # Duplicate key — skip
-            pass
 
     # Step 3: Find connected components via union-find
     parent: dict[int, int] = {}

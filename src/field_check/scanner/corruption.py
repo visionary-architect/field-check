@@ -85,10 +85,13 @@ def _detect_mime(filepath: Path) -> str:
     except Exception:
         pass
 
-    import filetype
+    try:
+        import filetype
 
-    kind = filetype.guess(str(filepath))
-    return kind.mime if kind else ""
+        kind = filetype.guess(str(filepath))
+        return kind.mime if kind else ""
+    except Exception:
+        return ""
 
 
 def _check_magic_bytes(header: bytes, mime_type: str) -> bool:
@@ -229,7 +232,9 @@ def _check_truncated_image(filepath: Path, mime_type: str) -> bool:
 
 
 def _check_single_file(
-    entry_path: Path, entry_size: int, known_mime: str | None = None,
+    entry_path: Path,
+    entry_size: int,
+    known_mime: str | None = None,
 ) -> FileHealth:
     """Assess the health of a single file.
 
@@ -244,15 +249,19 @@ def _check_single_file(
     # Empty check
     if entry_size == 0:
         return FileHealth(
-            path=entry_path, status=STATUS_EMPTY,
-            mime_type="", detail="File is empty (0 bytes)",
+            path=entry_path,
+            status=STATUS_EMPTY,
+            mime_type="",
+            detail="File is empty (0 bytes)",
         )
 
     # Near-empty check
     if entry_size <= NEAR_EMPTY_THRESHOLD:
         return FileHealth(
-            path=entry_path, status=STATUS_NEAR_EMPTY,
-            mime_type="", detail=f"File is very small ({entry_size} bytes)",
+            path=entry_path,
+            status=STATUS_NEAR_EMPTY,
+            mime_type="",
+            detail=f"File is very small ({entry_size} bytes)",
         )
 
     # Read header for magic byte checks
@@ -261,8 +270,10 @@ def _check_single_file(
             header = f.read(8)
     except (PermissionError, OSError):
         return FileHealth(
-            path=entry_path, status=STATUS_UNREADABLE,
-            mime_type="", detail="Could not read file",
+            path=entry_path,
+            status=STATUS_UNREADABLE,
+            mime_type="",
+            detail="Could not read file",
         )
 
     # Reuse pre-computed MIME type or detect fresh
@@ -271,7 +282,8 @@ def _check_single_file(
     # Magic byte validation - only for types we have signatures for
     if mime_type in MAGIC_SIGNATURES and not _check_magic_bytes(header, mime_type):
         return FileHealth(
-            path=entry_path, status=STATUS_CORRUPT,
+            path=entry_path,
+            status=STATUS_CORRUPT,
             mime_type=mime_type,
             detail=f"Header mismatch for {mime_type}",
         )
@@ -279,7 +291,8 @@ def _check_single_file(
     # Encrypted PDF check
     if header.startswith(b"%PDF") and _check_encrypted_pdf(entry_path):
         return FileHealth(
-            path=entry_path, status=STATUS_ENCRYPTED_PDF,
+            path=entry_path,
+            status=STATUS_ENCRYPTED_PDF,
             mime_type=mime_type or "application/pdf",
             detail="PDF contains /Encrypt dictionary",
         )
@@ -287,7 +300,8 @@ def _check_single_file(
     # Encrypted ZIP check
     if header.startswith(b"PK\x03\x04") and _check_encrypted_zip(entry_path):
         return FileHealth(
-            path=entry_path, status=STATUS_ENCRYPTED_ZIP,
+            path=entry_path,
+            status=STATUS_ENCRYPTED_ZIP,
             mime_type=mime_type or "application/zip",
             detail="ZIP has encryption flag set",
         )
@@ -295,7 +309,8 @@ def _check_single_file(
     # OOXML Office encryption check (requires msoffcrypto-tool)
     if mime_type in _OOXML_MIMES and _check_encrypted_office(entry_path):
         return FileHealth(
-            path=entry_path, status=STATUS_ENCRYPTED_OFFICE,
+            path=entry_path,
+            status=STATUS_ENCRYPTED_OFFICE,
             mime_type=mime_type,
             detail="OOXML file is encrypted",
         )
@@ -303,7 +318,8 @@ def _check_single_file(
     # Truncation checks
     if header.startswith(b"%PDF") and _check_truncated_pdf(entry_path):
         return FileHealth(
-            path=entry_path, status=STATUS_TRUNCATED,
+            path=entry_path,
+            status=STATUS_TRUNCATED,
             mime_type=mime_type or "application/pdf",
             detail="PDF missing %%EOF marker (likely truncated)",
         )
@@ -313,25 +329,26 @@ def _check_single_file(
         integrity_error = _check_docx_integrity(entry_path)
         if integrity_error:
             return FileHealth(
-                path=entry_path, status=STATUS_CORRUPT,
+                path=entry_path,
+                status=STATUS_CORRUPT,
                 mime_type=mime_type,
                 detail=f"OOXML integrity: {integrity_error}",
             )
 
     # Image truncation checks
-    if (
-        mime_type in ("image/jpeg", "image/png")
-        and _check_truncated_image(entry_path, mime_type)
-    ):
+    if mime_type in ("image/jpeg", "image/png") and _check_truncated_image(entry_path, mime_type):
         return FileHealth(
-            path=entry_path, status=STATUS_TRUNCATED,
+            path=entry_path,
+            status=STATUS_TRUNCATED,
             mime_type=mime_type,
             detail=f"Missing end marker for {mime_type}",
         )
 
     return FileHealth(
-        path=entry_path, status=STATUS_OK,
-        mime_type=mime_type, detail="",
+        path=entry_path,
+        status=STATUS_OK,
+        mime_type=mime_type,
+        detail="",
     )
 
 
@@ -373,7 +390,9 @@ def check_corruption(
             result.truncated_count += 1
             result.flagged_files.append(health)
         elif health.status in (
-            STATUS_ENCRYPTED_PDF, STATUS_ENCRYPTED_ZIP, STATUS_ENCRYPTED_OFFICE,
+            STATUS_ENCRYPTED_PDF,
+            STATUS_ENCRYPTED_ZIP,
+            STATUS_ENCRYPTED_OFFICE,
         ):
             result.encrypted_count += 1
             result.flagged_files.append(health)

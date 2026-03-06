@@ -33,8 +33,18 @@ CONTEXT_CONFIG: dict[str, tuple[float, list[str], list[str]]] = {
     "ssn": (
         0.5,
         ["social security", "ssn", "taxpayer", "tax id", "social sec"],
-        ["order", "invoice", "tracking", "serial", "reference",
-         "part", "model", "item", "sku", "code"],
+        [
+            "order",
+            "invoice",
+            "tracking",
+            "serial",
+            "reference",
+            "part",
+            "model",
+            "item",
+            "sku",
+            "code",
+        ],
     ),
     "phone": (
         0.4,
@@ -115,6 +125,7 @@ def validate_iban(iban_str: str) -> bool:
     """
     try:
         from stdnum import iban
+
         return iban.is_valid(iban_str)
     except ImportError:
         # Fallback: basic Mod-97 check (ISO 7064)
@@ -140,6 +151,7 @@ def validate_de_tax_id(tax_id_str: str) -> bool:
     """
     try:
         from stdnum.de import idnr
+
         return idnr.is_valid(tax_id_str)
     except ImportError:
         return True  # Accept without library
@@ -154,6 +166,7 @@ def validate_es_dni(dni_str: str) -> bool:
     """
     try:
         from stdnum.es import dni
+
         return dni.is_valid(dni_str)
     except ImportError:
         return True  # Accept without library
@@ -275,17 +288,13 @@ def scan_text_for_pii(
                     digits = "".join(c for c in matched if c.isdigit())
                     if digits in _KNOWN_TEST_SSNS:
                         continue
-                conf = compute_context_confidence(
-                    line, match.start(), match.end(), name, ctx
-                )
+                conf = compute_context_confidence(line, match.start(), match.end(), name, ctx)
                 # Phone validation: invalid numbers get heavily penalized
                 if name == "phone" and not validate_phone(matched):
                     conf = min(conf, 0.1)
                 if conf < min_confidence:
                     continue
-                file_result.matches_by_type[name] = (
-                    file_result.matches_by_type.get(name, 0) + 1
-                )
+                file_result.matches_by_type[name] = file_result.matches_by_type.get(name, 0) + 1
                 if show_samples and len(file_result.sample_matches) < 5:
                     file_result.sample_matches.append(
                         PIIMatch(

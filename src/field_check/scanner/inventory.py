@@ -219,9 +219,7 @@ def _compute_size_distribution(sizes: list[int]) -> SizeDistribution:
 def _compute_age_distribution(mtimes: list[float]) -> AgeDistribution:
     """Bucket file ages relative to current time."""
     if not mtimes:
-        return AgeDistribution(
-            buckets=[AgeBucket(label=b[0]) for b in AGE_BUCKETS]
-        )
+        return AgeDistribution(buckets=[AgeBucket(label=b[0]) for b in AGE_BUCKETS])
 
     now = time.time()
     buckets = [AgeBucket(label=b[0]) for b in AGE_BUCKETS]

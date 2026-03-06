@@ -239,8 +239,7 @@ class TestOfficeEncryption:
             zf.writestr("word/document.xml", "<document/>")
 
         walk = _walk(tmp_path)
-        mime = ("application/vnd.openxmlformats-officedocument"
-               ".wordprocessingml.document")
+        mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         file_types = {walk.files[0].path: mime}
 
         with patch(
@@ -263,8 +262,7 @@ class TestOfficeEncryption:
             zf.writestr("word/document.xml", "<document/>")
 
         walk = _walk(tmp_path)
-        mime = ("application/vnd.openxmlformats-officedocument"
-               ".wordprocessingml.document")
+        mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         file_types = {walk.files[0].path: mime}
 
         with patch(
@@ -324,8 +322,7 @@ class TestTruncationDetection:
         docx.write_bytes(b"PK\x03\x04" + b"\x00" * 100)
 
         walk = _walk(tmp_path)
-        mime = ("application/vnd.openxmlformats-officedocument"
-               ".wordprocessingml.document")
+        mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         file_types = {walk.files[0].path: mime}
         result = check_corruption(walk, file_types=file_types)
         assert result.corrupt_count == 1
@@ -339,8 +336,7 @@ class TestTruncationDetection:
             zf.writestr("word/document.xml", "<document/>")
 
         walk = _walk(tmp_path)
-        mime = ("application/vnd.openxmlformats-officedocument"
-               ".wordprocessingml.document")
+        mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         file_types = {walk.files[0].path: mime}
         result = check_corruption(walk, file_types=file_types)
         assert result.corrupt_count == 1

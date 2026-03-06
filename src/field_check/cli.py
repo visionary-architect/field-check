@@ -65,9 +65,7 @@ def _run_scan_pipeline(
         console=con,
         transient=True,
     ) as progress:
-        overall = progress.add_task(
-            "Scanning corpus", total=len(_PHASES), detail=""
-        )
+        overall = progress.add_task("Scanning corpus", total=len(_PHASES), detail="")
 
         def _advance(phase_name: str) -> None:
             progress.update(overall, advance=1, description=phase_name)
@@ -79,9 +77,7 @@ def _run_scan_pipeline(
             progress.update(overall, detail=f"{count} files found")
 
         try:
-            walk_result = walk_directory(
-                scan_path, config, progress_callback=on_walk
-            )
+            walk_result = walk_directory(scan_path, config, progress_callback=on_walk)
         except KeyboardInterrupt:
             con.print("\n[yellow]Scan interrupted.[/yellow]")
             sys.exit(2)
@@ -98,18 +94,14 @@ def _run_scan_pipeline(
         def on_inventory(current: int, total: int) -> None:
             progress.update(overall, detail=f"{current}/{total}")
 
-        results["inventory"] = analyze_inventory(
-            walk_result, progress_callback=on_inventory
-        )
+        results["inventory"] = analyze_inventory(walk_result, progress_callback=on_inventory)
         _advance("Hashing files")
 
         # Phase 3: Dedup hashing
         def on_hash(current: int, total: int) -> None:
             progress.update(overall, detail=f"{current}/{total}")
 
-        results["dedup"] = compute_hashes(
-            walk_result, progress_callback=on_hash
-        )
+        results["dedup"] = compute_hashes(walk_result, progress_callback=on_hash)
         _advance("Checking file health")
 
         # Phase 4: Corruption
@@ -127,15 +119,14 @@ def _run_scan_pipeline(
         progress.update(overall, detail="")
         sample = select_sample(walk_result, results["inventory"], config)
         if not sample.is_census:
-            sample.deff = estimate_design_effect(
-                sample.selected_files, results["inventory"]
-            )
+            sample.deff = estimate_design_effect(sample.selected_files, results["inventory"])
         results["sample"] = sample
         _advance("Extracting text")
 
         # Phase 6: Text extraction
         has_sample = sample.total_sample_size > 0
         if has_sample:
+
             def on_extract(current: int, total: int) -> None:
                 progress.update(overall, detail=f"{current}/{total}")
 
@@ -149,14 +140,15 @@ def _run_scan_pipeline(
         # Phase 7: PII scan
         text_cache_result = results.get("text_cache")
         if has_sample:
+
             def on_pii(current: int, total: int) -> None:
                 progress.update(overall, detail=f"{current}/{total}")
 
             results["pii"] = scan_pii(
-                sample, results["inventory"], config,
-                text_cache=(
-                    text_cache_result.text_cache if text_cache_result else None
-                ),
+                sample,
+                results["inventory"],
+                config,
+                text_cache=(text_cache_result.text_cache if text_cache_result else None),
                 progress_callback=on_pii,
             )
         _advance("Detecting languages")
@@ -164,34 +156,27 @@ def _run_scan_pipeline(
         # Phase 8: Language detection
         progress.update(overall, detail="")
         if text_cache_result and text_cache_result.text_cache:
-            results["language"] = analyze_languages(
-                text_cache_result.text_cache
-            )
+            results["language"] = analyze_languages(text_cache_result.text_cache)
         _advance("Analyzing encodings")
 
         # Phase 9: Encoding analysis
         if text_cache_result and text_cache_result.encoding_map:
-            results["encoding"] = analyze_encodings(
-                text_cache_result.encoding_map
-            )
+            results["encoding"] = analyze_encodings(text_cache_result.encoding_map)
         _advance("Checking for encoding damage")
 
         # Phase 10: Mojibake
         if text_cache_result and text_cache_result.text_cache:
-            results["mojibake"] = detect_mojibake(
-                text_cache_result.text_cache
-            )
+            results["mojibake"] = detect_mojibake(text_cache_result.text_cache)
         _advance("Analyzing readability")
 
         # Phase 11: Readability
         if text_cache_result and text_cache_result.text_cache:
-            results["readability"] = analyze_readability(
-                text_cache_result.text_cache
-            )
+            results["readability"] = analyze_readability(text_cache_result.text_cache)
         _advance("Detecting near-duplicates")
 
         # Phase 12: SimHash
         if text_cache_result and text_cache_result.text_cache:
+
             def on_simhash(current: int, total: int) -> None:
                 progress.update(overall, detail=f"{current}/{total}")
 
@@ -215,11 +200,15 @@ def main() -> None:
 @main.command()
 @click.argument("path", type=click.Path(exists=True))
 @click.option(
-    "--config", "config_path", type=click.Path(), default=None,
+    "--config",
+    "config_path",
+    type=click.Path(),
+    default=None,
     help="Path to .field-check.yaml config file.",
 )
 @click.option(
-    "--exclude", multiple=True,
+    "--exclude",
+    multiple=True,
     help="Additional exclude patterns (can be repeated).",
 )
 @click.option(
@@ -230,19 +219,28 @@ def main() -> None:
     help="Report output format.",
 )
 @click.option(
-    "--output", "-o", type=click.Path(), default=None,
+    "--output",
+    "-o",
+    type=click.Path(),
+    default=None,
     help="Output file path (for non-terminal formats).",
 )
 @click.option(
-    "--sampling-rate", type=float, default=None,
+    "--sampling-rate",
+    type=float,
+    default=None,
     help="Sampling rate for content analysis (0.0-1.0, default: 0.10).",
 )
 @click.option(
-    "--show-pii-samples", is_flag=True, default=False,
+    "--show-pii-samples",
+    is_flag=True,
+    default=False,
     help="Show matched PII content in report (WARNING: exposes sensitive data).",
 )
 @click.option(
-    "--pii-min-confidence", type=float, default=None,
+    "--pii-min-confidence",
+    type=float,
+    default=None,
     help="Minimum confidence for PII matches (0.0-1.0, default: 0.0).",
 )
 def scan(
@@ -296,7 +294,6 @@ def scan(
     corruption_result = scan_results["corruption"]
     sample = scan_results["sample"]
     text_result = scan_results.get("text")
-    text_cache_result = scan_results.get("text_cache")
     pii_result = scan_results.get("pii")
     language_result = scan_results.get("language")
     encoding_result = scan_results.get("encoding")
@@ -308,7 +305,12 @@ def scan(
     output_path = Path(output) if output else None
     try:
         generate_report(
-            output_format, inventory, result, elapsed, output_path, console,
+            output_format,
+            inventory,
+            result,
+            elapsed,
+            output_path,
+            console,
             dedup_result=dedup_result,
             corruption_result=corruption_result,
             sample_result=sample,

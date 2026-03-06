@@ -47,8 +47,7 @@ class TestReadability:
         """Gibberish/dense text scores below threshold."""
         # Simulate OCR garbage — random technical jargon with no structure
         text = (
-            "xJk7 Qr9z mNp4 tLw2 vBx8 hYd3 fRs5 kWm1 "
-            "zPq6 cNj9 gTv4 bXh7 yLr2 dKs8 wMf3 jQp5 "
+            "xJk7 Qr9z mNp4 tLw2 vBx8 hYd3 fRs5 kWm1 zPq6 cNj9 gTv4 bXh7 yLr2 dKs8 wMf3 jQp5 "
         ) * 20
         cache = {"garbage.txt": text}
         result = analyze_readability(cache)

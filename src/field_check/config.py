@@ -107,17 +107,17 @@ def load_config(scan_path: Path, config_path: Path | None = None) -> FieldCheckC
         if isinstance(min_conf, (int, float)):
             pii_min_confidence = max(0.0, min(1.0, float(min_conf)))
 
-    # Parse SimHash config
+    # Parse SimHash config (bits first, then threshold uses bits for cap)
     simhash_threshold = 5
     simhash_bits = 64
     simhash_section = raw.get("simhash", {})
     if isinstance(simhash_section, dict):
-        thresh = simhash_section.get("threshold")
-        if isinstance(thresh, int):
-            simhash_threshold = max(0, min(64, thresh))
         bits = simhash_section.get("bits")
         if isinstance(bits, int) and bits in (64, 128):
             simhash_bits = bits
+        thresh = simhash_section.get("threshold")
+        if isinstance(thresh, int):
+            simhash_threshold = max(0, min(simhash_bits, thresh))
 
     # Parse thresholds config
     pii_critical = 0.05

@@ -16,8 +16,12 @@ from field_check.scanner.pii import PIIFileResult, PIIScanResult
 def _fe(root: Path, name: str, size: int = 1000) -> FileEntry:
     """Create a minimal FileEntry."""
     return FileEntry(
-        path=root / name, relative_path=Path(name),
-        size=size, mtime=0.0, ctime=0.0, is_symlink=False,
+        path=root / name,
+        relative_path=Path(name),
+        size=size,
+        mtime=0.0,
+        ctime=0.0,
+        is_symlink=False,
     )
 
 

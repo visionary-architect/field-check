@@ -83,48 +83,64 @@ def generate_report(
 
     if fmt == "terminal":
         render_terminal_report(
-            inventory, walk_result, elapsed_seconds, console,
+            inventory,
+            walk_result,
+            elapsed_seconds,
+            console,
             **kwargs,
         )
     elif fmt == "json":
         content = render_json_report(
-            inventory, walk_result, elapsed_seconds, **kwargs,
+            inventory,
+            walk_result,
+            elapsed_seconds,
+            **kwargs,
         )
         path = output_path or Path("field-check-report.json")
         path.write_text(content, encoding="utf-8")
         console.print(f"Report saved to [bold]{path}[/bold]")
     elif fmt == "csv":
         content = render_csv_report(
-            inventory, walk_result, elapsed_seconds, **kwargs,
+            inventory,
+            walk_result,
+            elapsed_seconds,
+            **kwargs,
         )
         path = output_path or Path("field-check-report.csv")
         path.write_text(content, encoding="utf-8")
         console.print(f"Report saved to [bold]{path}[/bold]")
     elif fmt == "html":
         content = render_html_report(
-            inventory, walk_result, elapsed_seconds, **kwargs,
+            inventory,
+            walk_result,
+            elapsed_seconds,
+            **kwargs,
         )
         path = output_path or Path("field-check-report.html")
         path.write_text(content, encoding="utf-8")
         console.print(f"Report saved to [bold]{path}[/bold]")
     elif fmt == "sarif":
         content = render_sarif_report(
-            inventory, walk_result, **kwargs,
+            inventory,
+            walk_result,
+            **kwargs,
         )
         path = output_path or Path("field-check-report.sarif.json")
         path.write_text(content, encoding="utf-8")
         console.print(f"Report saved to [bold]{path}[/bold]")
     elif fmt == "junit":
         content = render_junit_report(
-            inventory, walk_result, elapsed_seconds, **kwargs,
+            inventory,
+            walk_result,
+            elapsed_seconds,
+            **kwargs,
         )
         path = output_path or Path("field-check-report.xml")
         path.write_text(content, encoding="utf-8")
         console.print(f"Report saved to [bold]{path}[/bold]")
     else:
         raise ValueError(
-            f"Format '{fmt}' not yet supported. "
-            "Available: terminal, html, json, csv, sarif, junit"
+            f"Format '{fmt}' not yet supported. Available: terminal, html, json, csv, sarif, junit"
         )
 
 
@@ -157,24 +173,19 @@ def determine_exit_code(
         dup_rate = dedup_result.duplicate_percentage / 100.0
         if dup_rate >= config.duplicate_critical:
             breaches.append(
-                f"Duplicate rate {dup_rate:.1%} >= "
-                f"threshold {config.duplicate_critical:.1%}"
+                f"Duplicate rate {dup_rate:.1%} >= threshold {config.duplicate_critical:.1%}"
             )
 
     if corruption_result is not None and inventory.total_files > 0:
         corrupt_rate = corruption_result.corrupt_count / inventory.total_files
         if corrupt_rate >= config.corrupt_critical:
             breaches.append(
-                f"Corruption rate {corrupt_rate:.1%} >= "
-                f"threshold {config.corrupt_critical:.1%}"
+                f"Corruption rate {corrupt_rate:.1%} >= threshold {config.corrupt_critical:.1%}"
             )
 
     if pii_result is not None and pii_result.total_scanned > 0:
         pii_rate = pii_result.files_with_pii / pii_result.total_scanned
         if pii_rate >= config.pii_critical:
-            breaches.append(
-                f"PII rate {pii_rate:.1%} >= "
-                f"threshold {config.pii_critical:.1%}"
-            )
+            breaches.append(f"PII rate {pii_rate:.1%} >= threshold {config.pii_critical:.1%}")
 
     return (1 if breaches else 0, breaches)

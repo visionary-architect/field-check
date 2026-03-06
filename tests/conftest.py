@@ -57,9 +57,7 @@ def tmp_corpus(tmp_path: Path) -> Path:
     create_minimal_pdf(tmp_path / "report.pdf")
 
     # CSV file
-    (tmp_path / "data.csv").write_text(
-        "name,age,city\nAlice,30,NYC\nBob,25,LA\n", encoding="utf-8"
-    )
+    (tmp_path / "data.csv").write_text("name,age,city\nAlice,30,NYC\nBob,25,LA\n", encoding="utf-8")
 
     # PNG image
     create_minimal_png(tmp_path / "image.png")
@@ -104,7 +102,6 @@ def tmp_corpus_with_config(tmp_corpus: Path) -> Path:
     config_content = 'exclude:\n  - "*.bin"\n  - "nested"\n'
     (tmp_corpus / ".field-check.yaml").write_text(config_content, encoding="utf-8")
     return tmp_corpus
-
 
 
 def create_minimal_zip(path: Path) -> None:
@@ -205,9 +202,7 @@ def create_pdf_with_text(path: Path, text: str = "Hello world", pages: int = 1) 
     page_obj_num = 4
     for i in range(pages):
         page_text = f"{text} (page {i + 1})" if pages > 1 else text
-        stream_content = (
-            f"BT /F1 12 Tf 72 720 Td ({page_text}) Tj ET"
-        ).encode()
+        stream_content = (f"BT /F1 12 Tf 72 720 Td ({page_text}) Tj ET").encode()
         stream_len = len(stream_content)
 
         # Page object
@@ -224,9 +219,10 @@ def create_pdf_with_text(path: Path, text: str = "Hello world", pages: int = 1) 
         # Content stream
         offsets.append(pos)
         stream_obj = (
-            f"{page_obj_num + 1} 0 obj<</Length {stream_len}>>\n"
-            f"stream\n"
-        ).encode() + stream_content + b"\nendstream\nendobj\n"
+            (f"{page_obj_num + 1} 0 obj<</Length {stream_len}>>\nstream\n").encode()
+            + stream_content
+            + b"\nendstream\nendobj\n"
+        )
         objects.append(stream_obj)
         pos += len(stream_obj)
 
@@ -239,10 +235,7 @@ def create_pdf_with_text(path: Path, text: str = "Hello world", pages: int = 1) 
     for offset in offsets:
         xref += f"{offset:010d} 00000 n \n".encode()
 
-    trailer = (
-        f"trailer<</Size {total_objs}/Root 1 0 R>>\n"
-        f"startxref\n{xref_pos}\n%%EOF"
-    ).encode()
+    trailer = (f"trailer<</Size {total_objs}/Root 1 0 R>>\nstartxref\n{xref_pos}\n%%EOF").encode()
 
     path.write_bytes(header + b"".join(objects) + xref + trailer)
 
@@ -266,8 +259,10 @@ def create_scanned_pdf(path: Path) -> None:
         b"/Contents 4 0 R>>endobj\n"
     )
     pdf += (
-        f"4 0 obj<</Length {stream_len}>>\nstream\n"
-    ).encode() + stream_content + b"\nendstream\nendobj\n"
+        (f"4 0 obj<</Length {stream_len}>>\nstream\n").encode()
+        + stream_content
+        + b"\nendstream\nendobj\n"
+    )
 
     xref_pos = len(pdf)
     pdf += (
@@ -306,9 +301,7 @@ def tmp_corpus_with_documents(tmp_path: Path) -> Path:
     # Native PDFs with text
     create_pdf_with_text(tmp_path / "report1.pdf", "First report content")
     create_pdf_with_text(tmp_path / "report2.pdf", "Second report with more text " * 20)
-    create_pdf_with_text(
-        tmp_path / "multipage.pdf", "Multi-page document", pages=3
-    )
+    create_pdf_with_text(tmp_path / "multipage.pdf", "Multi-page document", pages=3)
 
     # Scanned PDF (no text layer)
     create_scanned_pdf(tmp_path / "scanned.pdf")
@@ -435,9 +428,7 @@ def tmp_neardup_corpus(tmp_path: Path) -> Path:
     # Near-duplicate 1: change 1 word
     variant1 = base_text.replace("fifteen", "fourteen")
     # Near-duplicate 2: add a sentence
-    variant2 = base_text + (
-        " The board of directors has approved a dividend increase."
-    )
+    variant2 = base_text + (" The board of directors has approved a dividend increase.")
     # Completely different text
     different1 = (
         "Machine learning algorithms have revolutionized the field of natural "

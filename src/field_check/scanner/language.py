@@ -20,140 +20,445 @@ MIN_STOPWORD_MATCHES = 3
 # Unicode script ranges: script name -> list of (start, end) codepoint ranges
 UNICODE_SCRIPTS: dict[str, list[tuple[int, int]]] = {
     "Latin": [
-        (0x0041, 0x024F),    # Basic Latin + Latin Extended-A/B
-        (0x1E00, 0x1EFF),    # Latin Extended Additional
-        (0x2C60, 0x2C7F),    # Latin Extended-C
-        (0xA720, 0xA7FF),    # Latin Extended-D
+        (0x0041, 0x024F),  # Basic Latin + Latin Extended-A/B
+        (0x1E00, 0x1EFF),  # Latin Extended Additional
+        (0x2C60, 0x2C7F),  # Latin Extended-C
+        (0xA720, 0xA7FF),  # Latin Extended-D
     ],
     "CJK": [
-        (0x4E00, 0x9FFF),    # CJK Unified Ideographs
-        (0x3400, 0x4DBF),    # CJK Unified Ideographs Extension A
-        (0xF900, 0xFAFF),    # CJK Compatibility Ideographs
+        (0x4E00, 0x9FFF),  # CJK Unified Ideographs
+        (0x3400, 0x4DBF),  # CJK Unified Ideographs Extension A
+        (0xF900, 0xFAFF),  # CJK Compatibility Ideographs
         (0x20000, 0x2A6DF),  # CJK Unified Ideographs Extension B
     ],
     "Japanese Kana": [
-        (0x3040, 0x309F),    # Hiragana
-        (0x30A0, 0x30FF),    # Katakana
-        (0x31F0, 0x31FF),    # Katakana Phonetic Extensions
+        (0x3040, 0x309F),  # Hiragana
+        (0x30A0, 0x30FF),  # Katakana
+        (0x31F0, 0x31FF),  # Katakana Phonetic Extensions
     ],
     "Arabic": [
-        (0x0600, 0x06FF),    # Arabic
-        (0x0750, 0x077F),    # Arabic Supplement
-        (0xFB50, 0xFDFF),    # Arabic Presentation Forms-A
-        (0xFE70, 0xFEFF),    # Arabic Presentation Forms-B
+        (0x0600, 0x06FF),  # Arabic
+        (0x0750, 0x077F),  # Arabic Supplement
+        (0xFB50, 0xFDFF),  # Arabic Presentation Forms-A
+        (0xFE70, 0xFEFF),  # Arabic Presentation Forms-B
     ],
     "Cyrillic": [
-        (0x0400, 0x04FF),    # Cyrillic
-        (0x0500, 0x052F),    # Cyrillic Supplement
-        (0x2DE0, 0x2DFF),    # Cyrillic Extended-A
-        (0xA640, 0xA69F),    # Cyrillic Extended-B
+        (0x0400, 0x04FF),  # Cyrillic
+        (0x0500, 0x052F),  # Cyrillic Supplement
+        (0x2DE0, 0x2DFF),  # Cyrillic Extended-A
+        (0xA640, 0xA69F),  # Cyrillic Extended-B
     ],
     "Devanagari": [
-        (0x0900, 0x097F),    # Devanagari
-        (0xA8E0, 0xA8FF),    # Devanagari Extended
+        (0x0900, 0x097F),  # Devanagari
+        (0xA8E0, 0xA8FF),  # Devanagari Extended
     ],
     "Greek": [
-        (0x0370, 0x03FF),    # Greek and Coptic
-        (0x1F00, 0x1FFF),    # Greek Extended
+        (0x0370, 0x03FF),  # Greek and Coptic
+        (0x1F00, 0x1FFF),  # Greek Extended
     ],
     "Hangul": [
-        (0xAC00, 0xD7AF),   # Hangul Syllables
-        (0x1100, 0x11FF),    # Hangul Jamo
-        (0x3130, 0x318F),    # Hangul Compatibility Jamo
+        (0xAC00, 0xD7AF),  # Hangul Syllables
+        (0x1100, 0x11FF),  # Hangul Jamo
+        (0x3130, 0x318F),  # Hangul Compatibility Jamo
     ],
     "Thai": [
-        (0x0E00, 0x0E7F),   # Thai
+        (0x0E00, 0x0E7F),  # Thai
     ],
     "Hebrew": [
-        (0x0590, 0x05FF),   # Hebrew
-        (0xFB1D, 0xFB4F),   # Hebrew Presentation Forms
+        (0x0590, 0x05FF),  # Hebrew
+        (0xFB1D, 0xFB4F),  # Hebrew Presentation Forms
     ],
 }
 
 # Build a flat sorted lookup table for O(log n) codepoint classification.
 # Each entry is (range_start, range_end, script_name), sorted by start.
 _SCRIPT_TABLE: list[tuple[int, int, str]] = sorted(
-    (start, end, script)
-    for script, ranges in UNICODE_SCRIPTS.items()
-    for start, end in ranges
+    (start, end, script) for script, ranges in UNICODE_SCRIPTS.items() for start, end in ranges
 )
 _SCRIPT_STARTS: list[int] = [entry[0] for entry in _SCRIPT_TABLE]
 
 # 7 core Latin-script stop-word profiles for language disambiguation
 STOP_WORDS: dict[str, set[str]] = {
     "English": {
-        "the", "and", "is", "in", "to", "of", "a", "that", "it", "for",
-        "was", "on", "are", "with", "as", "at", "be", "this", "have", "from",
-        "or", "an", "by", "not", "but",
+        "the",
+        "and",
+        "is",
+        "in",
+        "to",
+        "of",
+        "a",
+        "that",
+        "it",
+        "for",
+        "was",
+        "on",
+        "are",
+        "with",
+        "as",
+        "at",
+        "be",
+        "this",
+        "have",
+        "from",
+        "or",
+        "an",
+        "by",
+        "not",
+        "but",
     },
     "Spanish": {
-        "de", "la", "que", "el", "en", "y", "los", "del", "se", "las",
-        "por", "un", "para", "con", "no", "una", "su", "al", "es", "lo",
+        "de",
+        "la",
+        "que",
+        "el",
+        "en",
+        "y",
+        "los",
+        "del",
+        "se",
+        "las",
+        "por",
+        "un",
+        "para",
+        "con",
+        "no",
+        "una",
+        "su",
+        "al",
+        "es",
+        "lo",
     },
     "French": {
-        "le", "la", "de", "et", "les", "des", "en", "un", "une", "du",
-        "est", "que", "pour", "dans", "ce", "pas", "sur", "ne", "qui", "au",
+        "le",
+        "la",
+        "de",
+        "et",
+        "les",
+        "des",
+        "en",
+        "un",
+        "une",
+        "du",
+        "est",
+        "que",
+        "pour",
+        "dans",
+        "ce",
+        "pas",
+        "sur",
+        "ne",
+        "qui",
+        "au",
     },
     "German": {
-        "der", "die", "und", "in", "den", "von", "zu", "das", "mit", "sich",
-        "des", "auf", "ist", "im", "dem", "nicht", "ein", "eine", "auch",
+        "der",
+        "die",
+        "und",
+        "in",
+        "den",
+        "von",
+        "zu",
+        "das",
+        "mit",
+        "sich",
+        "des",
+        "auf",
+        "ist",
+        "im",
+        "dem",
+        "nicht",
+        "ein",
+        "eine",
+        "auch",
     },
     "Portuguese": {
-        "de", "a", "o", "que", "e", "do", "da", "em", "um", "para",
-        "com", "os", "no", "se", "na", "por", "mais", "as", "dos",
+        "de",
+        "a",
+        "o",
+        "que",
+        "e",
+        "do",
+        "da",
+        "em",
+        "um",
+        "para",
+        "com",
+        "os",
+        "no",
+        "se",
+        "na",
+        "por",
+        "mais",
+        "as",
+        "dos",
     },
     "Italian": {
-        "di", "che", "il", "la", "per", "un", "non", "si", "lo", "le",
-        "con", "da", "una", "del", "sono", "dei", "al", "ha",
+        "di",
+        "che",
+        "il",
+        "la",
+        "per",
+        "un",
+        "non",
+        "si",
+        "lo",
+        "le",
+        "con",
+        "da",
+        "una",
+        "del",
+        "sono",
+        "dei",
+        "al",
+        "ha",
     },
     "Dutch": {
-        "de", "het", "een", "van", "en", "in", "is", "dat", "op", "te",
-        "voor", "met", "zijn", "er", "aan", "ook", "niet", "maar", "om",
+        "de",
+        "het",
+        "een",
+        "van",
+        "en",
+        "in",
+        "is",
+        "dat",
+        "op",
+        "te",
+        "voor",
+        "met",
+        "zijn",
+        "er",
+        "aan",
+        "ook",
+        "niet",
+        "maar",
+        "om",
     },
     "Swedish": {
-        "och", "att", "det", "som", "en", "av", "för", "med", "har",
-        "den", "till", "är", "på", "var", "inte", "om", "kan", "ett",
-        "hans", "från", "hade", "men", "alla", "vi", "jag",
+        "och",
+        "att",
+        "det",
+        "som",
+        "en",
+        "av",
+        "för",
+        "med",
+        "har",
+        "den",
+        "till",
+        "är",
+        "på",
+        "var",
+        "inte",
+        "om",
+        "kan",
+        "ett",
+        "hans",
+        "från",
+        "hade",
+        "men",
+        "alla",
+        "vi",
+        "jag",
     },
     "Norwegian": {
-        "og", "det", "som", "han", "var", "den", "for", "med", "har",
-        "til", "ikke", "på", "en", "av", "men", "kan", "fra", "jeg",
-        "vil", "bli", "ble", "hun", "alle", "seg", "ved",
+        "og",
+        "det",
+        "som",
+        "han",
+        "var",
+        "den",
+        "for",
+        "med",
+        "har",
+        "til",
+        "ikke",
+        "på",
+        "en",
+        "av",
+        "men",
+        "kan",
+        "fra",
+        "jeg",
+        "vil",
+        "bli",
+        "ble",
+        "hun",
+        "alle",
+        "seg",
+        "ved",
     },
     "Danish": {
-        "og", "det", "som", "han", "var", "den", "for", "med", "har",
-        "til", "ikke", "på", "en", "af", "men", "kan", "fra", "jeg",
-        "vil", "sig", "blev", "hun", "alle", "eller", "ved",
+        "og",
+        "det",
+        "som",
+        "han",
+        "var",
+        "den",
+        "for",
+        "med",
+        "har",
+        "til",
+        "ikke",
+        "på",
+        "en",
+        "af",
+        "men",
+        "kan",
+        "fra",
+        "jeg",
+        "vil",
+        "sig",
+        "blev",
+        "hun",
+        "alle",
+        "eller",
+        "ved",
     },
     "Finnish": {
-        "ja", "on", "ei", "se", "kun", "oli", "niin", "hän", "ovat",
-        "että", "mutta", "sen", "tai", "jos", "nyt", "yli", "olen",
-        "tämä", "kuin", "olla", "myös", "itse", "voi", "tässä",
+        "ja",
+        "on",
+        "ei",
+        "se",
+        "kun",
+        "oli",
+        "niin",
+        "hän",
+        "ovat",
+        "että",
+        "mutta",
+        "sen",
+        "tai",
+        "jos",
+        "nyt",
+        "yli",
+        "olen",
+        "tämä",
+        "kuin",
+        "olla",
+        "myös",
+        "itse",
+        "voi",
+        "tässä",
     },
     "Polish": {
-        "nie", "się", "jest", "jak", "ale", "czy", "jego", "tak",
-        "już", "był", "tego", "tylko", "jej", "jeszcze",
-        "może", "są", "przy", "dla", "aby", "bez", "przez", "ich",
+        "nie",
+        "się",
+        "jest",
+        "jak",
+        "ale",
+        "czy",
+        "jego",
+        "tak",
+        "już",
+        "był",
+        "tego",
+        "tylko",
+        "jej",
+        "jeszcze",
+        "może",
+        "są",
+        "przy",
+        "dla",
+        "aby",
+        "bez",
+        "przez",
+        "ich",
     },
     "Czech": {
-        "že", "na", "je", "se", "ale", "jak", "jsem", "byl", "pro",
-        "jeho", "jsou", "aby", "tak", "její", "jsme", "již", "jen",
-        "když", "než", "být", "bez", "mezi", "pod", "nad", "ani",
+        "že",
+        "na",
+        "je",
+        "se",
+        "ale",
+        "jak",
+        "jsem",
+        "byl",
+        "pro",
+        "jeho",
+        "jsou",
+        "aby",
+        "tak",
+        "její",
+        "jsme",
+        "již",
+        "jen",
+        "když",
+        "než",
+        "být",
+        "bez",
+        "mezi",
+        "pod",
+        "nad",
+        "ani",
     },
     "Hungarian": {
-        "hogy", "nem", "egy", "volt", "már", "csak", "még", "azt",
-        "van", "meg", "mint", "ami", "sem", "igen", "nagy", "lett",
-        "majd", "ahol", "után", "neki", "által", "fel", "kell",
+        "hogy",
+        "nem",
+        "egy",
+        "volt",
+        "már",
+        "csak",
+        "még",
+        "azt",
+        "van",
+        "meg",
+        "mint",
+        "ami",
+        "sem",
+        "igen",
+        "nagy",
+        "lett",
+        "majd",
+        "ahol",
+        "után",
+        "neki",
+        "által",
+        "fel",
+        "kell",
     },
     "Romanian": {
-        "este", "care", "din", "lui", "sunt", "fost", "mai", "sau",
-        "prin", "acest", "această", "fiind", "avea", "doar", "cele",
-        "între", "aceste", "către", "despre", "toate",
+        "este",
+        "care",
+        "din",
+        "lui",
+        "sunt",
+        "fost",
+        "mai",
+        "sau",
+        "prin",
+        "acest",
+        "această",
+        "fiind",
+        "avea",
+        "doar",
+        "cele",
+        "între",
+        "aceste",
+        "către",
+        "despre",
+        "toate",
     },
     "Turkish": {
-        "bir", "olan", "için", "ile", "gibi", "ama", "daha", "kadar",
-        "sonra", "çok", "bunu", "olarak", "ancak", "hem",
-        "hiç", "şey", "bazı", "aynı", "büyük", "nasıl",
+        "bir",
+        "olan",
+        "için",
+        "ile",
+        "gibi",
+        "ama",
+        "daha",
+        "kadar",
+        "sonra",
+        "çok",
+        "bunu",
+        "olarak",
+        "ancak",
+        "hem",
+        "hiç",
+        "şey",
+        "bazı",
+        "aynı",
+        "büyük",
+        "nasıl",
     },
 }
 
@@ -163,25 +468,91 @@ NON_LATIN_STOP_WORDS: dict[str, tuple[str, set[str]]] = {
     "Cyrillic": (
         "Russian",
         {
-            "и", "в", "не", "на", "что", "он", "как", "его", "это",
-            "она", "по", "из", "но", "от", "за", "для", "все", "так",
-            "был", "они", "мы", "уже", "при", "или", "бы", "до",
+            "и",
+            "в",
+            "не",
+            "на",
+            "что",
+            "он",
+            "как",
+            "его",
+            "это",
+            "она",
+            "по",
+            "из",
+            "но",
+            "от",
+            "за",
+            "для",
+            "все",
+            "так",
+            "был",
+            "они",
+            "мы",
+            "уже",
+            "при",
+            "или",
+            "бы",
+            "до",
         },
     ),
     "Devanagari": (
         "Hindi",
         {
-            "और", "के", "है", "में", "की", "को", "से", "का", "पर",
-            "ने", "यह", "हो", "कि", "जो", "कर", "वह", "था", "भी",
-            "नहीं", "तो", "हैं", "या", "एक", "अपने", "इस",
+            "और",
+            "के",
+            "है",
+            "में",
+            "की",
+            "को",
+            "से",
+            "का",
+            "पर",
+            "ने",
+            "यह",
+            "हो",
+            "कि",
+            "जो",
+            "कर",
+            "वह",
+            "था",
+            "भी",
+            "नहीं",
+            "तो",
+            "हैं",
+            "या",
+            "एक",
+            "अपने",
+            "इस",
         },
     ),
     "Arabic": (
         "Arabic",
         {
-            "في", "من", "على", "إلى", "أن", "هذا", "التي", "الذي",
-            "كان", "عن", "هو", "هي", "بين", "كل", "ذلك", "لم",
-            "هذه", "أو", "بعد", "ما", "عند", "قد", "لا", "حتى",
+            "في",
+            "من",
+            "على",
+            "إلى",
+            "أن",
+            "هذا",
+            "التي",
+            "الذي",
+            "كان",
+            "عن",
+            "هو",
+            "هي",
+            "بين",
+            "كل",
+            "ذلك",
+            "لم",
+            "هذه",
+            "أو",
+            "بعد",
+            "ما",
+            "عند",
+            "قد",
+            "لا",
+            "حتى",
         },
     ),
 }
@@ -297,21 +668,33 @@ def _detect_non_latin_language(text: str, script: str) -> str | None:
     return None
 
 
+_lingua_detector: object | None = None
+_lingua_unavailable: bool = False
+
+
 def _try_lingua(text: str) -> str | None:
     """Attempt language detection via Lingua (optional, most accurate).
 
     Returns language display name if available, None otherwise.
     Install with: pip install field-check[accurate-lang]
     """
-    try:
-        from lingua import LanguageDetectorBuilder  # type: ignore[import-untyped]
+    global _lingua_detector, _lingua_unavailable
 
-        detector = LanguageDetectorBuilder.from_all_languages().build()
-        lang = detector.detect_language_of(text[:2000])
+    if _lingua_unavailable:
+        return None
+
+    try:
+        if _lingua_detector is None:
+            from lingua import LanguageDetectorBuilder  # type: ignore[import-untyped]
+
+            _lingua_detector = LanguageDetectorBuilder.from_all_languages().build()
+
+        lang = _lingua_detector.detect_language_of(text[:2000])
         if lang is not None:
             return lang.name.title()
         return None
     except ImportError:
+        _lingua_unavailable = True
         return None
     except Exception:
         return None
@@ -336,17 +719,50 @@ def _try_fast_langdetect(text: str) -> str | None:
 
 # ISO 639-1 → display name mapping for fast-langdetect results
 _FASTLANG_NAMES: dict[str, str] = {
-    "en": "English", "es": "Spanish", "fr": "French", "de": "German",
-    "pt": "Portuguese", "it": "Italian", "nl": "Dutch", "sv": "Swedish",
-    "no": "Norwegian", "da": "Danish", "fi": "Finnish", "pl": "Polish",
-    "cs": "Czech", "hu": "Hungarian", "ro": "Romanian", "tr": "Turkish",
-    "ru": "Russian", "hi": "Hindi", "ar": "Arabic", "zh": "Chinese",
-    "ja": "Japanese", "ko": "Korean", "th": "Thai", "el": "Greek",
-    "he": "Hebrew", "vi": "Vietnamese", "uk": "Ukrainian", "bg": "Bulgarian",
-    "hr": "Croatian", "sr": "Serbian", "sk": "Slovak", "sl": "Slovenian",
-    "lt": "Lithuanian", "lv": "Latvian", "et": "Estonian", "id": "Indonesian",
-    "ms": "Malay", "tl": "Filipino", "sw": "Swahili", "af": "Afrikaans",
-    "ca": "Catalan", "gl": "Galician", "eu": "Basque", "cy": "Welsh",
+    "en": "English",
+    "es": "Spanish",
+    "fr": "French",
+    "de": "German",
+    "pt": "Portuguese",
+    "it": "Italian",
+    "nl": "Dutch",
+    "sv": "Swedish",
+    "no": "Norwegian",
+    "da": "Danish",
+    "fi": "Finnish",
+    "pl": "Polish",
+    "cs": "Czech",
+    "hu": "Hungarian",
+    "ro": "Romanian",
+    "tr": "Turkish",
+    "ru": "Russian",
+    "hi": "Hindi",
+    "ar": "Arabic",
+    "zh": "Chinese",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "th": "Thai",
+    "el": "Greek",
+    "he": "Hebrew",
+    "vi": "Vietnamese",
+    "uk": "Ukrainian",
+    "bg": "Bulgarian",
+    "hr": "Croatian",
+    "sr": "Serbian",
+    "sk": "Slovak",
+    "sl": "Slovenian",
+    "lt": "Lithuanian",
+    "lv": "Latvian",
+    "et": "Estonian",
+    "id": "Indonesian",
+    "ms": "Malay",
+    "tl": "Filipino",
+    "sw": "Swahili",
+    "af": "Afrikaans",
+    "ca": "Catalan",
+    "gl": "Galician",
+    "eu": "Basque",
+    "cy": "Welsh",
 }
 
 
@@ -525,14 +941,10 @@ def analyze_languages(
             script_dist = _get_script_distribution(text.strip())
             language = detect_language(text, _script_dist=script_dist)
             dominant_script = (
-                max(script_dist, key=lambda k: script_dist[k])
-                if script_dist
-                else "Unknown"
+                max(script_dist, key=lambda k: script_dist[k]) if script_dist else "Unknown"
             )
 
-            file_result = LanguageFileResult(
-                path=path, language=language, script=dominant_script
-            )
+            file_result = LanguageFileResult(path=path, language=language, script=dominant_script)
             result.file_results.append(file_result)
             result.language_distribution[language] = (
                 result.language_distribution.get(language, 0) + 1

@@ -8,10 +8,6 @@ import re
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +163,9 @@ class SimHashResult:
 
 
 def _band_candidates(
-    fingerprints: list[int], num_bands: int, bits: int = SIMHASH_BITS,
+    fingerprints: list[int],
+    num_bands: int,
+    bits: int = SIMHASH_BITS,
 ) -> set[tuple[int, int]]:
     """Find candidate pairs using band bucketing (locality-sensitive hashing).
 
@@ -200,7 +198,9 @@ def _band_candidates(
 
 
 def _faiss_candidates(
-    fingerprints: list[int], threshold: int, bits: int = SIMHASH_BITS,
+    fingerprints: list[int],
+    threshold: int,
+    bits: int = SIMHASH_BITS,
 ) -> set[tuple[int, int]] | None:
     """Find candidate pairs using Faiss binary index (optional).
 
@@ -221,9 +221,7 @@ def _faiss_candidates(
     byte_width = bits // 8
     data = np.zeros((n, byte_width), dtype=np.uint8)
     for i, fp in enumerate(fingerprints):
-        data[i] = np.frombuffer(
-            fp.to_bytes(byte_width, byteorder="big"), dtype=np.uint8
-        )
+        data[i] = np.frombuffer(fp.to_bytes(byte_width, byteorder="big"), dtype=np.uint8)
 
     index = faiss.IndexBinaryFlat(bits)
     index.add(data)
@@ -266,9 +264,9 @@ def detect_near_duplicates(
     Returns:
         SimHashResult with clusters and statistics.
     """
-    # Scale threshold proportionally for 128-bit
+    # Scale default threshold proportionally for 128-bit (twice as many bits)
     if bits == 128 and threshold == DEFAULT_THRESHOLD:
-        threshold = threshold * 2  # proportional scaling
+        threshold = threshold * 2
     result = SimHashResult(threshold=threshold)
 
     # Step 1: Compute fingerprints (skip short texts)
@@ -278,10 +276,13 @@ def detect_near_duplicates(
     total = len(text_cache)
     for i, (path, text) in enumerate(text_cache.items()):
         if len(text) >= MIN_TEXT_LENGTH:
-            fp = compute_simhash(text, bits=bits)
-            paths.append(path)
-            fingerprints.append(fp)
-            result.fingerprints[path] = fp
+            try:
+                fp = compute_simhash(text, bits=bits)
+                paths.append(path)
+                fingerprints.append(fp)
+                result.fingerprints[path] = fp
+            except Exception:
+                logger.warning("SimHash failed for %s", path, exc_info=True)
 
         if progress_callback is not None:
             progress_callback(i + 1, total)
@@ -324,9 +325,7 @@ def detect_near_duplicates(
 
         avg_sim = total_sim / pair_count if pair_count > 0 else 0.0
 
-        result.clusters.append(
-            NearDuplicateCluster(paths=sorted(members), similarity=avg_sim)
-        )
+        result.clusters.append(NearDuplicateCluster(paths=sorted(members), similarity=avg_sim))
 
     # Sort clusters: largest first, then by similarity descending
     result.clusters.sort(key=lambda c: (len(c.paths), c.similarity), reverse=True)

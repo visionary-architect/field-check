@@ -97,10 +97,9 @@ def test_select_sample_census(tmp_path: Path) -> None:
 
 def test_select_sample_stratified(tmp_path: Path) -> None:
     """Multiple types get proportional samples."""
-    specs = (
-        [(f"pdf{i}.pdf", "application/pdf", 200) for i in range(50)]
-        + [(f"txt{i}.txt", "text/plain", 100) for i in range(50)]
-    )
+    specs = [(f"pdf{i}.pdf", "application/pdf", 200) for i in range(50)] + [
+        (f"txt{i}.txt", "text/plain", 100) for i in range(50)
+    ]
     walk, inv = _make_walk_and_inventory(tmp_path, specs)
     config = FieldCheckConfig(sampling_rate=0.20, sampling_min_per_type=5)
 
@@ -216,18 +215,19 @@ class TestDesignEffect:
     def _fe(path: str, size: int) -> FileEntry:
         """Create a FileEntry with minimal required fields."""
         return FileEntry(
-            path=Path(path), relative_path=Path(path).name,
-            size=size, mtime=0.0, ctime=0.0, is_symlink=False,
+            path=Path(path),
+            relative_path=Path(path).name,
+            size=size,
+            mtime=0.0,
+            ctime=0.0,
+            is_symlink=False,
         )
 
     def test_deff_single_directory(self, tmp_path: Path) -> None:
         """Single directory = no clustering, DEFF should be 1.0."""
         from field_check.scanner.sampling import estimate_design_effect
 
-        files = [
-            self._fe(str(tmp_path / f"file{i}.txt"), 100 * i)
-            for i in range(1, 6)
-        ]
+        files = [self._fe(str(tmp_path / f"file{i}.txt"), 100 * i) for i in range(1, 6)]
         inv = InventoryResult()
         assert estimate_design_effect(files, inv) == 1.0
 
@@ -235,10 +235,7 @@ class TestDesignEffect:
         """One file per directory = no clustering, DEFF should be 1.0."""
         from field_check.scanner.sampling import estimate_design_effect
 
-        files = [
-            self._fe(str(tmp_path / f"dir{i}" / "file.txt"), 100)
-            for i in range(5)
-        ]
+        files = [self._fe(str(tmp_path / f"dir{i}" / "file.txt"), 100) for i in range(5)]
         inv = InventoryResult()
         assert estimate_design_effect(files, inv) == 1.0
 
@@ -247,15 +244,9 @@ class TestDesignEffect:
         from field_check.scanner.sampling import estimate_design_effect
 
         # Group A: all small files
-        files_a = [
-            self._fe(str(tmp_path / "small" / f"f{i}.txt"), 100)
-            for i in range(10)
-        ]
+        files_a = [self._fe(str(tmp_path / "small" / f"f{i}.txt"), 100) for i in range(10)]
         # Group B: all large files
-        files_b = [
-            self._fe(str(tmp_path / "large" / f"f{i}.txt"), 10000)
-            for i in range(10)
-        ]
+        files_b = [self._fe(str(tmp_path / "large" / f"f{i}.txt"), 10000) for i in range(10)]
         inv = InventoryResult()
         deff = estimate_design_effect(files_a + files_b, inv)
         assert deff >= 1.0

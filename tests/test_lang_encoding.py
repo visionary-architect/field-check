@@ -55,9 +55,7 @@ class TestCorpusCorrection:
                 LanguageFileResult(path="a.txt", language="Spanish", script="Latin"),
                 LanguageFileResult(path="b.txt", language="Spanish", script="Latin"),
                 LanguageFileResult(path="c.txt", language="Spanish", script="Latin"),
-                LanguageFileResult(
-                    path="d.txt", language="Latin (Unknown)", script="Latin"
-                ),
+                LanguageFileResult(path="d.txt", language="Latin (Unknown)", script="Latin"),
             ],
         )
         _apply_corpus_correction(result)
@@ -69,7 +67,9 @@ class TestCorpusCorrection:
         result = LanguageResult(
             total_analyzed=5,
             language_distribution={
-                "English": 2, "Spanish": 2, "Unknown": 1,
+                "English": 2,
+                "Spanish": 2,
+                "Unknown": 1,
             },
             file_results=[
                 LanguageFileResult(path="a.txt", language="English", script="Latin"),
@@ -127,9 +127,7 @@ class TestCorpusCorrection:
                 LanguageFileResult(path="a.txt", language="English", script="Latin"),
                 LanguageFileResult(path="b.txt", language="English", script="Latin"),
                 LanguageFileResult(path="c.txt", language="English", script="Latin"),
-                LanguageFileResult(
-                    path="d.txt", language="Mixed Script", script="Latin"
-                ),
+                LanguageFileResult(path="d.txt", language="Mixed Script", script="Latin"),
             ],
         )
         _apply_corpus_correction(result)
@@ -342,12 +340,10 @@ class TestAnalyzeLanguages:
         cache = {
             "en.txt": "The quick brown fox jumps over the lazy dog and more text here.",
             "es.txt": (
-                "El gato está en la mesa. Los perros son grandes y fuertes. "
-                "Esta es una prueba."
+                "El gato está en la mesa. Los perros son grandes y fuertes. Esta es una prueba."
             ),
             "fr.txt": (
-                "Le chat est sur la table. Les chiens sont grands et forts. "
-                "Ceci est un test."
+                "Le chat est sur la table. Les chiens sont grands et forts. Ceci est un test."
             ),
         }
         result = analyze_languages(cache)
@@ -381,43 +377,53 @@ class TestAnalyzeEncodings:
         assert result.encoding_distribution == {}
 
     def test_single_encoding(self) -> None:
-        result = analyze_encodings({
-            "a.txt": ("utf-8", 0.99),
-            "b.txt": ("utf-8", 0.95),
-        })
+        result = analyze_encodings(
+            {
+                "a.txt": ("utf-8", 0.99),
+                "b.txt": ("utf-8", 0.95),
+            }
+        )
         assert result.total_analyzed == 2
         assert result.encoding_distribution == {"utf-8": 2}
 
     def test_mixed_encodings(self) -> None:
-        result = analyze_encodings({
-            "a.txt": ("utf-8", 0.99),
-            "b.txt": ("iso-8859-1", 0.85),
-            "c.txt": ("windows-1252", 0.90),
-        })
+        result = analyze_encodings(
+            {
+                "a.txt": ("utf-8", 0.99),
+                "b.txt": ("iso-8859-1", 0.85),
+                "c.txt": ("windows-1252", 0.90),
+            }
+        )
         assert result.total_analyzed == 3
         assert result.encoding_distribution["utf-8"] == 1
         assert result.encoding_distribution["iso-8859-1"] == 1
         assert result.encoding_distribution["windows-1252"] == 1
 
     def test_ascii_normalized_to_utf8(self) -> None:
-        result = analyze_encodings({
-            "a.txt": ("ascii", 0.99),
-            "b.txt": ("utf-8", 0.95),
-        })
+        result = analyze_encodings(
+            {
+                "a.txt": ("ascii", 0.99),
+                "b.txt": ("utf-8", 0.95),
+            }
+        )
         assert result.encoding_distribution == {"utf-8": 2}
 
     def test_case_insensitive(self) -> None:
-        result = analyze_encodings({
-            "a.txt": ("UTF-8", 0.99),
-            "b.txt": ("utf-8", 0.95),
-        })
+        result = analyze_encodings(
+            {
+                "a.txt": ("UTF-8", 0.99),
+                "b.txt": ("utf-8", 0.95),
+            }
+        )
         assert result.encoding_distribution == {"utf-8": 2}
 
     def test_underscore_normalized_to_dash(self) -> None:
-        result = analyze_encodings({
-            "a.txt": ("utf_8", 0.99),
-            "b.txt": ("utf-8", 0.95),
-        })
+        result = analyze_encodings(
+            {
+                "a.txt": ("utf_8", 0.99),
+                "b.txt": ("utf-8", 0.95),
+            }
+        )
         assert result.encoding_distribution == {"utf-8": 2}
 
     def test_file_results_populated(self) -> None:
@@ -437,9 +443,7 @@ class TestBuildTextCache:
     """Test shared text cache builder."""
 
     def test_cache_plain_text(self, tmp_path: Path) -> None:
-        (tmp_path / "hello.txt").write_text(
-            "Hello world from a text file.", encoding="utf-8"
-        )
+        (tmp_path / "hello.txt").write_text("Hello world from a text file.", encoding="utf-8")
         config = FieldCheckConfig(sampling_rate=1.0)
         walk = walk_directory(tmp_path, config)
         inv = analyze_inventory(walk)
@@ -454,9 +458,7 @@ class TestBuildTextCache:
         assert len(result.encoding_map) >= 1
 
     def test_cache_pdf(self, tmp_path: Path) -> None:
-        create_pdf_with_text(
-            tmp_path / "doc.pdf", "PDF content for cache test"
-        )
+        create_pdf_with_text(tmp_path / "doc.pdf", "PDF content for cache test")
         config = FieldCheckConfig(sampling_rate=1.0)
         walk = walk_directory(tmp_path, config)
         inv = analyze_inventory(walk)
@@ -471,9 +473,7 @@ class TestBuildTextCache:
             assert p not in result.encoding_map
 
     def test_cache_docx(self, tmp_path: Path) -> None:
-        create_minimal_docx(
-            tmp_path / "doc.docx", text="DOCX content for cache test"
-        )
+        create_minimal_docx(tmp_path / "doc.docx", text="DOCX content for cache test")
         config = FieldCheckConfig(sampling_rate=1.0)
         walk = walk_directory(tmp_path, config)
         inv = analyze_inventory(walk)
@@ -506,7 +506,9 @@ class TestBuildTextCache:
 
         calls: list[tuple[int, int]] = []
         build_text_cache(
-            sample, inv, max_workers=1,
+            sample,
+            inv,
+            max_workers=1,
             progress_callback=lambda c, t: calls.append((c, t)),
         )
         assert len(calls) >= 2
@@ -540,9 +542,7 @@ class TestPiiWithTextCache:
         """PII results should be identical whether using cache or not."""
         # Create file with known PII
         (tmp_path / "pii.txt").write_text(
-            "Contact: john.doe@example.com\n"
-            "SSN: 123-45-6789\n"
-            "Normal text without PII.\n",
+            "Contact: john.doe@example.com\nSSN: 123-45-6789\nNormal text without PII.\n",
             encoding="utf-8",
         )
         config = FieldCheckConfig(sampling_rate=1.0)
@@ -555,7 +555,9 @@ class TestPiiWithTextCache:
 
         # Scan with cache
         result_cached = scan_pii(
-            sample, inv, config,
+            sample,
+            inv,
+            config,
             text_cache=cache_result.text_cache,
             max_workers=1,
         )
@@ -569,9 +571,7 @@ class TestPiiWithTextCache:
 
     def test_pii_cache_no_crash(self, tmp_path: Path) -> None:
         """PII scan with empty cache should still work via fallback."""
-        (tmp_path / "test.txt").write_text(
-            "Email: test@example.com\n", encoding="utf-8"
-        )
+        (tmp_path / "test.txt").write_text("Email: test@example.com\n", encoding="utf-8")
         config = FieldCheckConfig(sampling_rate=1.0)
         walk = walk_directory(tmp_path, config)
         inv = analyze_inventory(walk)
@@ -602,9 +602,7 @@ class TestExtractTextUnified:
         inv = analyze_inventory(walk)
         sample = select_sample(walk, inv, config)
 
-        text_result, cache_result = extract_text_unified(
-            sample, inv, max_workers=1
-        )
+        text_result, cache_result = extract_text_unified(sample, inv, max_workers=1)
 
         # TextExtractionResult covers PDF metadata
         assert text_result.total_processed >= 1
@@ -622,9 +620,7 @@ class TestExtractTextUnified:
         inv = analyze_inventory(walk)
         sample = select_sample(walk, inv, config)
 
-        text_result, cache_result = extract_text_unified(
-            sample, inv, max_workers=1
-        )
+        text_result, cache_result = extract_text_unified(sample, inv, max_workers=1)
         assert text_result.total_processed == 1
         cached = list(cache_result.text_cache.values())
         assert any("Unique PDF text" in t for t in cached)
@@ -633,9 +629,7 @@ class TestExtractTextUnified:
         """Plain text files get encoding detection in unified mode."""
         from field_check.scanner.text import extract_text_unified
 
-        (tmp_path / "data.txt").write_text(
-            "Some plain text content.", encoding="utf-8"
-        )
+        (tmp_path / "data.txt").write_text("Some plain text content.", encoding="utf-8")
         config = FieldCheckConfig(sampling_rate=1.0)
         walk = walk_directory(tmp_path, config)
         inv = analyze_inventory(walk)
@@ -652,9 +646,7 @@ class TestExtractTextUnified:
 
         sample = SampleResult()
         inv = InventoryResult()
-        text_result, cache_result = extract_text_unified(
-            sample, inv, max_workers=1
-        )
+        text_result, cache_result = extract_text_unified(sample, inv, max_workers=1)
         assert text_result.total_processed == 0
         assert cache_result.total_extracted == 0
 

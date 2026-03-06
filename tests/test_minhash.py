@@ -64,10 +64,7 @@ class TestMinHashDetection:
         }
         result = detect_near_duplicates_minhash(cache, threshold=0.5)
         assert result.total_analyzed >= 2
-        found = any(
-            "a.txt" in c.paths and "b.txt" in c.paths
-            for c in result.clusters
-        )
+        found = any("a.txt" in c.paths and "b.txt" in c.paths for c in result.clusters)
         assert found
 
     def test_no_duplicates(self) -> None:
@@ -85,9 +82,7 @@ class TestMinHashDetection:
             "a.txt": "Some text content for testing " * 10,
             "b.txt": "More text content for testing " * 10,
         }
-        detect_near_duplicates_minhash(
-            cache, progress_callback=lambda c, t: calls.append((c, t))
-        )
+        detect_near_duplicates_minhash(cache, progress_callback=lambda c, t: calls.append((c, t)))
         assert len(calls) == 2
 
     def test_short_texts_skipped(self) -> None:

@@ -94,15 +94,14 @@ def _sample_by_directory(entries: list[FileEntry], target: int) -> list[FileEntr
     # Distribute any remaining budget to largest directories
     if remaining > 0:
         for dir_path, dir_files in sorted(
-            by_dir.items(), key=lambda x: len(x[1]), reverse=True,
+            by_dir.items(),
+            key=lambda x: len(x[1]),
+            reverse=True,
         ):
             current = dict(allocations).get(dir_path, 0)
             extra = min(remaining, len(dir_files) - current)
             if extra > 0:
-                allocations = [
-                    (d, a + extra) if d == dir_path else (d, a)
-                    for d, a in allocations
-                ]
+                allocations = [(d, a + extra) if d == dir_path else (d, a) for d, a in allocations]
                 remaining -= extra
             if remaining <= 0:
                 break
@@ -162,11 +161,7 @@ def select_sample(
         else:
             target = max(math.ceil(pop_size * rate), min(min_per_type, pop_size))
             target = min(target, pop_size)
-            sample = (
-                list(entries)
-                if target >= pop_size
-                else _sample_by_directory(entries, target)
-            )
+            sample = list(entries) if target >= pop_size else _sample_by_directory(entries, target)
 
         per_type_sample[mime] = sample
         selected.extend(sample)
@@ -332,9 +327,7 @@ def compute_confidence_interval_adjusted(
     Returns:
         ConfidenceInterval with adjusted bounds.
     """
-    ci = compute_confidence_interval(
-        successes, sample_size, population_size, confidence
-    )
+    ci = compute_confidence_interval(successes, sample_size, population_size, confidence)
 
     if deff <= 1.0 or ci.sample_size >= ci.population_size:
         return ci

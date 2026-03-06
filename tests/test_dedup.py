@@ -43,9 +43,7 @@ def test_compute_hashes_wasted_bytes(
     """Wasted bytes should be size * (copies - 1) for each group."""
     result = compute_hashes(_walk(tmp_corpus_with_duplicates))
 
-    expected_wasted = sum(
-        g.size * (len(g.paths) - 1) for g in result.duplicate_groups
-    )
+    expected_wasted = sum(g.size * (len(g.paths) - 1) for g in result.duplicate_groups)
     assert result.duplicate_bytes == expected_wasted
     assert result.duplicate_bytes > 0
 

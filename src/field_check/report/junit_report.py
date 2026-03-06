@@ -79,10 +79,12 @@ def render_junit_report(
         pii_types = pii_lookup.get(path_str)
         if pii_types:
             type_list = ", ".join(pii_types)
-            findings.append((
-                "failure",
-                f"PII risk indicators found: {type_list}",
-            ))
+            findings.append(
+                (
+                    "failure",
+                    f"PII risk indicators found: {type_list}",
+                )
+            )
 
         # Duplicates
         if path_str in dup_paths:

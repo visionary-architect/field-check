@@ -67,11 +67,13 @@ def analyze_readability(text_cache: dict[str, str]) -> ReadabilityResult:
             if is_low:
                 result.low_quality_count += 1
 
-            result.scores.append(ReadabilityScore(
-                path=path,
-                flesch_reading_ease=round(score, 1),
-                is_low_quality=is_low,
-            ))
+            result.scores.append(
+                ReadabilityScore(
+                    path=path,
+                    flesch_reading_ease=round(score, 1),
+                    is_low_quality=is_low,
+                )
+            )
             total_score += score
         except Exception:
             logger.debug("Readability scoring failed for %s", path)

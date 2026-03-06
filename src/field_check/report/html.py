@@ -51,10 +51,18 @@ def render_html_report(
 
     # Build context
     context = _build_context(
-        inventory, walk_result, elapsed_seconds,
-        dedup_result, corruption_result, sample_result,
-        text_result, pii_result, language_result,
-        encoding_result, simhash_result, mojibake_result,
+        inventory,
+        walk_result,
+        elapsed_seconds,
+        dedup_result,
+        corruption_result,
+        sample_result,
+        text_result,
+        pii_result,
+        language_result,
+        encoding_result,
+        simhash_result,
+        mojibake_result,
         readability_result,
     )
 
@@ -82,9 +90,7 @@ def _build_context(
     ds = inventory.dir_structure
 
     # Type distribution data
-    sorted_types = sorted(
-        inventory.type_counts.items(), key=lambda x: x[1], reverse=True
-    )
+    sorted_types = sorted(inventory.type_counts.items(), key=lambda x: x[1], reverse=True)
     type_labels = [t for t, _ in sorted_types[:10]]
     type_counts = [c for _, c in sorted_types[:10]]
     type_rows = []
@@ -92,11 +98,15 @@ def _build_context(
         pct = count / inventory.total_files * 100 if inventory.total_files else 0
         total_size = inventory.type_sizes.get(mime, 0)
         avg_size = total_size // count if count else 0
-        type_rows.append({
-            "mime": mime, "count": count, "pct": f"{pct:.1f}",
-            "total_size": format_size(total_size),
-            "avg_size": format_size(avg_size),
-        })
+        type_rows.append(
+            {
+                "mime": mime,
+                "count": count,
+                "pct": f"{pct:.1f}",
+                "total_size": format_size(total_size),
+                "avg_size": format_size(avg_size),
+            }
+        )
 
     # Size distribution data
     size_labels = [b.label for b in sd.buckets]
@@ -126,10 +136,12 @@ def _build_context(
         # Age distribution
         "age_rows": [
             {
-                "label": b.label, "count": b.count,
+                "label": b.label,
+                "count": b.count,
                 "pct": (
                     f"{b.count / inventory.total_files * 100:.1f}"
-                    if inventory.total_files else "0.0"
+                    if inventory.total_files
+                    else "0.0"
                 ),
             }
             for b in ad.buckets
@@ -162,10 +174,7 @@ def _build_context(
                     "size": format_size(g.size),
                     "copies": len(g.paths),
                     "wasted": format_size(g.size * (len(g.paths) - 1)),
-                    "paths": [
-                        str(_try_relative(p, walk_result.scan_root))
-                        for p in g.paths[:5]
-                    ],
+                    "paths": [str(_try_relative(p, walk_result.scan_root)) for p in g.paths[:5]],
                 }
                 for g in sorted(
                     dedup.duplicate_groups,
@@ -197,12 +206,14 @@ def _build_context(
             ci = compute_confidence_interval(
                 file_count, pii.total_scanned, sample.total_population_size
             )
-            pii_types.append({
-                "label": label,
-                "matches": f"{match_count:,}",
-                "files": f"{file_count:,}",
-                "exposure": format_ci(ci),
-            })
+            pii_types.append(
+                {
+                    "label": label,
+                    "matches": f"{match_count:,}",
+                    "files": f"{file_count:,}",
+                    "exposure": format_ci(ci),
+                }
+            )
         context["pii"] = {
             "total_scanned": f"{pii.total_scanned:,}",
             "files_with_pii": f"{pii.files_with_pii:,}",
@@ -214,16 +225,21 @@ def _build_context(
         pop = sample.total_population_size if sample else language.total_analyzed
         sorted_langs = sorted(
             language.language_distribution.items(),
-            key=lambda x: x[1], reverse=True,
+            key=lambda x: x[1],
+            reverse=True,
         )
         lang_labels = [name for name, _ in sorted_langs[:8]]
         lang_counts = [c for _, c in sorted_langs[:8]]
         lang_rows = []
         for lang, count in sorted_langs:
             ci = compute_confidence_interval(count, language.total_analyzed, pop)
-            lang_rows.append({
-                "language": lang, "count": count, "proportion": format_ci(ci),
-            })
+            lang_rows.append(
+                {
+                    "language": lang,
+                    "count": count,
+                    "proportion": format_ci(ci),
+                }
+            )
         context["language"] = {
             "labels": lang_labels,
             "counts": lang_counts,
@@ -236,14 +252,17 @@ def _build_context(
         enc_rows = []
         for enc_name, count in sorted(
             encoding.encoding_distribution.items(),
-            key=lambda x: x[1], reverse=True,
+            key=lambda x: x[1],
+            reverse=True,
         ):
-            ci = compute_confidence_interval(
-                count, encoding.total_analyzed, enc_pop
+            ci = compute_confidence_interval(count, encoding.total_analyzed, enc_pop)
+            enc_rows.append(
+                {
+                    "encoding": enc_name,
+                    "count": count,
+                    "proportion": format_ci(ci),
+                }
             )
-            enc_rows.append({
-                "encoding": enc_name, "count": count, "proportion": format_ci(ci),
-            })
         context["encoding"] = {"rows": enc_rows}
 
     # Near-duplicates section
@@ -253,12 +272,14 @@ def _build_context(
             paths = []
             for p in c.paths[:5]:
                 paths.append(_try_relative_str(p, walk_result.scan_root))
-            clusters.append({
-                "num": idx,
-                "files": len(c.paths),
-                "similarity": f"{c.similarity * 100:.1f}",
-                "paths": paths,
-            })
+            clusters.append(
+                {
+                    "num": idx,
+                    "files": len(c.paths),
+                    "similarity": f"{c.similarity * 100:.1f}",
+                    "paths": paths,
+                }
+            )
         pop = sample.total_population_size
         nd_ci = None
         if simhash.total_files_in_clusters > 0:

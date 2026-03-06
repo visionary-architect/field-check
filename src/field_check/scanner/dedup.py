@@ -90,10 +90,7 @@ def compute_hashes(
         size_groups[entry.size].append(entry)
 
     candidate_entries = [
-        entry
-        for entries in size_groups.values()
-        if len(entries) >= 2
-        for entry in entries
+        entry for entries in size_groups.values() if len(entries) >= 2 for entry in entries
     ]
 
     candidate_set = {id(e) for e in candidate_entries}
@@ -112,8 +109,7 @@ def compute_hashes(
 
         with ThreadPoolExecutor(max_workers=workers) as pool:
             future_to_entry = {
-                pool.submit(_hash_file, entry.path): entry
-                for entry in candidate_entries
+                pool.submit(_hash_file, entry.path): entry for entry in candidate_entries
             }
 
             for future in as_completed(future_to_entry):
@@ -137,9 +133,7 @@ def compute_hashes(
         if len(entries) >= 2:
             paths = [p for p, _ in entries]
             size = entries[0][1]
-            duplicate_groups.append(
-                DuplicateGroup(hash=file_hash, size=size, paths=paths)
-            )
+            duplicate_groups.append(DuplicateGroup(hash=file_hash, size=size, paths=paths))
 
     total_hashed = total - hash_errors
     # Unique files = those with unique sizes (never hashed) + hashes appearing once
@@ -147,12 +141,8 @@ def compute_hashes(
     unique_by_hash = sum(1 for entries in hash_map.values() if len(entries) == 1)
     unique_files = unique_by_size + unique_by_hash
     duplicate_file_count = sum(len(g.paths) for g in duplicate_groups)
-    duplicate_bytes = sum(
-        g.size * (len(g.paths) - 1) for g in duplicate_groups
-    )
-    duplicate_percentage = (
-        (duplicate_file_count / total_hashed * 100) if total_hashed else 0.0
-    )
+    duplicate_bytes = sum(g.size * (len(g.paths) - 1) for g in duplicate_groups)
+    duplicate_percentage = (duplicate_file_count / total_hashed * 100) if total_hashed else 0.0
 
     return DedupResult(
         total_hashed=total_hashed,

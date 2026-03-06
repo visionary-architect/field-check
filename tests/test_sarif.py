@@ -187,7 +187,9 @@ class TestSARIFStructure:
         inv = _make_inventory()
         # Should not raise
         output = render_sarif_report(
-            inv, walk, some_future_param="value",
+            inv,
+            walk,
+            some_future_param="value",
         )
         data = json.loads(output)
         assert data["version"] == "2.1.0"

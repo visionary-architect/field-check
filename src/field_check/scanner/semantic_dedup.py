@@ -84,32 +84,40 @@ def detect_semantic_duplicates(
         return result
 
     try:
-        # Build SemHash index and find duplicates
-        semhash = SemHash.from_records(texts)
-        duplicates = semhash.self_find_duplicates(threshold=threshold)
+        # NOTE: SemHash downloads a Model2Vec model from Hugging Face Hub
+        # on first use. This is an intentional network call by the optional
+        # semhash dependency; the user opts in by installing field-check[semantic].
+        logger.info("Running semantic dedup (semhash may download a model on first use)")
+        semhash_index = SemHash.from_records(texts)
+        dedup_result = semhash_index.self_deduplicate(threshold=threshold)
 
-        # Build clusters from duplicate groups
-        # Track which indices have been clustered
+        # Build a text→index map for O(1) lookup (handles duplicate texts)
+        text_to_indices: dict[str, list[int]] = {}
+        for idx, t in enumerate(texts):
+            text_to_indices.setdefault(t, []).append(idx)
+
+        # Build clusters from deduplicated groups
         clustered: set[int] = set()
-        for dup_record in duplicates:
-            # Find the index of the original text
-            try:
-                orig_idx = texts.index(dup_record.text)
-            except ValueError:
+        for item in dedup_result.selected_with_duplicates:
+            record_text = item.record
+            dup_texts_and_scores = item.duplicates  # list of (text, score)
+
+            if not dup_texts_and_scores:
                 continue
 
-            if orig_idx in clustered:
+            # Find the index of the original record
+            orig_indices = text_to_indices.get(record_text, [])
+            orig_idx = next((i for i in orig_indices if i not in clustered), None)
+            if orig_idx is None:
                 continue
 
             cluster_paths = [paths[orig_idx]]
             clustered.add(orig_idx)
 
-            for dup in dup_record.duplicates:
-                try:
-                    dup_idx = texts.index(dup.text)
-                except ValueError:
-                    continue
-                if dup_idx not in clustered:
+            for dup_text, _score in dup_texts_and_scores:
+                dup_indices = text_to_indices.get(dup_text, [])
+                dup_idx = next((i for i in dup_indices if i not in clustered), None)
+                if dup_idx is not None:
                     cluster_paths.append(paths[dup_idx])
                     clustered.add(dup_idx)
 

@@ -55,14 +55,28 @@ def render_json_report(
         "scan_date": datetime.now().isoformat(),
         "duration_seconds": round(elapsed_seconds, 3),
         "summary": _build_summary(
-            inventory, walk_result, dedup_result, corruption_result,
-            sample_result, text_result, pii_result, language_result,
-            encoding_result, simhash_result, mojibake_result,
+            inventory,
+            walk_result,
+            dedup_result,
+            corruption_result,
+            sample_result,
+            text_result,
+            pii_result,
+            language_result,
+            encoding_result,
+            simhash_result,
+            mojibake_result,
             readability_result,
         ),
         "files": _build_files_array(
-            walk_result, inventory, hash_lookup, dup_paths,
-            health_lookup, pii_lookup, lang_lookup, enc_lookup,
+            walk_result,
+            inventory,
+            hash_lookup,
+            dup_paths,
+            health_lookup,
+            pii_lookup,
+            lang_lookup,
+            enc_lookup,
         ),
     }
 
@@ -93,20 +107,14 @@ def _build_summary(
         "total_size": inventory.total_size,
         "type_distribution": dict(inventory.type_counts),
         "size_distribution": {
-            "buckets": [
-                {"label": b.label, "count": b.count}
-                for b in sd.buckets
-            ],
+            "buckets": [{"label": b.label, "count": b.count} for b in sd.buckets],
             "min": sd.min_size,
             "max": sd.max_size,
             "median": sd.median_size,
             "mean": round(sd.mean_size, 2),
         },
         "age_distribution": {
-            "buckets": [
-                {"label": b.label, "count": b.count}
-                for b in ad.buckets
-            ],
+            "buckets": [{"label": b.label, "count": b.count} for b in ad.buckets],
             "oldest": ad.oldest.isoformat() if ad.oldest else None,
             "newest": ad.newest.isoformat() if ad.newest else None,
         },
@@ -186,9 +194,7 @@ def _build_summary(
         enc_pop = sample.total_population_size if sample else encoding.total_analyzed
         enc_ci = {}
         for enc_name, count in encoding.encoding_distribution.items():
-            ci = compute_confidence_interval(
-                count, encoding.total_analyzed, enc_pop
-            )
+            ci = compute_confidence_interval(count, encoding.total_analyzed, enc_pop)
             enc_ci[enc_name] = {
                 "count": count,
                 "point_estimate": round(ci.point_estimate * 100, 2),
@@ -215,10 +221,7 @@ def _build_summary(
                 {
                     "files": len(c.paths),
                     "similarity": round(c.similarity, 4),
-                    "paths": [
-                        _try_relative(p, walk_result.scan_root)
-                        for p in c.paths
-                    ],
+                    "paths": [_try_relative(p, walk_result.scan_root) for p in c.paths],
                 }
                 for c in simhash.clusters
             ],
@@ -351,17 +354,19 @@ def _build_files_array(
 
         pii_types = pii_lookup.get(path_str)
 
-        files.append({
-            "path": rel_path,
-            "size": entry.size,
-            "mime_type": inventory.file_types.get(entry.path, "unknown"),
-            "blake3": hash_lookup.get(path_str),
-            "is_duplicate": path_str in dup_paths,
-            "health_status": health_lookup.get(path_str, "ok"),
-            "has_pii": pii_types is not None and len(pii_types) > 0,
-            "pii_types": pii_types,
-            "language": lang_lookup.get(path_str),
-            "encoding": enc_lookup.get(path_str),
-        })
+        files.append(
+            {
+                "path": rel_path,
+                "size": entry.size,
+                "mime_type": inventory.file_types.get(entry.path, "unknown"),
+                "blake3": hash_lookup.get(path_str),
+                "is_duplicate": path_str in dup_paths,
+                "health_status": health_lookup.get(path_str, "ok"),
+                "has_pii": pii_types is not None and len(pii_types) > 0,
+                "pii_types": pii_types,
+                "language": lang_lookup.get(path_str),
+                "encoding": enc_lookup.get(path_str),
+            }
+        )
 
     return files

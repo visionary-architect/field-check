@@ -67,18 +67,20 @@ def render_csv_report(
         path_str = str(entry.path)
         pii_types = pii_lookup.get(path_str, [])
 
-        writer.writerow([
-            str(entry.relative_path),
-            entry.size,
-            inventory.file_types.get(entry.path, "unknown"),
-            hash_lookup.get(path_str, ""),
-            path_str in dup_paths,
-            health_lookup.get(path_str, "ok"),
-            len(pii_types) > 0,
-            ";".join(pii_types) if pii_types else "",
-            lang_lookup.get(path_str, ""),
-            enc_lookup.get(path_str, ""),
-        ])
+        writer.writerow(
+            [
+                str(entry.relative_path),
+                entry.size,
+                inventory.file_types.get(entry.path, "unknown"),
+                hash_lookup.get(path_str, ""),
+                path_str in dup_paths,
+                health_lookup.get(path_str, "ok"),
+                len(pii_types) > 0,
+                ";".join(pii_types) if pii_types else "",
+                lang_lookup.get(path_str, ""),
+                enc_lookup.get(path_str, ""),
+            ]
+        )
 
     return output.getvalue()
 

@@ -31,12 +31,18 @@ from field_check.scanner.text import METADATA_FIELDS, PAGE_COUNT_BUCKETS, TextEx
 
 
 def _ci(
-    successes: int, sample_size: int, pop_size: int, deff: float = 1.0,
+    successes: int,
+    sample_size: int,
+    pop_size: int,
+    deff: float = 1.0,
 ) -> ConfidenceInterval:
     """Compute CI, applying DEFF adjustment when clustering is detected."""
     if deff > 1.0:
         return compute_confidence_interval_adjusted(
-            successes, sample_size, pop_size, deff=deff,
+            successes,
+            sample_size,
+            pop_size,
+            deff=deff,
         )
     return compute_confidence_interval(successes, sample_size, pop_size)
 
@@ -189,11 +195,12 @@ def render_page_count_distribution(
     console.print(table)
     if total_docs_with_pages > 0:
         mean = text.page_count_total / total_docs_with_pages
-        console.print(Text(
-            f"  Min: {text.page_count_min}  Max: {text.page_count_max}  "
-            f"Mean: {mean:.1f}",
-            style="dim",
-        ))
+        console.print(
+            Text(
+                f"  Min: {text.page_count_min}  Max: {text.page_count_max}  Mean: {mean:.1f}",
+                style="dim",
+            )
+        )
 
 
 def render_pii_results(
@@ -207,12 +214,14 @@ def render_pii_results(
 
     # Warning banner if samples are shown
     if pii.show_pii_samples:
-        console.print(Panel(
-            "[bold yellow]WARNING:[/bold yellow] PII samples shown below. "
-            "Do not share this report without redacting sensitive data.",
-            border_style="yellow",
-            title="Privacy Warning",
-        ))
+        console.print(
+            Panel(
+                "[bold yellow]WARNING:[/bold yellow] PII samples shown below. "
+                "Do not share this report without redacting sensitive data.",
+                border_style="yellow",
+                title="Privacy Warning",
+            )
+        )
 
     # Summary table
     summary = Table(title="PII Risk Indicators", show_lines=False)
@@ -237,7 +246,9 @@ def render_pii_results(
         fp_rate = pii.pattern_fp_rates.get(pattern_name, 0.0)
 
         ci = _ci(
-            file_count, pii.total_scanned, sample.total_population_size,
+            file_count,
+            pii.total_scanned,
+            sample.total_population_size,
             sample.deff,
         )
 
@@ -299,10 +310,12 @@ def render_language_encoding(
 
         console.print(table)
         if language.detection_errors:
-            console.print(Text(
-                f"  Detection errors: {language.detection_errors}",
-                style="yellow",
-            ))
+            console.print(
+                Text(
+                    f"  Detection errors: {language.detection_errors}",
+                    style="yellow",
+                )
+            )
 
     # Encoding Distribution sub-table
     if encoding is not None and encoding.total_analyzed > 0:
@@ -324,11 +337,13 @@ def render_language_encoding(
             table.add_row(enc_name, f"{count:,}", format_ci(ci))
 
         console.print(table)
-        console.print(Text(
-            "  Encoding detected for plain text files only "
-            "(PDF/DOCX handle encoding internally)",
-            style="dim",
-        ))
+        console.print(
+            Text(
+                "  Encoding detected for plain text files only "
+                "(PDF/DOCX handle encoding internally)",
+                style="dim",
+            )
+        )
 
     console.print()
 
@@ -355,24 +370,27 @@ def render_near_duplicates(
 
     if simhash.total_files_in_clusters > 0:
         ci = _ci(
-            simhash.total_files_in_clusters, simhash.total_analyzed, pop,
+            simhash.total_files_in_clusters,
+            simhash.total_analyzed,
+            pop,
             sample.deff,
         )
         summary.add_row("Est. corpus near-dup %", format_ci(ci))
 
     console.print(summary)
-    console.print(Text(
-        f"  Near-duplicates detected via SimHash fingerprinting "
-        f"(threshold: {simhash.threshold} bits)",
-        style="dim",
-    ))
+    console.print(
+        Text(
+            f"  Near-duplicates detected via SimHash fingerprinting "
+            f"(threshold: {simhash.threshold} bits)",
+            style="dim",
+        )
+    )
 
     # Cluster detail table (top 5)
     if simhash.clusters:
         shown = min(5, len(simhash.clusters))
         detail = Table(
-            title=f"Top Near-Duplicate Clusters "
-                  f"(showing {shown} of {len(simhash.clusters)})",
+            title=f"Top Near-Duplicate Clusters (showing {shown} of {len(simhash.clusters)})",
             show_lines=False,
         )
         detail.add_column("Cluster", justify="right", style="cyan")
@@ -420,17 +438,20 @@ def render_mojibake_results(
 
     if mojibake.mojibake_files:
         detail = Table(
-            title="Files with Encoding Damage (mojibake)", show_lines=False,
+            title="Files with Encoding Damage (mojibake)",
+            show_lines=False,
         )
         detail.add_column("Path", style="yellow")
         for p in mojibake.mojibake_files[:20]:
             detail.add_row(Path(p).name)
         console.print(detail)
         if len(mojibake.mojibake_files) > 20:
-            console.print(Text(
-                f"  ... and {len(mojibake.mojibake_files) - 20} more",
-                style="dim",
-            ))
+            console.print(
+                Text(
+                    f"  ... and {len(mojibake.mojibake_files) - 20} more",
+                    style="dim",
+                )
+            )
 
     console.print()
 
@@ -458,9 +479,7 @@ def _render_pii_samples(pii: PIIScanResult, console: Console) -> None:
 
     console.print(table)
     if len(samples) > 20:
-        console.print(Text(
-            f"  ... and {len(samples) - 20} more matches", style="dim"
-        ))
+        console.print(Text(f"  ... and {len(samples) - 20} more matches", style="dim"))
 
 
 def render_readability_results(
@@ -494,9 +513,11 @@ def render_readability_results(
             detail.add_row(Path(s.path).name, f"{s.flesch_reading_ease:.1f}")
         console.print(detail)
         if len(low_scores) > 10:
-            console.print(Text(
-                f"  ... and {len(low_scores) - 10} more low-quality files",
-                style="dim",
-            ))
+            console.print(
+                Text(
+                    f"  ... and {len(low_scores) - 10} more low-quality files",
+                    style="dim",
+                )
+            )
 
     console.print()

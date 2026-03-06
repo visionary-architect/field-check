@@ -43,9 +43,7 @@ class TestSemanticDedupGraceful:
             "a.txt": "Some text content for testing " * 10,
             "b.txt": "More text content for testing " * 10,
         }
-        detect_semantic_duplicates(
-            cache, progress_callback=lambda c, t: calls.append((c, t))
-        )
+        detect_semantic_duplicates(cache, progress_callback=lambda c, t: calls.append((c, t)))
         assert len(calls) == 2
 
     def test_short_texts_skipped(self) -> None:

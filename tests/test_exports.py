@@ -34,7 +34,9 @@ from field_check.scanner.sampling import SampleResult
 
 
 def _make_file_entry(
-    name: str, size: int = 100, root: Path | None = None,
+    name: str,
+    size: int = 100,
+    root: Path | None = None,
 ) -> FileEntry:
     root = root or Path("/corpus")
     return FileEntry(
@@ -199,9 +201,16 @@ class TestCSVReport:
         reader = csv.reader(io.StringIO(output))
         header = next(reader)
         expected = [
-            "path", "size", "mime_type", "blake3",
-            "is_duplicate", "health_status", "has_pii",
-            "pii_types", "language", "encoding",
+            "path",
+            "size",
+            "mime_type",
+            "blake3",
+            "is_duplicate",
+            "health_status",
+            "has_pii",
+            "pii_types",
+            "language",
+            "encoding",
         ]
         assert header == expected
 
@@ -257,7 +266,8 @@ class TestHTMLReport:
         # Should not contain external resource links
         # (Chart.js source maps may reference URLs in comments, that's ok)
         external = re.findall(
-            r'(?:href|src)\s*=\s*["\']https?://', output,
+            r'(?:href|src)\s*=\s*["\']https?://',
+            output,
         )
         assert len(external) == 0
 
@@ -334,9 +344,7 @@ class TestExitCodes:
         dedup = DedupResult(duplicate_percentage=15.0)
         corruption = CorruptionResult(corrupt_count=5)
         pii = PIIScanResult(total_scanned=100, files_with_pii=10)
-        code, breaches = determine_exit_code(
-            cfg, inv, dedup, corruption, pii
-        )
+        code, breaches = determine_exit_code(cfg, inv, dedup, corruption, pii)
         assert code == 1
         assert len(breaches) == 3
 
@@ -412,20 +420,18 @@ class TestConfigThresholds:
         config_file = tmp_path / ".field-check.yaml"
         config_file.write_text(yaml_content, encoding="utf-8")
         from field_check.config import load_config
+
         cfg = load_config(tmp_path, config_file)
         assert cfg.pii_critical == 0.20
         assert cfg.duplicate_critical == 0.30
         assert cfg.corrupt_critical == 0.05
 
     def test_yaml_threshold_clamping(self, tmp_path: Path) -> None:
-        yaml_content = (
-            "thresholds:\n"
-            "  pii_critical: 5.0\n"
-            "  corrupt_critical: -0.5\n"
-        )
+        yaml_content = "thresholds:\n  pii_critical: 5.0\n  corrupt_critical: -0.5\n"
         config_file = tmp_path / ".field-check.yaml"
         config_file.write_text(yaml_content, encoding="utf-8")
         from field_check.config import load_config
+
         cfg = load_config(tmp_path, config_file)
         assert cfg.pii_critical == 1.0  # clamped to max
         assert cfg.corrupt_critical == 0.0  # clamped to min

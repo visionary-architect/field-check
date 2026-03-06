@@ -109,11 +109,13 @@ def render_sarif_report(
             rule_id = _STATUS_TO_RULE.get(fh.status)
             if rule_id is None:
                 continue
-            results.append(_make_result(
-                rule_id=rule_id,
-                message=fh.detail,
-                path=_try_relative(fh.path, walk_result.scan_root),
-            ))
+            results.append(
+                _make_result(
+                    rule_id=rule_id,
+                    message=fh.detail,
+                    path=_try_relative(fh.path, walk_result.scan_root),
+                )
+            )
 
     # PII findings — counts only, NO matched content (Invariant 3)
     if pii_result is not None:
@@ -122,11 +124,13 @@ def render_sarif_report(
                 continue
             types = list(fr.matches_by_type.keys())
             total = sum(fr.matches_by_type.values())
-            results.append(_make_result(
-                rule_id="FC005",
-                message=f"{total} PII risk indicator(s) found: {', '.join(types)}",
-                path=_try_relative(Path(fr.path), walk_result.scan_root),
-            ))
+            results.append(
+                _make_result(
+                    rule_id="FC005",
+                    message=f"{total} PII risk indicator(s) found: {', '.join(types)}",
+                    path=_try_relative(Path(fr.path), walk_result.scan_root),
+                )
+            )
 
     # Duplicate findings
     if dedup_result is not None:
@@ -134,20 +138,24 @@ def render_sarif_report(
             # Skip the first path (the "original"), flag the rest as duplicates
             orig = _try_relative(group.paths[0], walk_result.scan_root)
             for dup_path in group.paths[1:]:
-                results.append(_make_result(
-                    rule_id="FC006",
-                    message=f"Exact duplicate of {orig}",
-                    path=_try_relative(dup_path, walk_result.scan_root),
-                ))
+                results.append(
+                    _make_result(
+                        rule_id="FC006",
+                        message=f"Exact duplicate of {orig}",
+                        path=_try_relative(dup_path, walk_result.scan_root),
+                    )
+                )
 
     # Mojibake findings
     if mojibake_result is not None:
         for path in mojibake_result.mojibake_files:
-            results.append(_make_result(
-                rule_id="FC007",
-                message="File contains encoding damage (mojibake)",
-                path=path,
-            ))
+            results.append(
+                _make_result(
+                    rule_id="FC007",
+                    message="File contains encoding damage (mojibake)",
+                    path=path,
+                )
+            )
 
     sarif = {
         "$schema": SARIF_SCHEMA,

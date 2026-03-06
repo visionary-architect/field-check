@@ -99,8 +99,7 @@ def _extract_pdf(filepath: str) -> TextResult:
                     page_h = float(page.height) if page.height else 1.0
                     page_area = page_w * page_h
                     img_area = sum(
-                        float(img.get("width", 0)) * float(img.get("height", 0))
-                        for img in images
+                        float(img.get("width", 0)) * float(img.get("height", 0)) for img in images
                     )
                     if page_area > 0 and img_area / page_area >= 0.9:
                         high_image_pages += 1
@@ -110,9 +109,7 @@ def _extract_pdf(filepath: str) -> TextResult:
                 # Extract text
                 page_text = page.extract_text() or ""
                 page_texts.append(page_text)
-                total_text_bytes += len(
-                    page_text.encode("utf-8", errors="replace")
-                )
+                total_text_bytes += len(page_text.encode("utf-8", errors="replace"))
 
             result.text = "\n".join(page_texts)
             result.text_length = len(result.text)
@@ -122,9 +119,8 @@ def _extract_pdf(filepath: str) -> TextResult:
                 chars_pp = total_chars / result.page_count
                 # OCR'd scanned PDFs: have text but are image-dominated
                 if (
-                    (high_image_pages >= result.page_count * 0.8 and chars_pp < 200)
-                    or scanned_pages == result.page_count
-                ):
+                    high_image_pages >= result.page_count * 0.8 and chars_pp < 200
+                ) or scanned_pages == result.page_count:
                     result.is_scanned = True
                 elif scanned_pages > 0 and native_pages > 0:
                     result.is_mixed_scan = True
@@ -140,14 +136,9 @@ def _extract_pdf(filepath: str) -> TextResult:
             # Content classification
             if result.page_count > 0:
                 result.chars_per_page = total_chars / result.page_count
-                result.text_size_ratio = (
-                    total_text_bytes / file_size if file_size > 0 else 0.0
-                )
+                result.text_size_ratio = total_text_bytes / file_size if file_size > 0 else 0.0
 
-                if (
-                    result.is_scanned
-                    or result.chars_per_page < CHARS_PER_PAGE_IMAGE_HEAVY
-                ):
+                if result.is_scanned or result.chars_per_page < CHARS_PER_PAGE_IMAGE_HEAVY:
                     result.classification = CLASSIFICATION_IMAGE_HEAVY
                 elif result.chars_per_page > CHARS_PER_PAGE_TEXT_HEAVY:
                     result.classification = CLASSIFICATION_TEXT_HEAVY
@@ -185,9 +176,7 @@ def _extract_docx(filepath: str) -> TextResult:
         props = doc.core_properties
         result.metadata["title"] = props.title if props.title else None
         result.metadata["author"] = props.author if props.author else None
-        result.metadata["creation_date"] = (
-            props.created.isoformat() if props.created else None
-        )
+        result.metadata["creation_date"] = props.created.isoformat() if props.created else None
 
         # DOCX is always text-based, never scanned
         result.classification = CLASSIFICATION_TEXT_HEAVY
@@ -322,10 +311,7 @@ def _extract_single(filepath: str, mime_type: str) -> TextResult:
     """
     if mime_type == "application/pdf":
         return _extract_pdf(filepath)
-    if (
-        mime_type
-        == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    ):
+    if mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
         return _extract_docx(filepath)
     if mime_type == _XLSX_MIME:
         return _extract_xlsx(filepath)
@@ -373,11 +359,7 @@ def _extract_text_for_cache(
         if mime_type == "application/pdf":
             return _extract_pdf_text_fast(filepath)
 
-        if (
-            mime_type
-            == "application/vnd.openxmlformats-officedocument"
-               ".wordprocessingml.document"
-        ):
+        if mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
             from docx import Document
 
             doc = Document(filepath)

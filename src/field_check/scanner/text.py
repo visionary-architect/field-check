@@ -155,24 +155,17 @@ def _aggregate_extraction(
     for mf in METADATA_FIELDS:
         value = text_result.metadata.get(mf)
         if value:
-            result.metadata_field_counts[mf] = (
-                result.metadata_field_counts.get(mf, 0) + 1
-            )
+            result.metadata_field_counts[mf] = result.metadata_field_counts.get(mf, 0) + 1
 
     # Page count distribution (PDF only)
     if text_result.page_count > 0:
         result.page_count_total += text_result.page_count
-        if (
-            result.page_count_min == 0
-            or text_result.page_count < result.page_count_min
-        ):
+        if result.page_count_min == 0 or text_result.page_count < result.page_count_min:
             result.page_count_min = text_result.page_count
         if text_result.page_count > result.page_count_max:
             result.page_count_max = text_result.page_count
         bucket = _page_count_bucket(text_result.page_count)
-        result.page_count_distribution[bucket] = (
-            result.page_count_distribution.get(bucket, 0) + 1
-        )
+        result.page_count_distribution[bucket] = result.page_count_distribution.get(bucket, 0) + 1
 
 
 def extract_text(
@@ -225,14 +218,10 @@ def extract_text(
             try:
                 text_result = future.result(timeout=timeout)
             except TimeoutError:
-                text_result = TextResult(
-                    path=str(entry.path), error="Extraction timed out"
-                )
+                text_result = TextResult(path=str(entry.path), error="Extraction timed out")
                 result.timeout_errors += 1
             except Exception as exc:
-                text_result = TextResult(
-                    path=str(entry.path), error=str(exc)
-                )
+                text_result = TextResult(path=str(entry.path), error=str(exc))
 
             result.file_results.append(text_result)
             result.total_processed += 1
@@ -292,18 +281,14 @@ def build_text_cache(
     with ProcessPoolExecutor(max_workers=workers) as pool:
         future_to_entry: dict = {}
         for entry, mime in extractable:
-            future = pool.submit(
-                _extract_text_for_cache, str(entry.path), mime
-            )
+            future = pool.submit(_extract_text_for_cache, str(entry.path), mime)
             future_to_entry[future] = entry
 
         for completed, future in enumerate(as_completed(future_to_entry), 1):
             entry = future_to_entry[future]
             path_str = str(entry.path)
             try:
-                text, enc_name, enc_conf, error = future.result(
-                    timeout=timeout
-                )
+                text, enc_name, enc_conf, error = future.result(timeout=timeout)
             except TimeoutError:
                 cache_result.extraction_errors += 1
                 cache_result.total_extracted += 1
@@ -390,9 +375,7 @@ def extract_text_unified(
         with ProcessPoolExecutor(max_workers=workers) as pool:
             future_to_info: dict = {}
             for entry, mime in pdf_docx:
-                future = pool.submit(
-                    _extract_single, str(entry.path), mime
-                )
+                future = pool.submit(_extract_single, str(entry.path), mime)
                 future_to_info[future] = (entry, mime)
 
             for future in as_completed(future_to_info):
@@ -400,14 +383,10 @@ def extract_text_unified(
                 try:
                     file_result = future.result(timeout=timeout)
                 except TimeoutError:
-                    file_result = TextResult(
-                        path=str(entry.path), error="Extraction timed out"
-                    )
+                    file_result = TextResult(path=str(entry.path), error="Extraction timed out")
                     text_result.timeout_errors += 1
                 except Exception as exc:
-                    file_result = TextResult(
-                        path=str(entry.path), error=str(exc)
-                    )
+                    file_result = TextResult(path=str(entry.path), error=str(exc))
 
                 text_result.file_results.append(file_result)
                 text_result.total_processed += 1
@@ -418,9 +397,7 @@ def extract_text_unified(
                 else:
                     _aggregate_extraction(text_result, file_result, mime)
                     if file_result.text:
-                        cache_result.text_cache[str(entry.path)] = (
-                            file_result.text
-                        )
+                        cache_result.text_cache[str(entry.path)] = file_result.text
                 cache_result.total_extracted += 1
 
                 completed += 1
@@ -432,18 +409,14 @@ def extract_text_unified(
         with ProcessPoolExecutor(max_workers=workers) as pool:
             future_to_entry: dict = {}
             for entry, _mime in plain_text:
-                future = pool.submit(
-                    _extract_plain_text, str(entry.path)
-                )
+                future = pool.submit(_extract_plain_text, str(entry.path))
                 future_to_entry[future] = entry
 
             for future in as_completed(future_to_entry):
                 entry = future_to_entry[future]
                 path_str = str(entry.path)
                 try:
-                    text, enc_name, enc_conf, error = future.result(
-                        timeout=timeout
-                    )
+                    text, enc_name, enc_conf, error = future.result(timeout=timeout)
                 except (TimeoutError, Exception):
                     cache_result.extraction_errors += 1
                     cache_result.total_extracted += 1

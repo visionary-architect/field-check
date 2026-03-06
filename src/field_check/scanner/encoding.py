@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 # codecs.lookup handles all alias→canonical mapping; this dict only
 # covers cases where we want a different display name.
 _DISPLAY_OVERRIDES: dict[str, str] = {
-    "ascii": "utf-8",           # ASCII is a subset of UTF-8
-    "utf-8-sig": "utf-8",       # UTF-8 with BOM
+    "ascii": "utf-8",  # ASCII is a subset of UTF-8
+    "utf-8-sig": "utf-8",  # UTF-8 with BOM
     "cp1252": "windows-1252",
     "iso8859-1": "iso-8859-1",
     "iso8859-15": "iso-8859-15",
@@ -74,13 +74,9 @@ def analyze_encodings(
 
     for path, (encoding, confidence) in encoding_map.items():
         canonical = _normalize_encoding(encoding)
-        file_result = EncodingFileResult(
-            path=path, encoding=canonical, confidence=confidence
-        )
+        file_result = EncodingFileResult(path=path, encoding=canonical, confidence=confidence)
         result.file_results.append(file_result)
-        result.encoding_distribution[canonical] = (
-            result.encoding_distribution.get(canonical, 0) + 1
-        )
+        result.encoding_distribution[canonical] = result.encoding_distribution.get(canonical, 0) + 1
         result.total_analyzed += 1
 
     return result

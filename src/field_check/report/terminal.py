@@ -82,11 +82,13 @@ def render_terminal_report(
         f"[bold]Total size:[/bold] {format_size(inventory.total_size)}",
         f"[bold]Directories:[/bold] {inventory.dir_structure.total_dirs:,}",
     ]
-    console.print(Panel(
-        "\n".join(header_lines),
-        title="[bold blue]Field Check -- Document Corpus Health Report[/bold blue]",
-        border_style="blue",
-    ))
+    console.print(
+        Panel(
+            "\n".join(header_lines),
+            title="[bold blue]Field Check -- Document Corpus Health Report[/bold blue]",
+            border_style="blue",
+        )
+    )
 
     # Section 1: File Type Distribution
     _render_type_distribution(inventory, console)
@@ -109,9 +111,7 @@ def render_terminal_report(
 
     # Section 6: Language & Encoding
     if language_result is not None or encoding_result is not None:
-        render_language_encoding(
-            language_result, encoding_result, sample_result, console
-        )
+        render_language_encoding(language_result, encoding_result, sample_result, console)
 
     # Section 7: Encoding Damage (Mojibake)
     if mojibake_result is not None:
@@ -158,9 +158,7 @@ def _render_type_distribution(inventory: InventoryResult, console: Console) -> N
     table.add_column("Total Size", justify="right")
     table.add_column("Avg Size", justify="right")
 
-    sorted_types = sorted(
-        inventory.type_counts.items(), key=lambda x: x[1], reverse=True
-    )
+    sorted_types = sorted(inventory.type_counts.items(), key=lambda x: x[1], reverse=True)
 
     max_display = 15
     displayed = sorted_types[:max_display]
@@ -250,11 +248,13 @@ def _render_age_distribution(inventory: InventoryResult, console: Console) -> No
     console.print(table)
 
     if ad.oldest and ad.newest:
-        console.print(Text(
-            f"  Oldest: {ad.oldest.strftime('%Y-%m-%d')}  "
-            f"Newest: {ad.newest.strftime('%Y-%m-%d')}",
-            style="dim",
-        ))
+        console.print(
+            Text(
+                f"  Oldest: {ad.oldest.strftime('%Y-%m-%d')}  "
+                f"Newest: {ad.newest.strftime('%Y-%m-%d')}",
+                style="dim",
+            )
+        )
     console.print()
 
 
@@ -429,9 +429,11 @@ def _render_corruption_summary(
 
         console.print(detail)
         if len(corruption.flagged_files) > 20:
-            console.print(Text(
-                f"  ... and {len(corruption.flagged_files) - 20} more flagged files",
-                style="dim",
-            ))
+            console.print(
+                Text(
+                    f"  ... and {len(corruption.flagged_files) - 20} more flagged files",
+                    style="dim",
+                )
+            )
 
     console.print()

@@ -29,7 +29,7 @@ class TestLuhnValidation:
         valid_numbers = [
             "4111111111111111",  # Visa test
             "5500000000000004",  # Mastercard test
-            "340000000000009",   # Amex test
+            "340000000000009",  # Amex test
             "6011000000000004",  # Discover test
         ]
         for num in valid_numbers:
@@ -135,9 +135,12 @@ class TestSingleFileScanner:
         f.write_text("Email: user@example.com\nNo PII line.\n", encoding="utf-8")
 
         patterns = [
-            ("email", "Email Address", re.compile(
-                r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
-            ), None),
+            (
+                "email",
+                "Email Address",
+                re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"),
+                None,
+            ),
         ]
         result = _scan_single_file(str(f), "text/plain", patterns, show_samples=False)
         assert result.matches_by_type.get("email", 0) == 1
@@ -151,9 +154,7 @@ class TestSingleFileScanner:
         f.write_text("Just normal text, nothing sensitive.", encoding="utf-8")
 
         patterns = [
-            ("email", "Email", re.compile(
-                r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
-            ), None),
+            ("email", "Email", re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"), None),
         ]
         result = _scan_single_file(str(f), "text/plain", patterns, show_samples=False)
         assert not result.matches_by_type
@@ -167,9 +168,7 @@ class TestSingleFileScanner:
         f.write_text("a@b.com\nc@d.org\n", encoding="utf-8")
 
         patterns = [
-            ("email", "Email", re.compile(
-                r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
-            ), None),
+            ("email", "Email", re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"), None),
         ]
         result = _scan_single_file(str(f), "text/plain", patterns, show_samples=True)
         assert len(result.sample_matches) == 2
@@ -184,9 +183,7 @@ class TestSingleFileScanner:
         f.write_text("a@b.com\nc@d.org\n", encoding="utf-8")
 
         patterns = [
-            ("email", "Email", re.compile(
-                r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
-            ), None),
+            ("email", "Email", re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"), None),
         ]
         result = _scan_single_file(str(f), "text/plain", patterns, show_samples=False)
         assert result.matches_by_type["email"] == 2
@@ -210,17 +207,13 @@ class TestScanPiiIntegration:
         pii_result = scan_pii(sample, inventory, cfg, max_workers=1)
         return pii_result, sample
 
-    def test_scan_pii_detects_email_in_pdf(
-        self, tmp_corpus_with_pii: Path
-    ) -> None:
+    def test_scan_pii_detects_email_in_pdf(self, tmp_corpus_with_pii: Path) -> None:
         """PII scanner should detect email in PDF files."""
         result, _ = self._run_pipeline(tmp_corpus_with_pii)
         assert result.total_scanned > 0
         assert result.per_type_counts.get("email", 0) >= 1
 
-    def test_scan_pii_detects_text_file_pii(
-        self, tmp_corpus_with_pii: Path
-    ) -> None:
+    def test_scan_pii_detects_text_file_pii(self, tmp_corpus_with_pii: Path) -> None:
         """PII scanner should detect PII in plain text files."""
         result, _ = self._run_pipeline(tmp_corpus_with_pii)
         # contacts.txt has email + phone, data.csv has email + ssn
@@ -234,9 +227,7 @@ class TestScanPiiIntegration:
         assert result.files_with_pii == 0
         assert not result.per_type_counts
 
-    def test_scan_pii_aggregate_counts(
-        self, tmp_corpus_with_pii: Path
-    ) -> None:
+    def test_scan_pii_aggregate_counts(self, tmp_corpus_with_pii: Path) -> None:
         """Verify total_scanned and files_with_pii match expectations."""
         result, _ = self._run_pipeline(tmp_corpus_with_pii)
         # 5 files: pii_doc.pdf, clean.pdf, contacts.txt, data.csv, readme.txt
@@ -244,30 +235,18 @@ class TestScanPiiIntegration:
         # pii_doc.pdf, contacts.txt, data.csv have PII
         assert result.files_with_pii >= 2
 
-    def test_scan_pii_show_samples_flag(
-        self, tmp_corpus_with_pii: Path
-    ) -> None:
+    def test_scan_pii_show_samples_flag(self, tmp_corpus_with_pii: Path) -> None:
         """With show_pii_samples=True, sample_matches should be populated."""
         config = FieldCheckConfig(sampling_rate=1.0, show_pii_samples=True)
         result, _ = self._run_pipeline(tmp_corpus_with_pii, config)
-        all_samples = [
-            m
-            for fr in result.file_results
-            for m in fr.sample_matches
-        ]
+        all_samples = [m for fr in result.file_results for m in fr.sample_matches]
         assert len(all_samples) > 0
 
-    def test_scan_pii_without_samples_flag(
-        self, tmp_corpus_with_pii: Path
-    ) -> None:
+    def test_scan_pii_without_samples_flag(self, tmp_corpus_with_pii: Path) -> None:
         """Without show_pii_samples, sample_matches should be empty."""
         config = FieldCheckConfig(sampling_rate=1.0, show_pii_samples=False)
         result, _ = self._run_pipeline(tmp_corpus_with_pii, config)
-        all_samples = [
-            m
-            for fr in result.file_results
-            for m in fr.sample_matches
-        ]
+        all_samples = [m for fr in result.file_results for m in fr.sample_matches]
         assert len(all_samples) == 0
 
 
@@ -285,9 +264,7 @@ class TestCustomPatterns:
         )
         config = FieldCheckConfig(
             sampling_rate=1.0,
-            pii_custom_patterns=[
-                {"name": "UK NI Number", "pattern": r"[A-Z]{2}\d{6}[A-Z]"}
-            ],
+            pii_custom_patterns=[{"name": "UK NI Number", "pattern": r"[A-Z]{2}\d{6}[A-Z]"}],
         )
         walk_result = walk_directory(tmp_path, config)
         inventory = analyze_inventory(walk_result)
@@ -378,14 +355,14 @@ class TestContextScoring:
         """min_confidence > 0 should filter low-confidence matches."""
         f = tmp_path / "test.txt"
         # "order" context should suppress SSN confidence
-        f.write_text(
-            "Order #123-45-6789\nSSN: 456-78-1234\n", encoding="utf-8"
-        )
+        f.write_text("Order #123-45-6789\nSSN: 456-78-1234\n", encoding="utf-8")
         config_low = FieldCheckConfig(
-            sampling_rate=1.0, pii_min_confidence=0.0,
+            sampling_rate=1.0,
+            pii_min_confidence=0.0,
         )
         config_high = FieldCheckConfig(
-            sampling_rate=1.0, pii_min_confidence=0.6,
+            sampling_rate=1.0,
+            pii_min_confidence=0.6,
         )
         walk_result = walk_directory(tmp_path, config_low)
         inventory = analyze_inventory(walk_result)
@@ -404,9 +381,7 @@ class TestContextScoring:
         from field_check.scanner.pii import CONTEXT_CONFIG, _compute_context_confidence
 
         line = "Custom pattern match here"
-        conf = _compute_context_confidence(
-            line, 0, 10, "unknown_pattern", CONTEXT_CONFIG
-        )
+        conf = _compute_context_confidence(line, 0, 10, "unknown_pattern", CONTEXT_CONFIG)
         assert conf == 1.0
 
     def test_confidence_in_sample_matches(self, tmp_path: Path) -> None:
@@ -414,16 +389,15 @@ class TestContextScoring:
         f = tmp_path / "test.txt"
         f.write_text("Email: user@example.com\n", encoding="utf-8")
         config = FieldCheckConfig(
-            sampling_rate=1.0, show_pii_samples=True,
+            sampling_rate=1.0,
+            show_pii_samples=True,
         )
         walk_result = walk_directory(tmp_path, config)
         inventory = analyze_inventory(walk_result)
         sample = select_sample(walk_result, inventory, config)
         result = scan_pii(sample, inventory, config, max_workers=1)
 
-        matches = [
-            m for fr in result.file_results for m in fr.sample_matches
-        ]
+        matches = [m for fr in result.file_results for m in fr.sample_matches]
         assert len(matches) >= 1
         assert matches[0].confidence > 0
 
@@ -480,16 +454,25 @@ class TestPhoneValidation:
         from field_check.scanner.pii import CONTEXT_CONFIG, _scan_text_for_pii
 
         patterns = [
-            ("phone", "Phone Number", re.compile(
-                r"\b(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)"
-                r"\d{3}[-.\s]?\d{4}\b"
-            ), None),
+            (
+                "phone",
+                "Phone Number",
+                re.compile(
+                    r"\b(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)"
+                    r"\d{3}[-.\s]?\d{4}\b"
+                ),
+                None,
+            ),
         ]
         # 000 is not a valid area code
         text = "Phone: 000-555-1234\n"
         result = _scan_text_for_pii(
-            "fake.txt", text, patterns, show_samples=True,
-            context_config=CONTEXT_CONFIG, min_confidence=0.0,
+            "fake.txt",
+            text,
+            patterns,
+            show_samples=True,
+            context_config=CONTEXT_CONFIG,
+            min_confidence=0.0,
         )
         if result.sample_matches:
             assert result.sample_matches[0].confidence <= 0.1
@@ -541,13 +524,19 @@ class TestContextScoringFixes:
         from field_check.scanner.pii_helpers import scan_text_for_pii
 
         patterns = [
-            ("ssn", "SSN (US)", re.compile(
-                r"(?<![#\w])(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}(?!\w)"
-            ), None),
+            (
+                "ssn",
+                "SSN (US)",
+                re.compile(r"(?<![#\w])(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}(?!\w)"),
+                None,
+            ),
         ]
         text = "SSN: 078-05-1120\n"  # Woolworth's wallet SSN
         result = scan_text_for_pii(
-            "fake.txt", text, patterns, show_samples=True,
+            "fake.txt",
+            text,
+            patterns,
+            show_samples=True,
         )
         assert result.matches_by_type.get("ssn", 0) == 0
 
@@ -576,13 +565,19 @@ class TestContextScoringFixes:
         from field_check.scanner.pii_helpers import scan_text_for_pii
 
         patterns = [
-            ("ssn", "SSN (US)", re.compile(
-                r"(?<![#\w])(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}(?!\w)"
-            ), None),
+            (
+                "ssn",
+                "SSN (US)",
+                re.compile(r"(?<![#\w])(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}(?!\w)"),
+                None,
+            ),
         ]
         text = "Social security 123-45-6789\n"
         result = scan_text_for_pii(
-            "fake.txt", text, patterns, show_samples=True,
+            "fake.txt",
+            text,
+            patterns,
+            show_samples=True,
         )
         assert result.matches_by_type.get("ssn", 0) == 1
 
@@ -625,8 +620,7 @@ class TestInternationalPII:
         from field_check.scanner.pii_helpers import scan_text_for_pii
 
         patterns = [
-            ("uk_nino", "UK NINO",
-             re.compile(r"\b[A-CEGHJ-PR-TW-Z]{2}\d{6}[A-D]\b"), None),
+            ("uk_nino", "UK NINO", re.compile(r"\b[A-CEGHJ-PR-TW-Z]{2}\d{6}[A-D]\b"), None),
         ]
         text = "NI Number: AB123456C\n"
         result = scan_text_for_pii("fake.txt", text, patterns, show_samples=True)
@@ -646,6 +640,7 @@ class TestInternationalPII:
 
         try:
             from stdnum.de import idnr  # noqa: F401
+
             # 86095742719 passes check digit validation
             assert validate_de_tax_id("86095742719") is True
         except ImportError:
@@ -658,6 +653,7 @@ class TestInternationalPII:
 
         try:
             from stdnum.de import idnr  # noqa: F401
+
             assert validate_de_tax_id("00000000000") is False
         except ImportError:
             pass  # Can't test without library
@@ -668,6 +664,7 @@ class TestInternationalPII:
 
         try:
             from stdnum.es import dni  # noqa: F401
+
             # 12345678Z is a known valid DNI
             assert validate_es_dni("12345678Z") is True
         except ImportError:
@@ -679,6 +676,7 @@ class TestInternationalPII:
 
         try:
             from stdnum.es import dni  # noqa: F401
+
             # Wrong letter for this number
             assert validate_es_dni("12345678A") is False
         except ImportError:

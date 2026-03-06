@@ -28,9 +28,7 @@ class TestComputeSimHash:
         assert compute_simhash(text) == compute_simhash(text)
 
     def test_different_texts(self) -> None:
-        h1 = compute_simhash(
-            "The quarterly report shows strong growth in the technology sector."
-        )
+        h1 = compute_simhash("The quarterly report shows strong growth in the technology sector.")
         h2 = compute_simhash(
             "Machine learning algorithms have revolutionized natural language processing."
         )
@@ -191,9 +189,7 @@ class TestDetectNearDuplicates:
             "a.txt": "Text content that is long enough for analysis. " * 5,
             "b.txt": "Different text content for comparison purposes. " * 5,
         }
-        detect_near_duplicates(
-            cache, progress_callback=lambda c, t: calls.append((c, t))
-        )
+        detect_near_duplicates(cache, progress_callback=lambda c, t: calls.append((c, t)))
         assert len(calls) == 2
         assert calls[-1] == (2, 2)
 
@@ -248,33 +244,32 @@ class TestConfigThreshold:
 
     def test_yaml_threshold(self, tmp_path: Path) -> None:
         config_file = tmp_path / ".field-check.yaml"
-        config_file.write_text(
-            "simhash:\n  threshold: 8\n", encoding="utf-8"
-        )
+        config_file.write_text("simhash:\n  threshold: 8\n", encoding="utf-8")
         config = load_config(tmp_path)
         assert config.simhash_threshold == 8
 
     def test_yaml_threshold_clamped(self, tmp_path: Path) -> None:
         config_file = tmp_path / ".field-check.yaml"
-        config_file.write_text(
-            "simhash:\n  threshold: 100\n", encoding="utf-8"
-        )
+        config_file.write_text("simhash:\n  threshold: 100\n", encoding="utf-8")
         config = load_config(tmp_path)
         assert config.simhash_threshold == 64  # Clamped to max
 
     def test_yaml_bits_128(self, tmp_path: Path) -> None:
         config_file = tmp_path / ".field-check.yaml"
-        config_file.write_text(
-            "simhash:\n  bits: 128\n", encoding="utf-8"
-        )
+        config_file.write_text("simhash:\n  bits: 128\n", encoding="utf-8")
         config = load_config(tmp_path)
         assert config.simhash_bits == 128
 
+    def test_yaml_threshold_clamped_128bit(self, tmp_path: Path) -> None:
+        config_file = tmp_path / ".field-check.yaml"
+        config_file.write_text("simhash:\n  bits: 128\n  threshold: 200\n", encoding="utf-8")
+        config = load_config(tmp_path)
+        assert config.simhash_bits == 128
+        assert config.simhash_threshold == 128  # Clamped to bits, not 64
+
     def test_yaml_bits_invalid(self, tmp_path: Path) -> None:
         config_file = tmp_path / ".field-check.yaml"
-        config_file.write_text(
-            "simhash:\n  bits: 256\n", encoding="utf-8"
-        )
+        config_file.write_text("simhash:\n  bits: 256\n", encoding="utf-8")
         config = load_config(tmp_path)
         assert config.simhash_bits == 64  # Default — 256 not allowed
 
@@ -318,10 +313,7 @@ class TestSimHash128:
         result = detect_near_duplicates(cache, threshold=10, bits=128)
         assert result.total_analyzed >= 2
         # a.txt and b.txt should cluster (identical text)
-        found = any(
-            "a.txt" in c.paths and "b.txt" in c.paths
-            for c in result.clusters
-        )
+        found = any("a.txt" in c.paths and "b.txt" in c.paths for c in result.clusters)
         assert found
 
     def test_128_auto_threshold_scaling(self) -> None:

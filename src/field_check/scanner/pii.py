@@ -197,8 +197,12 @@ def _scan_single_file(
     except Exception as exc:
         return PIIFileResult(path=filepath, error=str(exc))
     return scan_text_for_pii(
-        filepath, text, compiled_patterns, show_samples,
-        context_config=context_config, min_confidence=min_confidence,
+        filepath,
+        text,
+        compiled_patterns,
+        show_samples,
+        context_config=context_config,
+        min_confidence=min_confidence,
     )
 
 
@@ -220,8 +224,12 @@ def _scan_single_file_from_specs(
         for name, label, pat_str, validator in pattern_specs
     ]
     return _scan_single_file(
-        filepath, mime_type, compiled, show_samples,
-        context_config=context_config, min_confidence=min_confidence,
+        filepath,
+        mime_type,
+        compiled,
+        show_samples,
+        context_config=context_config,
+        min_confidence=min_confidence,
     )
 
 
@@ -371,9 +379,5 @@ def _aggregate_file_result(result: PIIScanResult, file_result: PIIFileResult) ->
     elif file_result.matches_by_type:
         result.files_with_pii += 1
         for pname, count in file_result.matches_by_type.items():
-            result.per_type_counts[pname] = (
-                result.per_type_counts.get(pname, 0) + count
-            )
-            result.per_type_file_counts[pname] = (
-                result.per_type_file_counts.get(pname, 0) + 1
-            )
+            result.per_type_counts[pname] = result.per_type_counts.get(pname, 0) + count
+            result.per_type_file_counts[pname] = result.per_type_file_counts.get(pname, 0) + 1
