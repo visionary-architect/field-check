@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import bisect
 import logging
 import re
 from collections.abc import Callable
@@ -69,6 +70,15 @@ UNICODE_SCRIPTS: dict[str, list[tuple[int, int]]] = {
     ],
 }
 
+# Build a flat sorted lookup table for O(log n) codepoint classification.
+# Each entry is (range_start, range_end, script_name), sorted by start.
+_SCRIPT_TABLE: list[tuple[int, int, str]] = sorted(
+    (start, end, script)
+    for script, ranges in UNICODE_SCRIPTS.items()
+    for start, end in ranges
+)
+_SCRIPT_STARTS: list[int] = [entry[0] for entry in _SCRIPT_TABLE]
+
 # 7 core Latin-script stop-word profiles for language disambiguation
 STOP_WORDS: dict[str, set[str]] = {
     "English": {
@@ -127,11 +137,15 @@ class LanguageResult:
 
 
 def _classify_script(codepoint: int) -> str | None:
-    """Return the script name for a Unicode codepoint, or None if unclassified."""
-    for script_name, ranges in UNICODE_SCRIPTS.items():
-        for start, end in ranges:
-            if start <= codepoint <= end:
-                return script_name
+    """Return the script name for a Unicode codepoint, or None if unclassified.
+
+    Uses bisect on a pre-sorted table for O(log n) lookup.
+    """
+    idx = bisect.bisect_right(_SCRIPT_STARTS, codepoint) - 1
+    if idx >= 0:
+        start, end, script = _SCRIPT_TABLE[idx]
+        if start <= codepoint <= end:
+            return script
     return None
 
 
@@ -180,7 +194,11 @@ def _detect_latin_language(text: str) -> str:
     return best_lang
 
 
-def detect_language(text: str, min_chars: int = MIN_CHARS_FOR_DETECTION) -> str:
+def detect_language(
+    text: str,
+    min_chars: int = MIN_CHARS_FOR_DETECTION,
+    _script_dist: dict[str, int] | None = None,
+) -> str:
     """Detect the primary language/script of a text.
 
     Algorithm:
@@ -194,6 +212,8 @@ def detect_language(text: str, min_chars: int = MIN_CHARS_FOR_DETECTION) -> str:
     Args:
         text: The text content to analyze.
         min_chars: Minimum character count for detection.
+        _script_dist: Pre-computed script distribution (internal, avoids
+            recomputation when caller already has it).
 
     Returns:
         Detected language name (e.g., "English", "CJK", "Arabic").
@@ -204,7 +224,7 @@ def detect_language(text: str, min_chars: int = MIN_CHARS_FOR_DETECTION) -> str:
         return "Unknown"
 
     # Get script distribution
-    script_dist = _get_script_distribution(text)
+    script_dist = _script_dist if _script_dist is not None else _get_script_distribution(text)
     if not script_dist:
         return "Unknown"
 
@@ -264,8 +284,9 @@ def analyze_languages(
 
     for idx, (path, text) in enumerate(text_cache.items(), 1):
         try:
-            language = detect_language(text)
-            script_dist = _get_script_distribution(text)
+            # Compute script distribution once, reuse for both detection and reporting
+            script_dist = _get_script_distribution(text.strip())
+            language = detect_language(text, _script_dist=script_dist)
             dominant_script = (
                 max(script_dist, key=lambda k: script_dist[k])
                 if script_dist
