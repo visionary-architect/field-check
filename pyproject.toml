@@ -67,6 +67,7 @@ fast-pdf = ["pdf-oxide>=0.3"]
 quality = ["textstat>=0.7"]
 lang-extra = ["fast-langdetect>=0.2"]
 dedup-extra = ["datasketch>=1.6"]
+fast-dedup = ["faiss-cpu>=1.7"]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=4.0",

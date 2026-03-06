@@ -8,6 +8,10 @@ import re
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -195,6 +199,52 @@ def _band_candidates(
     return candidates
 
 
+def _faiss_candidates(
+    fingerprints: list[int], threshold: int, bits: int = SIMHASH_BITS,
+) -> set[tuple[int, int]] | None:
+    """Find candidate pairs using Faiss binary index (optional).
+
+    Uses IndexBinaryFlat for exact Hamming distance search. Returns None
+    if faiss is not available, falling back to band bucketing.
+    """
+    try:
+        import faiss  # type: ignore[import-untyped]
+        import numpy as np
+    except ImportError:
+        return None
+
+    n = len(fingerprints)
+    if n < 2:
+        return set()
+
+    # Convert fingerprints to byte arrays for Faiss binary index
+    byte_width = bits // 8
+    data = np.zeros((n, byte_width), dtype=np.uint8)
+    for i, fp in enumerate(fingerprints):
+        data[i] = np.frombuffer(
+            fp.to_bytes(byte_width, byteorder="big"), dtype=np.uint8
+        )
+
+    index = faiss.IndexBinaryFlat(bits)
+    index.add(data)
+
+    # Range search: find all pairs within threshold Hamming distance
+    # Use k-nearest neighbor search with k = min(n, 100) as proxy
+    k = min(n, 100)
+    distances, indices = index.search(data, k)
+
+    candidates: set[tuple[int, int]] = set()
+    for i in range(n):
+        for j_pos in range(k):
+            j = int(indices[i][j_pos])
+            dist = int(distances[i][j_pos])
+            if j != i and dist <= threshold:
+                pair = (min(i, j), max(i, j))
+                candidates.add(pair)
+
+    return candidates
+
+
 def detect_near_duplicates(
     text_cache: dict[str, str],
     threshold: int = DEFAULT_THRESHOLD,
@@ -241,16 +291,16 @@ def detect_near_duplicates(
     if result.total_analyzed < 2:
         return result
 
-    # Step 2: Band bucketing + union-find clustering
-    # Pigeonhole principle: split 64-bit hash into (threshold+1) bands.
-    # If Hamming distance ≤ threshold, at least one band must match exactly.
-    # This reduces O(n²) pairwise comparison to O(n * candidates).
+    # Step 2: Find candidate pairs (Faiss → band bucketing fallback)
     uf = _UnionFind()
     for i in range(len(paths)):
         uf.find(paths[i])  # ensure all paths are in the union-find
 
-    num_bands = min(threshold + 1, bits)
-    candidates = _band_candidates(fingerprints, num_bands, bits=bits)
+    candidates = _faiss_candidates(fingerprints, threshold, bits=bits)
+    if candidates is None:
+        # Fallback: band bucketing via pigeonhole principle
+        num_bands = min(threshold + 1, bits)
+        candidates = _band_candidates(fingerprints, num_bands, bits=bits)
 
     for i, j in candidates:
         dist = hamming_distance(fingerprints[i], fingerprints[j])
