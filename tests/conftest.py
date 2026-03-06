@@ -11,8 +11,6 @@ from pathlib import Path
 
 import pytest
 
-from field_check.config import FieldCheckConfig
-
 
 def create_minimal_pdf(path: Path) -> None:
     """Write minimal valid PDF bytes (enough for filetype to detect)."""
@@ -107,11 +105,6 @@ def tmp_corpus_with_config(tmp_corpus: Path) -> Path:
     (tmp_corpus / ".field-check.yaml").write_text(config_content, encoding="utf-8")
     return tmp_corpus
 
-
-@pytest.fixture()
-def default_config() -> FieldCheckConfig:
-    """Return a FieldCheckConfig with default values."""
-    return FieldCheckConfig()
 
 
 def create_minimal_zip(path: Path) -> None:

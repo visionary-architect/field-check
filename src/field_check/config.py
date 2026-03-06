@@ -58,7 +58,10 @@ def load_config(scan_path: Path, config_path: Path | None = None) -> FieldCheckC
         return FieldCheckConfig()
 
     exclude = raw.get("exclude")
-    patterns = [str(p) for p in exclude] if isinstance(exclude, list) else list(DEFAULT_EXCLUDES)
+    if isinstance(exclude, list):
+        patterns = list(DEFAULT_EXCLUDES) + [str(p) for p in exclude]
+    else:
+        patterns = list(DEFAULT_EXCLUDES)
 
     # Parse sampling config
     sampling = raw.get("sampling", {})

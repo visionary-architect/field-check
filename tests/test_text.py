@@ -81,7 +81,7 @@ def test_extract_docx_text(tmp_path: Path) -> None:
 
     assert result.error is None
     assert result.text_length > 0
-    assert "test content" in str(result.text_length) or result.text_length > 10
+    assert result.text_length > 10
     assert result.classification == "text_heavy"
 
 

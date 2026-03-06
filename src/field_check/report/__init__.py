@@ -22,11 +22,6 @@ from field_check.scanner.sampling import SampleResult
 from field_check.scanner.simhash import SimHashResult
 from field_check.scanner.text import TextExtractionResult
 
-_REPORT_KWARGS_KEYS = [
-    "dedup_result", "corruption_result", "sample_result", "text_result",
-    "pii_result", "language_result", "encoding_result", "simhash_result",
-]
-
 
 def generate_report(
     fmt: str,

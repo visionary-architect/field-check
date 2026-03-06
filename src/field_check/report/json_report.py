@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from pathlib import Path
 
 from field_check import __version__
 from field_check.scanner import WalkResult
@@ -50,7 +51,7 @@ def render_json_report(
         "scan_date": datetime.now().isoformat(),
         "duration_seconds": round(elapsed_seconds, 3),
         "summary": _build_summary(
-            inventory, dedup_result, corruption_result,
+            inventory, walk_result, dedup_result, corruption_result,
             text_result, pii_result, language_result,
             encoding_result, simhash_result,
         ),
@@ -65,6 +66,7 @@ def render_json_report(
 
 def _build_summary(
     inventory: InventoryResult,
+    walk_result: WalkResult,
     dedup: DedupResult | None,
     corruption: CorruptionResult | None,
     text: TextExtractionResult | None,
@@ -180,7 +182,10 @@ def _build_summary(
                 {
                     "files": len(c.paths),
                     "similarity": round(c.similarity, 4),
-                    "paths": c.paths,
+                    "paths": [
+                        _try_relative(p, walk_result.scan_root)
+                        for p in c.paths
+                    ],
                 }
                 for c in simhash.clusters
             ],
@@ -189,6 +194,14 @@ def _build_summary(
         summary["near_duplicates"] = None
 
     return summary
+
+
+def _try_relative(p: str, root: Path) -> str:
+    """Return path relative to root if possible, otherwise the original."""
+    try:
+        return str(Path(p).relative_to(root))
+    except ValueError:
+        return p
 
 
 def _build_hash_lookup(

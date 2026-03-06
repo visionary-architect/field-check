@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 
 from rich.console import Console
 from rich.panel import Panel
@@ -775,11 +776,10 @@ def _render_near_duplicates(
             display_paths: list[str] = []
             for p in cluster.paths[:5]:
                 try:
-                    from pathlib import Path as P
-                    rel = P(p).relative_to(walk_result.scan_root)
+                    rel = Path(p).relative_to(walk_result.scan_root)
                     display_paths.append(str(rel))
                 except ValueError:
-                    display_paths.append(P(p).name)
+                    display_paths.append(Path(p).name)
 
             path_str = "\n".join(display_paths)
             if len(cluster.paths) > 5:
@@ -794,8 +794,6 @@ def _render_near_duplicates(
 
 def _render_pii_samples(pii: PIIScanResult, console: Console) -> None:
     """Render PII sample matches (only with --show-pii-samples)."""
-    from pathlib import Path
-
     samples: list[tuple[str, str, str, int]] = []
     for fr in pii.file_results:
         for m in fr.sample_matches:
