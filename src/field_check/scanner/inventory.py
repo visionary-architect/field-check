@@ -154,8 +154,8 @@ class InventoryResult:
 def _detect_file_type(filepath: Path) -> tuple[str, bool]:
     """Detect MIME type using magic bytes, falling back to extension.
 
-    Short-circuits filetype.guess for known text extensions (no useful
-    magic bytes) to avoid unnecessary file I/O.
+    Short-circuits for known text extensions (no useful magic bytes).
+    Prefers puremagic for deep type detection, falls back to filetype.
 
     Returns:
         Tuple of (mime_type, had_error).
@@ -165,6 +165,21 @@ def _detect_file_type(filepath: Path) -> tuple[str, bool]:
     if ext_mime is not None:
         return ext_mime, False
 
+    # Try puremagic first (deeper detection, pure Python)
+    try:
+        import puremagic
+
+        mime = puremagic.from_file(str(filepath), mime=True)
+        if mime:
+            return mime, False
+    except ImportError:
+        pass
+    except (PermissionError, OSError):
+        return "application/octet-stream", True
+    except Exception:
+        pass  # Fall through to filetype
+
+    # Fallback to filetype
     import filetype
 
     try:

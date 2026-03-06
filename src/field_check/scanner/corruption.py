@@ -70,10 +70,21 @@ class CorruptionResult:
 
 
 def _detect_mime(filepath: Path) -> str:
-    """Detect MIME type via filetype (magic bytes).
+    """Detect MIME type via puremagic then filetype (magic bytes).
 
     Falls back to empty string if detection fails.
     """
+    try:
+        import puremagic
+
+        mime = puremagic.from_file(str(filepath), mime=True)
+        if mime:
+            return mime
+    except ImportError:
+        pass
+    except Exception:
+        pass
+
     import filetype
 
     kind = filetype.guess(str(filepath))
