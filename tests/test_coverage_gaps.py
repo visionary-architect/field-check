@@ -307,7 +307,7 @@ class TestPIIGaps:
         fc.result.side_effect = RuntimeError()
         with _mock_pool("field_check.scanner.pii", [ft, fc]):
             r = scan_pii(_samp(f), inv, FieldCheckConfig())
-        assert r.scan_errors >= 2
+        assert r.scan_errors == 2
 
 
 # -- cli.py ------------------------------------------------------------------

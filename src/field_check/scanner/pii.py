@@ -403,13 +403,11 @@ def scan_pii(
                         path=str(future_to_entry[future].path),
                         error="PII scan timed out",
                     )
-                    result.scan_errors += 1
                 except Exception as exc:
                     file_result = PIIFileResult(
                         path=str(future_to_entry[future].path),
-                        error=str(exc),
+                        error=str(exc) or type(exc).__name__,
                     )
-                    result.scan_errors += 1
 
                 _aggregate_file_result(result, file_result)
                 completed_count += 1
