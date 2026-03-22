@@ -1,31 +1,41 @@
-# Project: {{PROJECT_NAME}}
+# Project: Field Check
 
-> **Template Version:** visionary_template_1 v1.1
-> **Last Updated:** {{DATE}}
-> **Status:** Not Initialized
+> **Template Version:** visionary_template_1 v1.2
+> **Last Updated:** 2026-03-03
+> **Status:** Phase 1 — Package Skeleton
 
 ---
 
 ## Overview
 
-<!-- Fill in during /init-project -->
-**What:** [Brief description of what you're building]
-**Why:** [Problem being solved]
-**For whom:** [Target users/audience]
+**What:** A free, open-source CLI tool that scans a document corpus and generates a health report — file inventory, duplicates, corruption, PII risk, language distribution, encoding issues, and more
+**Why:** Nobody answers "what's in my documents, and what will go wrong when I process them?" — this fills an uncontested diagnostic gap and builds audience for [Field](https://usefield.co)
+**For whom:** ML engineers, data teams, and anyone preparing document corpora for RAG pipelines, embedding, or batch AI processing
 
 ---
 
 ## Tech Stack
 
-<!-- Fill in during /init-project -->
-**Language:** [e.g., Python 3.11+, TypeScript, Go]
-**Framework:** [e.g., FastAPI, Next.js, Gin]
-**Package Manager:** [e.g., UV, npm, pnpm, cargo]
-**Database:** [if applicable]
+**Language:** Python 3.11+
+**Package Manager:** UV (development), pip/pipx (user install)
+**CLI Framework:** Click
+**Distribution:** PyPI (`pip install field-check`)
 
-**Key Dependencies:**
-- [dependency 1]
-- [dependency 2]
+**Core Dependencies:**
+- click — CLI framework
+- rich — Terminal output + progress bars
+- blake3 — Content hashing (Rust-backed, fast)
+- pdfplumber — PDF text extraction + page count
+- python-docx — DOCX text extraction
+- charset-normalizer — Encoding detection
+- jinja2 — HTML report templates
+- filetype — Magic-byte file type detection (pure Python)
+
+**Optional Extras:**
+- `field-check[s3]` — boto3 for S3 scanning
+- `field-check[gcs]` — google-cloud-storage for GCS scanning
+- `field-check[azure]` — azure-storage-blob for Azure scanning
+- `field-check[all-cloud]` — All cloud connectors
 
 ---
 
@@ -35,22 +45,27 @@
 
 **Install dependencies:**
 ```bash
-# [Your install command here]
+uv sync
+```
+
+**Install locally (editable):**
+```bash
+uv pip install -e .
 ```
 
 **Run tests:**
 ```bash
-# [Your test command here]
+uv run pytest --cov --cov-fail-under=80
 ```
 
 **Lint & format:**
 ```bash
-# [Your lint/format commands here]
+uv run ruff check . && uv run ruff format --check .
 ```
 
-**Start development:**
+**Run the CLI (dev):**
 ```bash
-# [Your dev command here]
+uv run field-check scan ./test-corpus/
 ```
 
 ### Standard Workflow
@@ -58,10 +73,10 @@
 When making changes, follow this sequence:
 
 1. **Make your changes** to the code
-2. **Quick validation** - Run your linter (fast feedback)
-3. **Type check** - If applicable
-4. **Run relevant tests** - Test the specific area you changed
-5. **Format code** - Run your formatter
+2. **Quick validation** - Ruff runs automatically via PostToolUse hooks
+3. **Type check** - ty runs automatically via PostToolUse hooks
+4. **Invariant check** - Runs automatically via PostToolUse hooks
+5. **Run relevant tests** - Test the specific area you changed
 6. **Review changes** - Use `/review` command or manual review
 7. **Commit** - Use `/commit-push-pr` with conventional commit message
 
@@ -70,12 +85,49 @@ When making changes, follow this sequence:
 ## Project Structure
 
 ```
-{{PROJECT_NAME}}/
-├── [your directories here]
-└── ...
+field-check/
+├── src/field_check/
+│   ├── __init__.py           # Package version
+│   ├── cli.py                # Click CLI entry point
+│   ├── config.py             # .field-check.yaml loader
+│   ├── scanner/
+│   │   ├── __init__.py
+│   │   ├── inventory.py      # File inventory (types, sizes, ages)
+│   │   ├── dedup.py          # BLAKE3 exact dedup
+│   │   ├── corruption.py     # Corrupt/encrypted/empty detection
+│   │   ├── text.py           # Text extraction (pdfplumber, python-docx)
+│   │   ├── sampling.py       # Stratified sampling framework
+│   │   ├── scanned_pdf.py    # Scanned vs native PDF detection
+│   │   ├── pii.py            # PII regex patterns
+│   │   ├── language.py       # Language detection (Unicode + stop-words)
+│   │   ├── encoding.py       # Encoding detection
+│   │   └── simhash.py        # Near-duplicate detection (SimHash)
+│   ├── report/
+│   │   ├── __init__.py
+│   │   ├── terminal.py       # Rich terminal report
+│   │   ├── html.py           # Jinja2 HTML report
+│   │   ├── json_report.py    # JSON export
+│   │   └── csv_report.py     # CSV export
+│   ├── cloud/
+│   │   ├── __init__.py
+│   │   ├── s3.py             # S3 connector (optional)
+│   │   ├── gcs.py            # GCS connector (optional)
+│   │   └── azure.py          # Azure connector (optional)
+│   └── templates/
+│       └── report.html       # Jinja2 HTML template
+├── tests/
+│   ├── __init__.py
+│   ├── conftest.py           # Shared fixtures
+│   ├── test_cli.py
+│   ├── test_inventory.py
+│   ├── test_dedup.py
+│   └── ...
+├── docs/
+│   └── SPEC.md               # Technical specification
+├── pyproject.toml
+├── LICENSE                    # Apache 2.0
+└── README.md
 ```
-
-<!-- Document your project structure after initialization -->
 
 ---
 
@@ -83,12 +135,22 @@ When making changes, follow this sequence:
 
 ### Core Invariants
 
-<!-- Define rules that every code change must preserve -->
 | # | Invariant | Meaning |
 |---|-----------|---------|
-| 1 | [Invariant 1] | [What it means and why it matters] |
-| 2 | [Invariant 2] | [What it means and why it matters] |
-| 3 | [Invariant 3] | [What it means and why it matters] |
+| 1 | **Field Check Never Transmits Data** | All processing is local. Zero network calls unless scanning cloud storage. No telemetry. |
+| 2 | **Diagnosis Only — Never Modify** | Never process, transform, fix, delete, or move any user files. Read-only scan. |
+| 3 | **PII Content Never in Output** | PII scan shows counts and pattern types only. Never log or display matched content (unless `--show-pii-samples`). |
+| 4 | **Sampled Results Show Confidence** | Any analysis based on sampling must display confidence intervals. No bare point estimates. |
+| 5 | **Per-File Crash Isolation** | One malformed file must not kill the scan. Process pool isolation with per-file timeouts. |
+
+### Import Restrictions
+
+| Component | Forbidden Imports |
+|-----------|------------------|
+| `src/field_check/` (core) | boto3, google.cloud, azure.storage (use optional extras) |
+| `src/field_check/cloud/s3.py` | google.cloud, azure.storage |
+| `src/field_check/cloud/gcs.py` | boto3, azure.storage |
+| `src/field_check/cloud/azure.py` | boto3, google.cloud |
 
 ### Always Do
 
@@ -100,20 +162,31 @@ When making changes, follow this sequence:
   - `test:` for adding/updating tests
   - `chore:` for maintenance tasks
 
-- **Write tests for new functionality**
-
-- [Add your project-specific rules]
+- **Write tests for new functionality** (80% coverage minimum)
+- **Use structured logging** — `logging` stdlib with module-level loggers
+- **Batch related operations** — 1 message = all related tool calls. Batch all TodoWrite items in one call, all independent file reads in parallel.
+- **Keep files under 500 lines** — split large files into focused modules. If a file grows past 500 lines, refactor before adding more.
+- **Label PII findings as "risk indicators"** — never "detection" (30-50% FP rate on SSN patterns)
+- **Show estimated cost before cloud scans** — require explicit confirmation or `--yes` flag
+- **Use process pool for file scanning** — thread pool is not crash-isolated
 
 ### Never Do
 
-- [Add your project-specific restrictions]
+- **Never transmit user data** — no telemetry, no network calls from core
+- **Never modify user files** — read-only scan, diagnosis only
+- **Never display PII match content** — counts and types only (unless `--show-pii-samples`)
+- **Never commit secrets** — use environment variables
+- **Never log file content** — only metadata (path, size, type, hash)
+- **Never use bare point estimates** — always include confidence intervals for sampled analyses
 
 ### Code Style Preferences
 
-- **Naming conventions:** [e.g., snake_case for variables/functions, PascalCase for classes]
-- **File naming:** [e.g., snake_case.py, kebab-case.ts]
-- **Max line length:** [e.g., 100 characters]
-- **Indentation:** [e.g., 4 spaces, 2 spaces]
+- **Python naming:** snake_case for variables/functions, PascalCase for classes
+- **File naming:** snake_case.py
+- **Max line length:** 100 characters
+- **Indentation:** 4 spaces
+- **Docstrings:** Google style
+- **Type hints:** Required on all public functions
 
 ---
 
@@ -171,10 +244,10 @@ This project uses persistent, dependency-aware task tracking.
 ### Environment Setup
 
 Project uses these environment variables (configured in `.claude/settings.json`):
-- `CLAUDE_CODE_TASK_LIST_ID={{PROJECT_SLUG}}` for persistent tasks
+- `CLAUDE_CODE_TASK_LIST_ID=field-check` for persistent tasks
 - `CLAUDE_SESSION_TAG=main` for session identification
 
-Tasks persist across sessions in `~/.claude/tasks/{{PROJECT_SLUG}}/`.
+Tasks persist across sessions in `~/.claude/tasks/field-check/`.
 
 ### Task Naming Convention
 
@@ -185,10 +258,10 @@ Tasks persist across sessions in `~/.claude/tasks/{{PROJECT_SLUG}}/`.
 
 **Examples:**
 ```
-[1-A] Step 1: Add authentication middleware
-[1-B] Step 2: Update user repository
+[1-A] Step 1: Create pyproject.toml with click entry point
+[2-A] Step 2: Implement BLAKE3 dedup scanner
 [BG] pytest full suite
-[UAT] Verify login flow
+[UAT] Verify terminal report output
 ```
 
 **Rules:**
@@ -264,15 +337,26 @@ When multiple sessions work on the same task list:
 ## Testing Strategy
 
 **Test Types:**
-- Unit tests: [location]
-- Integration tests: [location]
+- Unit tests: `tests/` — per-module tests for each scanner and reporter
+- Integration tests: `tests/integration/` — end-to-end scan of test corpora
 
-**Coverage Goals:** [target, e.g., 80%]
+**Coverage Goals:** 80% minimum
 
 **Running Tests:**
 ```bash
-# [Your test command here]
+# All tests
+uv run pytest --cov --cov-fail-under=80
+
+# Specific module
+uv run pytest tests/test_inventory.py -v
+
+# With output
+uv run pytest -s
 ```
+
+**Test Corpus:**
+- `tests/fixtures/` — small set of known test files (PDF, DOCX, TXT, etc.)
+- Include: corrupt PDF, encrypted PDF, scanned PDF, empty file, symlink
 
 ---
 
@@ -280,8 +364,25 @@ When multiple sessions work on the same task list:
 
 > The AI automatically adds entries when mistakes are corrected or patterns are discovered.
 
-### {{DATE}}
-- Project initialized from visionary_template_1
+### 2026-03-06
+- `importlib.reload()` in mock tests pollutes class identity — use `teardown_method` to restore modules and avoid `isinstance` on reloaded classes
+- `patch.dict("sys.modules", ...)` removes entries added during context — pre-import modules in `setup_class` to prevent cleanup
+- Don't `import numpy` in tests when it's not installed — build pure Python mock arrays instead
+
+### 2026-03-03
+- Project initialized from visionary_template_1 v1.2
+
+---
+
+## Design References
+
+> Search on-demand via Grep/Read. Never modify design docs.
+
+| Reference | Path | When to use |
+|-----------|------|-------------|
+| Technical spec | `docs/SPEC.md` | Authoritative source for all design decisions |
+| Build plan | `.planning/build-plan.md` | Phase plans and task lists |
+| Field codebase | (external — FieldV3 repo) | Reusable components (see SPEC.md § Reusable) |
 
 ---
 
@@ -366,13 +467,17 @@ The AI should **proactively suggest a fresh session** when noticing:
 
 > Special instructions for the AI assistant working on this project
 
-- Always validate against project invariants (if configured)
+- Always validate against the 5 core invariants + import restrictions
 - Follow existing patterns in the codebase
-- Ask when uncertain about requirements
+- Ask when uncertain about requirements — reference the spec (docs/SPEC.md)
 - Update STATE.md after completing work
 - Reference this file for project conventions
+- Phase order is strictly sequential — execute top to bottom
+- Within each phase, tasks are in dependency order — execute top to bottom
+- This is a CLI tool distributed via PyPI — user experience matters (clear error messages, progress bars, helpful output)
+- Target installed size <50MB for core (no cloud extras)
 
 ---
 
-*Template: visionary_template_1 v1.1*
+*Template: visionary_template_1 v1.2*
 *Documentation: See SETUP.md for initialization instructions*
