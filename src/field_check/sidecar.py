@@ -11,12 +11,23 @@ import json
 import logging
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import field_check.scanner.pii as _pii_mod
+import field_check.scanner.text as _text_mod
 from field_check import __version__
 from field_check.config import FieldCheckConfig
 from field_check.pipeline import run_pipeline
 from field_check.report.json_report import render_json_report
+
+# The sidecar runs as a subprocess with piped stdin/stdout. On Windows,
+# ProcessPoolExecutor workers fail with PermissionError when trying to
+# DuplicateHandle on the pipe handles. Since the sidecar is already
+# crash-isolated from the GUI (separate process), we swap in
+# ThreadPoolExecutor in modules that use ProcessPoolExecutor.
+_text_mod.ProcessPoolExecutor = ThreadPoolExecutor  # type: ignore[assignment]
+_pii_mod.ProcessPoolExecutor = ThreadPoolExecutor  # type: ignore[assignment]
 
 # Route all logging to stderr so stdout stays clean for JSON IPC
 logging.basicConfig(
@@ -151,7 +162,10 @@ def main() -> None:
     cancel_event = threading.Event()
     scan_thread: threading.Thread | None = None
 
-    for line in sys.stdin:
+    while True:
+        line = sys.stdin.readline()
+        if not line:  # EOF
+            break
         line = line.strip()
         if not line:
             continue
@@ -176,7 +190,6 @@ def main() -> None:
             scan_thread = threading.Thread(
                 target=_run_scan,
                 args=(scan_path, config_raw, cancel_event),
-                daemon=True,
             )
             scan_thread.start()
 
@@ -194,6 +207,10 @@ def main() -> None:
                 "event": "error",
                 "message": f"Unknown command: {cmd}",
             })
+
+    # Wait for any running scan to finish before exiting
+    if scan_thread and scan_thread.is_alive():
+        scan_thread.join()
 
 
 if __name__ == "__main__":
