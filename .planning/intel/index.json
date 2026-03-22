@@ -1,0 +1,1718 @@
+{
+  "_comment": "Codebase index",
+  "_version": "1.0",
+  "_lastUpdated": "2026-03-21T13:29:08.896395",
+  "files": {
+    "src/field_check/config.py": {
+      "exports": [
+        "load_config",
+        "FieldCheckConfig",
+        "logger",
+        "CONFIG_FILENAME",
+        "DEFAULT_EXCLUDES",
+        "should_exclude"
+      ],
+      "imports": [
+        "fnmatch",
+        "pathlib",
+        "__future__",
+        "dataclasses",
+        "logging",
+        "re"
+      ],
+      "type": "module"
+    },
+    "src/field_check/scanner/__init__.py": {
+      "exports": [
+        "WalkResult",
+        "walk_directory",
+        "FileEntry",
+        "logger"
+      ],
+      "imports": [
+        "os",
+        "sys",
+        "collections.abc",
+        "dataclasses",
+        "stat",
+        "logging",
+        "pathlib",
+        "__future__",
+        "field_check.config"
+      ],
+      "type": "module"
+    },
+    "src/field_check/cli.py": {
+      "exports": [
+        "scan",
+        "main",
+        "console"
+      ],
+      "imports": [
+        "sys",
+        "field_check",
+        "field_check.scanner.pii",
+        "field_check.scanner",
+        "field_check.scanner.readability",
+        "time",
+        "field_check.scanner.sampling",
+        "field_check.scanner.simhash",
+        "__future__",
+        "pathlib",
+        "rich.console",
+        "field_check.scanner.inventory",
+        "field_check.scanner.corruption",
+        "field_check.report",
+        "field_check.scanner.mojibake",
+        "field_check.scanner.text",
+        "rich.progress",
+        "field_check.scanner.encoding",
+        "field_check.scanner.dedup",
+        "field_check.scanner.language",
+        "click",
+        "field_check.config"
+      ],
+      "type": "module"
+    },
+    "src/field_check/scanner/inventory.py": {
+      "exports": [
+        "AgeBucket",
+        "SizeBucket",
+        "logger",
+        "SizeDistribution",
+        "analyze_inventory",
+        "DirectoryStructure",
+        "InventoryResult",
+        "AgeDistribution"
+      ],
+      "imports": [
+        "time",
+        "logging",
+        "dataclasses",
+        "collections",
+        "field_check.scanner",
+        "pathlib",
+        "datetime",
+        "collections.abc",
+        "statistics",
+        "__future__"
+      ],
+      "type": "module"
+    },
+    "src/field_check/report/terminal.py": {
+      "exports": [
+        "render_terminal_report"
+      ],
+      "imports": [
+        "rich.panel",
+        "field_check.scanner.corruption",
+        "datetime",
+        "field_check.scanner.inventory",
+        "field_check.report.utils",
+        "field_check.scanner",
+        "field_check.scanner.dedup",
+        "field_check.scanner.language",
+        "field_check.scanner.sampling",
+        "field_check.scanner.simhash",
+        "rich.table",
+        "field_check.scanner.pii",
+        "field_check.scanner.text",
+        "rich.console",
+        "field_check.scanner.mojibake",
+        "__future__",
+        "field_check.report.terminal_content",
+        "field_check.scanner.readability",
+        "field_check",
+        "field_check.scanner.encoding",
+        "rich.text"
+      ],
+      "type": "module"
+    },
+    "src/field_check/report/__init__.py": {
+      "exports": [
+        "generate_report",
+        "determine_exit_code"
+      ],
+      "imports": [
+        "rich.console",
+        "field_check.report.csv_report",
+        "field_check.scanner.mojibake",
+        "field_check.scanner",
+        "field_check.report.json_report",
+        "field_check.scanner.text",
+        "field_check.scanner.encoding",
+        "field_check.config",
+        "field_check.scanner.simhash",
+        "field_check.scanner.dedup",
+        "field_check.report.html",
+        "field_check.report.terminal",
+        "field_check.report.sarif_report",
+        "field_check.scanner.pii",
+        "pathlib",
+        "field_check.scanner.language",
+        "field_check.scanner.inventory",
+        "__future__",
+        "field_check.scanner.readability",
+        "field_check.report.junit_report",
+        "field_check.scanner.corruption",
+        "field_check.scanner.sampling"
+      ],
+      "type": "module"
+    },
+    "tests/conftest.py": {
+      "exports": [
+        "create_scanned_pdf",
+        "tmp_corpus_with_issues",
+        "tmp_corpus_with_duplicates",
+        "create_minimal_zip",
+        "tmp_corpus_with_documents",
+        "tmp_neardup_corpus",
+        "tmp_corpus_with_pii",
+        "tmp_corpus",
+        "create_encrypted_zip",
+        "create_pdf_with_pii",
+        "create_encrypted_pdf",
+        "create_minimal_pdf",
+        "create_minimal_png",
+        "tmp_multilang_corpus",
+        "tmp_corpus_with_config",
+        "create_corrupt_pdf",
+        "create_pdf_with_text",
+        "tmp_corpus_with_symlinks",
+        "create_minimal_docx"
+      ],
+      "imports": [
+        "zipfile",
+        "pytest",
+        "struct",
+        "pathlib",
+        "sys",
+        "zlib",
+        "__future__",
+        "os"
+      ],
+      "type": "module"
+    },
+    "tests/test_config.py": {
+      "exports": [
+        "test_load_config_missing_fields",
+        "test_should_exclude_no_match",
+        "test_default_excludes",
+        "test_load_config_invalid_yaml",
+        "test_should_exclude_directory_pattern",
+        "test_load_config_not_a_mapping",
+        "test_should_exclude_glob_pattern",
+        "test_load_config_from_file",
+        "test_load_default_config",
+        "test_load_config_explicit_path",
+        "test_should_exclude_nested_directory"
+      ],
+      "imports": [
+        "pathlib",
+        "__future__",
+        "field_check.config"
+      ],
+      "type": "module"
+    },
+    "tests/test_walker.py": {
+      "exports": [
+        "test_walk_total_size",
+        "test_walk_excludes_via_config_file",
+        "test_walk_single_file",
+        "test_walk_progress_callback",
+        "test_walk_tracks_directories",
+        "test_walk_nonexistent_path",
+        "test_walk_excluded_count",
+        "test_walk_empty_dir_counting",
+        "test_walk_basic",
+        "test_walk_empty_directory",
+        "test_walk_file_entries",
+        "test_walk_symlink_loop",
+        "test_walk_excludes_patterns",
+        "test_walk_symlink_detection"
+      ],
+      "imports": [
+        "field_check.scanner",
+        "pytest",
+        "field_check.config",
+        "sys",
+        "pathlib",
+        "__future__"
+      ],
+      "type": "module"
+    },
+    "tests/test_inventory.py": {
+      "exports": [
+        "test_type_detection_png",
+        "test_type_detection_unknown",
+        "test_extension_mime_map_coverage",
+        "test_type_detection_text_fallback",
+        "test_directory_structure",
+        "test_inventory_single_file",
+        "test_inventory_progress_callback",
+        "test_extension_counts",
+        "test_type_detection_pdf",
+        "test_size_distribution_buckets",
+        "test_type_detection_csv_fallback",
+        "test_age_distribution",
+        "test_inventory_empty_corpus",
+        "test_size_distribution_stats",
+        "test_analyze_inventory_basic"
+      ],
+      "imports": [
+        "pathlib",
+        "__future__",
+        "field_check.scanner",
+        "field_check.scanner.inventory",
+        "field_check.config"
+      ],
+      "type": "module"
+    },
+    "tests/test_cli.py": {
+      "exports": [
+        "test_cli_version",
+        "test_cli_scan_output_contains_sections",
+        "test_cli_scan_file_count_in_output",
+        "test_cli_scan_with_exclude",
+        "test_cli_scan_shows_duration",
+        "test_cli_scan_nonexistent_path",
+        "test_cli_scan_with_config",
+        "test_cli_scan_unsupported_format",
+        "test_cli_scan_basic"
+      ],
+      "imports": [
+        "__future__",
+        "pathlib",
+        "field_check.cli",
+        "click.testing"
+      ],
+      "type": "module"
+    },
+    "src/field_check/scanner/dedup.py": {
+      "exports": [
+        "DedupResult",
+        "logger",
+        "DuplicateGroup",
+        "compute_hashes"
+      ],
+      "imports": [
+        "pathlib",
+        "os",
+        "collections",
+        "collections.abc",
+        "field_check.scanner",
+        "logging",
+        "dataclasses",
+        "concurrent.futures",
+        "__future__"
+      ],
+      "type": "module"
+    },
+    "src/field_check/scanner/corruption.py": {
+      "exports": [
+        "STATUS_NEAR_EMPTY",
+        "STATUS_ENCRYPTED_ZIP",
+        "STATUS_OK",
+        "STATUS_CORRUPT",
+        "STATUS_ENCRYPTED_OFFICE",
+        "logger",
+        "STATUS_ENCRYPTED_PDF",
+        "STATUS_EMPTY",
+        "STATUS_UNREADABLE",
+        "STATUS_TRUNCATED",
+        "CorruptionResult",
+        "check_corruption",
+        "FileHealth"
+      ],
+      "imports": [
+        "logging",
+        "pathlib",
+        "__future__",
+        "collections.abc",
+        "field_check.scanner",
+        "dataclasses",
+        "struct"
+      ],
+      "type": "module"
+    },
+    "tests/test_dedup.py": {
+      "exports": [
+        "test_hash_deterministic",
+        "test_compute_hashes_all_unique",
+        "test_compute_hashes_duplicate_percentage",
+        "test_compute_hashes_progress_callback",
+        "test_compute_hashes_finds_duplicates",
+        "test_compute_hashes_wasted_bytes",
+        "test_compute_hashes_empty_walk",
+        "test_compute_hashes_permission_error"
+      ],
+      "imports": [
+        "sys",
+        "pathlib",
+        "pytest",
+        "field_check.config",
+        "__future__",
+        "field_check.scanner",
+        "field_check.scanner.dedup"
+      ],
+      "type": "module"
+    },
+    "tests/test_corruption.py": {
+      "exports": [
+        "test_check_empty_file",
+        "test_check_encrypted_zip",
+        "TestTruncationDetection",
+        "test_check_corrupt_pdf_with_wrong_header",
+        "test_check_valid_pdf",
+        "test_check_corruption_empty_walk",
+        "test_check_corruption_progress_callback",
+        "test_check_corrupt_pdf",
+        "test_check_normal_zip",
+        "test_corruption_result_counts",
+        "test_check_valid_png",
+        "test_only_flagged_in_results",
+        "test_check_corrupt_magic_mismatch",
+        "TestOfficeEncryption",
+        "test_unreadable_file",
+        "test_check_near_empty_file",
+        "test_file_types_skips_filetype_guess",
+        "test_check_encrypted_pdf"
+      ],
+      "imports": [
+        "field_check.scanner.corruption",
+        "field_check.scanner",
+        "tests.conftest",
+        "unittest.mock",
+        "__future__",
+        "pathlib",
+        "field_check.config"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/web/landing/src/pages/Home.tsx": {
+      "exports": [
+        "Home"
+      ],
+      "imports": [
+        "react",
+        "../components/Footer",
+        "lucide-react",
+        "@field/ui",
+        "framer-motion",
+        "../components/Header"
+      ],
+      "type": "component"
+    },
+    "src/field_check/scanner/sampling.py": {
+      "exports": [
+        "ConfidenceInterval",
+        "select_sample",
+        "compute_confidence_interval",
+        "logger",
+        "format_ci",
+        "compute_auto_sampling_rate",
+        "SampleResult",
+        "compute_confidence_interval_adjusted",
+        "estimate_design_effect"
+      ],
+      "imports": [
+        "dataclasses",
+        "logging",
+        "__future__",
+        "field_check.config",
+        "math",
+        "collections",
+        "field_check.scanner.inventory",
+        "field_check.scanner"
+      ],
+      "type": "module"
+    },
+    "src/field_check/scanner/text.py": {
+      "exports": [
+        "CLASSIFICATION_IMAGE_HEAVY",
+        "TEXT_SIZE_RATIO_IMAGE_HEAVY",
+        "logger",
+        "MAX_WORKERS",
+        "CLASSIFICATION_MIXED",
+        "extract_text_unified",
+        "extract_text",
+        "TextResult",
+        "CLASSIFICATION_TEXT_HEAVY",
+        "DEFAULT_TIMEOUT",
+        "TextCacheResult",
+        "CHARS_PER_PAGE_TEXT_HEAVY",
+        "TextExtractionResult",
+        "build_text_cache",
+        "CHARS_PER_PAGE_IMAGE_HEAVY"
+      ],
+      "imports": [
+        "collections.abc",
+        "field_check.scanner.inventory",
+        "field_check.scanner.sampling",
+        "field_check.scanner",
+        "concurrent.futures",
+        "__future__",
+        "logging",
+        "os",
+        "dataclasses"
+      ],
+      "type": "module"
+    },
+    "tests/test_sampling.py": {
+      "exports": [
+        "TestAutoSamplingRate",
+        "test_select_sample_stratified",
+        "TestDirectoryAwareSampling",
+        "test_select_sample_basic",
+        "test_select_sample_census",
+        "TestDesignEffect",
+        "test_select_sample_empty_walk",
+        "test_confidence_interval_zero_successes",
+        "test_select_sample_min_per_type",
+        "test_confidence_interval_all_successes",
+        "test_format_ci_census",
+        "test_format_ci_sampled",
+        "test_confidence_interval_basic",
+        "test_confidence_interval_zero_sample",
+        "test_confidence_interval_census",
+        "test_confidence_interval_small_sample"
+      ],
+      "imports": [
+        "__future__",
+        "field_check.scanner",
+        "field_check.scanner.sampling",
+        "field_check.config",
+        "field_check.scanner.inventory",
+        "pathlib"
+      ],
+      "type": "module"
+    },
+    "tests/test_text.py": {
+      "exports": [
+        "test_extract_text_metadata_completeness",
+        "test_extract_text_empty_sample",
+        "test_extract_docx_text",
+        "test_extract_pdf_metadata",
+        "test_extract_text_aggregate_counts",
+        "test_extract_text_scanned_detection",
+        "test_extract_docx_metadata",
+        "test_extract_pdf_scanned",
+        "test_extract_text_progress_callback",
+        "test_extract_pdf_native",
+        "TestFormatExtractors",
+        "test_extract_text_error_handling"
+      ],
+      "imports": [
+        "field_check.scanner.sampling",
+        "__future__",
+        "pathlib",
+        "field_check.scanner.inventory",
+        "tests.conftest",
+        "field_check.config",
+        "field_check.scanner.text",
+        "field_check.scanner",
+        "field_check.scanner.text_workers"
+      ],
+      "type": "module"
+    },
+    "src/field_check/scanner/pii.py": {
+      "exports": [
+        "PIIScanResult",
+        "PIIMatch",
+        "PIIFileResult",
+        "scan_pii",
+        "logger"
+      ],
+      "imports": [
+        "dataclasses",
+        "collections.abc",
+        "concurrent.futures",
+        "field_check.scanner",
+        "field_check.scanner.sampling",
+        "os",
+        "logging",
+        "re",
+        "field_check.scanner.inventory",
+        "__future__",
+        "field_check.scanner.pii_helpers",
+        "field_check.config"
+      ],
+      "type": "module"
+    },
+    "tests/test_pii.py": {
+      "exports": [
+        "TestInternationalPII",
+        "TestScanPiiIntegration",
+        "TestPhoneValidation",
+        "TestCustomPatterns",
+        "TestPatternMatching",
+        "TestLuhnValidation",
+        "TestSingleFileScanner",
+        "TestContextScoring",
+        "TestPageCountDistribution",
+        "TestContextScoringFixes"
+      ],
+      "imports": [
+        "field_check.scanner",
+        "field_check.scanner.text",
+        "__future__",
+        "pathlib",
+        "field_check.scanner.pii",
+        "tests.conftest",
+        "field_check.scanner.inventory",
+        "field_check.scanner.sampling",
+        "field_check.config"
+      ],
+      "type": "module"
+    },
+    "src/field_check/scanner/language.py": {
+      "exports": [
+        "analyze_languages",
+        "logger",
+        "LanguageFileResult",
+        "LanguageResult",
+        "MIN_STOPWORD_MATCHES",
+        "MIN_CHARS_FOR_DETECTION",
+        "detect_language"
+      ],
+      "imports": [
+        "logging",
+        "bisect",
+        "re",
+        "collections.abc",
+        "__future__",
+        "dataclasses"
+      ],
+      "type": "module"
+    },
+    "src/field_check/scanner/encoding.py": {
+      "exports": [
+        "logger",
+        "EncodingFileResult",
+        "analyze_encodings",
+        "EncodingResult"
+      ],
+      "imports": [
+        "logging",
+        "__future__",
+        "dataclasses",
+        "codecs"
+      ],
+      "type": "module"
+    },
+    "tests/test_lang_encoding.py": {
+      "exports": [
+        "TestBuildTextCache",
+        "TestCorpusCorrection",
+        "TestFullPipeline",
+        "TestExtractTextUnified",
+        "TestAnalyzeLanguages",
+        "TestPiiWithTextCache",
+        "TestAnalyzeEncodings",
+        "TestDetectLanguage"
+      ],
+      "imports": [
+        "field_check.scanner",
+        "field_check.scanner.inventory",
+        "pathlib",
+        "field_check.scanner.sampling",
+        "tests.conftest",
+        "__future__",
+        "field_check.scanner.language",
+        "field_check.config",
+        "field_check.scanner.text",
+        "field_check.scanner.pii",
+        "field_check.scanner.encoding"
+      ],
+      "type": "module"
+    },
+    "src/field_check/scanner/simhash.py": {
+      "exports": [
+        "hamming_distance",
+        "compute_simhash",
+        "similarity_score",
+        "NearDuplicateCluster",
+        "SimHashResult",
+        "SIMHASH_BITS",
+        "detect_near_duplicates",
+        "logger",
+        "MIN_TEXT_LENGTH",
+        "DEFAULT_THRESHOLD"
+      ],
+      "imports": [
+        "logging",
+        "__future__",
+        "re",
+        "collections",
+        "hashlib",
+        "collections.abc",
+        "dataclasses"
+      ],
+      "type": "module"
+    },
+    "tests/test_simhash.py": {
+      "exports": [
+        "TestHammingDistance",
+        "TestDetectNearDuplicates",
+        "TestSimilarityScore",
+        "TestComputeSimHash",
+        "TestSimHash128",
+        "TestConfigThreshold"
+      ],
+      "imports": [
+        "pathlib",
+        "field_check.config",
+        "field_check.scanner.simhash",
+        "__future__"
+      ],
+      "type": "module"
+    },
+    "src/field_check/report/json_report.py": {
+      "exports": [
+        "render_json_report"
+      ],
+      "imports": [
+        "field_check",
+        "field_check.scanner.simhash",
+        "field_check.scanner.corruption",
+        "datetime",
+        "field_check.scanner.inventory",
+        "field_check.scanner.text",
+        "field_check.scanner.encoding",
+        "json",
+        "field_check.scanner",
+        "field_check.scanner.pii",
+        "field_check.scanner.language",
+        "field_check.scanner.sampling",
+        "__future__",
+        "field_check.scanner.mojibake",
+        "field_check.scanner.readability",
+        "pathlib",
+        "field_check.scanner.dedup"
+      ],
+      "type": "module"
+    },
+    "src/field_check/report/csv_report.py": {
+      "exports": [
+        "CSV_COLUMNS",
+        "render_csv_report"
+      ],
+      "imports": [
+        "__future__",
+        "field_check.scanner.corruption",
+        "field_check.scanner.pii",
+        "io",
+        "field_check.scanner.simhash",
+        "field_check.scanner.dedup",
+        "field_check.scanner.text",
+        "field_check.scanner",
+        "field_check.scanner.inventory",
+        "csv",
+        "field_check.scanner.mojibake",
+        "field_check.scanner.sampling",
+        "field_check.scanner.language",
+        "field_check.scanner.encoding"
+      ],
+      "type": "module"
+    },
+    "src/field_check/report/html.py": {
+      "exports": [
+        "render_html_report"
+      ],
+      "imports": [
+        "datetime",
+        "field_check.scanner.inventory",
+        "field_check.scanner.encoding",
+        "field_check.scanner.mojibake",
+        "field_check.scanner.pii",
+        "field_check.scanner.sampling",
+        "pathlib",
+        "field_check.scanner.simhash",
+        "field_check.scanner.language",
+        "field_check",
+        "field_check.scanner",
+        "jinja2",
+        "field_check.scanner.text",
+        "field_check.report.utils",
+        "field_check.scanner.readability",
+        "field_check.scanner.dedup",
+        "field_check.scanner.corruption",
+        "__future__"
+      ],
+      "type": "module"
+    },
+    "tests/test_exports.py": {
+      "exports": [
+        "TestExitCodes",
+        "TestHTMLReport",
+        "TestConfigThresholds",
+        "TestCSVReport",
+        "TestCLIExportIntegration",
+        "TestJSONReport"
+      ],
+      "imports": [
+        "csv",
+        "re",
+        "field_check.config",
+        "pathlib",
+        "field_check.report",
+        "__future__",
+        "json",
+        "field_check.report.csv_report",
+        "field_check.scanner",
+        "field_check.scanner.pii",
+        "io",
+        "field_check.report.html",
+        "field_check.scanner.corruption",
+        "click.testing",
+        "field_check.report.json_report",
+        "field_check.scanner.dedup",
+        "field_check.scanner.sampling",
+        "field_check.cli",
+        "field_check.scanner.inventory"
+      ],
+      "type": "module"
+    },
+    "tests/test_html_report.py": {
+      "exports": [
+        "TestTryRelative",
+        "TestRenderMinimal",
+        "TestRenderSimhashCI",
+        "TestFormatHelpers",
+        "TestRenderWithAllSections"
+      ],
+      "imports": [
+        "field_check.scanner",
+        "pytest",
+        "__future__",
+        "field_check.scanner.language",
+        "field_check.scanner.simhash",
+        "field_check.scanner.encoding",
+        "field_check.scanner.dedup",
+        "datetime",
+        "field_check.scanner.inventory",
+        "field_check.scanner.pii",
+        "field_check.report.html",
+        "pathlib",
+        "field_check.scanner.corruption",
+        "field_check.report.utils",
+        "field_check.scanner.sampling"
+      ],
+      "type": "module"
+    },
+    "tests/test_terminal_report.py": {
+      "exports": [
+        "TestDirStructure",
+        "TestCorruptionSummary",
+        "TestIssues",
+        "TestFormatHelpers",
+        "TestNearDuplicates",
+        "TestDedupSummary",
+        "TestLanguageEncoding",
+        "TestDistributions",
+        "TestTextAnalysis",
+        "TestPII",
+        "ROOT",
+        "TestPIISamples",
+        "TestTypeDistribution",
+        "TestFullReport"
+      ],
+      "imports": [
+        "pathlib",
+        "field_check.scanner.dedup",
+        "field_check.scanner",
+        "rich.console",
+        "field_check.scanner.encoding",
+        "field_check.report.utils",
+        "field_check.scanner.sampling",
+        "field_check.scanner.corruption",
+        "field_check.scanner.inventory",
+        "field_check.scanner.pii",
+        "__future__",
+        "field_check.scanner.simhash",
+        "field_check.scanner.text",
+        "field_check.report.terminal",
+        "field_check.scanner.language",
+        "io",
+        "datetime"
+      ],
+      "type": "module"
+    },
+    "tests/test_walker_extended.py": {
+      "exports": [
+        "TestEmptyDirTracking",
+        "TestLongPath",
+        "TestProgressCallback",
+        "TestFileErrors",
+        "TestDirectoryErrors",
+        "TestExcludeDirectory"
+      ],
+      "imports": [
+        "field_check.config",
+        "unittest.mock",
+        "field_check.scanner",
+        "sys",
+        "pytest",
+        "pathlib",
+        "os",
+        "__future__"
+      ],
+      "type": "module"
+    },
+    "tests/test_coverage_gaps.py": {
+      "exports": [
+        "TestReportGaps",
+        "TestDedupGaps",
+        "TestLanguageGaps",
+        "TestCorruptionGaps",
+        "TestJSONGaps",
+        "TestConfigGaps",
+        "TestTextGaps",
+        "TestEncodingGaps",
+        "TestInventoryGaps",
+        "ROOT",
+        "TestPIIGaps",
+        "TestCLIGaps",
+        "TestCSVGaps"
+      ],
+      "imports": [
+        "click.testing",
+        "field_check.scanner.dedup",
+        "field_check.report.json_report",
+        "field_check.scanner.corruption",
+        "json",
+        "unittest.mock",
+        "field_check.scanner",
+        "field_check.scanner.inventory",
+        "field_check.scanner.text_workers",
+        "field_check.report",
+        "__future__",
+        "field_check.scanner.pii",
+        "field_check.cli",
+        "field_check.scanner.language",
+        "field_check.report.csv_report",
+        "field_check.scanner.text",
+        "pytest",
+        "pathlib",
+        "re",
+        "field_check.scanner.encoding",
+        "field_check.scanner.sampling",
+        "field_check.config"
+      ],
+      "type": "module"
+    },
+    "tests/test_final_coverage.py": {
+      "exports": [
+        "TestPIIExtractTextDOCX",
+        "TestTextCacheFalsyCharset",
+        "TestWalkerDirOSError",
+        "TestPDFClassificationMixedZone",
+        "TestPDFClassificationTextHeavy",
+        "TestDetermineExitCode",
+        "TestWalkerSymlinkSubdirOSError",
+        "TestLanguageUnreachableGuard",
+        "TestExtractSinglePDF",
+        "TestBuildTextCacheProgressCallbacks",
+        "TestCLIValueErrorFromReport",
+        "TestPIIExtractTextPDF",
+        "ROOT",
+        "TestCLIKeyboardInterrupt",
+        "TestWalkerSymlinkLoopDevIno",
+        "TestWalkerSubdirSymlinkLoop",
+        "TestPIIScanNoExtractableFiles",
+        "TestCSVReportEdgeCases",
+        "TestWalkerSkipSpecialFiles",
+        "TestWalkerWindowsFallback",
+        "TestPageCountBucketFallback",
+        "TestCLIExitCode",
+        "TestWalkerSymlinkFileHandling",
+        "TestMixedScanPDF"
+      ],
+      "imports": [
+        "unittest.mock",
+        "field_check.scanner.dedup",
+        "field_check.scanner.sampling",
+        "click.testing",
+        "field_check.config",
+        "field_check.report",
+        "field_check.scanner.pii",
+        "field_check.scanner.text",
+        "field_check.scanner.inventory",
+        "stat",
+        "field_check.scanner",
+        "field_check.cli",
+        "field_check.scanner.corruption",
+        "field_check.scanner.text_workers",
+        "__future__",
+        "field_check.scanner.language",
+        "pathlib",
+        "os"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/shared/python/field_types/workloads.py": {
+      "exports": [
+        "WorkloadCategory",
+        "V3ParseMode",
+        "V3WorkloadType",
+        "VerifyRedactionMode",
+        "OcrMode",
+        "DeduplicateMode",
+        "ExtractDataMode",
+        "V3GenerateCitationsMode",
+        "EmbedImageMode",
+        "ChunkMode",
+        "CaptionVideoMode",
+        "V3ConvertDocumentMode",
+        "ModeEnum",
+        "EntityExtractionMode",
+        "TranslateMode",
+        "GenerateEvalSetMode",
+        "WorkloadType",
+        "ClassifyMode",
+        "V3OcrMode",
+        "V3ExtractTablesMode",
+        "ValidateCompletenessMode",
+        "V3WorkloadClass",
+        "TranscribeMode",
+        "ParseCodeMode",
+        "AnonymizeMode",
+        "CustomPromptMode",
+        "EmbedTextMode",
+        "DetectObjectsMode",
+        "GenerateQaMode",
+        "V3ScoreQualityMode",
+        "V3ValidateOutputMode",
+        "AugmentTextMode",
+        "V3GenerateEvalSetMode",
+        "ExtractTablesMode",
+        "V3DeduplicateMode",
+        "V3AnonymizeMode",
+        "V3SummarizeMode",
+        "V3EntityExtractionMode",
+        "V3ClassifyMode",
+        "LinkModalitiesMode",
+        "V3EvaluatePipelineMode",
+        "ConvertDocumentMode",
+        "NormalizeFormatMode",
+        "MetadataGenerateMode",
+        "AutoPreprocessor",
+        "ValidateOutputMode",
+        "AugmentImageMode",
+        "SummarizeMode",
+        "CaptionImageMode",
+        "ParseMode",
+        "GeneratePreferencePairsMode",
+        "V3EmbedTextMode",
+        "V3MetadataGenerateMode",
+        "GenerateSyntheticMode",
+        "V3CaptionImageMode",
+        "ScoreQualityMode",
+        "V3VerifyRedactionMode",
+        "EmbedVideoMode",
+        "EvaluatePipelineMode",
+        "EmbedAudioMode",
+        "V3ChunkMode"
+      ],
+      "imports": [
+        "enum",
+        "__future__"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/shared/typescript/field-types/src/workloads.ts": {
+      "exports": [
+        "V3_WORKLOAD_MODES",
+        "WORKLOAD_MODES",
+        "V3_WORKLOAD_CLASS_TIMEOUTS",
+        "V3_WORKLOAD_EXECUTION_LOCATION",
+        "V3_WORKLOAD_CLASS_MAP",
+        "WORKLOAD_CATEGORY_MAP",
+        "V3_WORKLOAD_STAGE_MAP"
+      ],
+      "imports": [],
+      "type": "module"
+    },
+    "../FieldV3/shared/rust/field-types/src/workloads.rs": {
+      "exports": [
+        "NormalizeFormatMode",
+        "EmbedAudioMode",
+        "CaptionVideoMode",
+        "ExtractDataMode",
+        "CustomPromptMode",
+        "OcrMode",
+        "SummarizeMode",
+        "VerifyRedactionMode",
+        "GenerateSyntheticMode",
+        "MetadataGenerateMode",
+        "workload_category_map",
+        "EmbedImageMode",
+        "ValidateOutputMode",
+        "DeduplicateMode",
+        "GenerateQaMode",
+        "CaptionImageMode",
+        "ParseMode",
+        "ParseCodeMode",
+        "V3ScoreQualityMode",
+        "V3WorkloadType",
+        "EmbedTextMode",
+        "WorkloadCategory",
+        "ChunkMode",
+        "V3WorkloadClass",
+        "LinkModalitiesMode",
+        "AnonymizeMode",
+        "AutoPreprocessor",
+        "TranscribeMode",
+        "ConvertDocumentMode",
+        "ClassifyMode",
+        "AugmentImageMode",
+        "workload_modes_map",
+        "WorkloadType",
+        "GeneratePreferencePairsMode",
+        "ScoreQualityMode",
+        "ExtractTablesMode",
+        "TranslateMode",
+        "EntityExtractionMode",
+        "DetectObjectsMode",
+        "AugmentTextMode",
+        "ValidateCompletenessMode",
+        "EmbedVideoMode"
+      ],
+      "imports": [
+        "serde::",
+        "std::collections::HashMap"
+      ],
+      "type": "library"
+    },
+    "../FieldV3/shared/python/field_types/__init__.py": {
+      "exports": [],
+      "imports": [
+        "field_types.pipelines",
+        "field_types.sentry",
+        "field_types.ws_events",
+        "field_types.determinism",
+        "field_types.errors",
+        "field_types.tracing",
+        "field_types.workloads",
+        "field_types.contracts",
+        "field_types.telemetry",
+        "field_types.receipts",
+        "field_types.metrics",
+        "field_types.metering"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/shared/rust/field-types/src/error_codes.rs": {
+      "exports": [
+        "ErrorSeverity",
+        "WorkloadErrorCode",
+        "ErrorCode",
+        "RetryBehavior",
+        "ErrorCategory"
+      ],
+      "imports": [
+        "serde::"
+      ],
+      "type": "library"
+    },
+    "../FieldV3/sidecar/sidecar/executors/enterprise/azure_openai.py": {
+      "exports": [
+        "MAX_BACKOFF_S",
+        "BASE_BACKOFF_S",
+        "SUPPORTED_WORKLOADS",
+        "logger",
+        "AzureOpenAIAdapter",
+        "MAX_RETRIES"
+      ],
+      "imports": [
+        "json",
+        "os",
+        "asyncio",
+        "structlog",
+        "typing",
+        "__future__",
+        "sidecar.timing",
+        "time",
+        "sidecar.schemas",
+        "random",
+        "pathlib"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/control-plane/alembic/versions/026_e_api_markup_config.py": {
+      "exports": [
+        "upgrade",
+        "PRICING_GPT4O",
+        "PRICING_GPT5_MINI",
+        "PRICING_CLAUDE_SONNET",
+        "depends_on",
+        "PRICING_GEMINI_FLASH",
+        "PRICING_CLAUDE_HAIKU",
+        "branch_labels",
+        "PRICING_GPT52",
+        "ALL_PRICING_IDS",
+        "down_revision",
+        "downgrade",
+        "PRICING_GPT51",
+        "revision",
+        "PRICING_COHERE_EMBED",
+        "PRICING_CLAUDE_OPUS"
+      ],
+      "imports": [
+        "alembic",
+        "datetime",
+        "sqlalchemy.dialects.postgresql",
+        "sqlalchemy",
+        "__future__",
+        "uuid"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/control-plane/tests/test_markup.py": {
+      "exports": [
+        "test_calculate_markup_zero_cost",
+        "test_calculate_markup_default_multiplier",
+        "test_calculate_markup_custom_multiplier",
+        "test_migration_026_seeds_pricing",
+        "test_calculate_markup_precision",
+        "test_migration_026_has_all_seed_ids",
+        "test_migration_026_revision_chain"
+      ],
+      "imports": [
+        "control_plane.db.models.billing",
+        "decimal",
+        "__future__",
+        "pytest",
+        "control_plane.db.models.config",
+        "uuid",
+        "unittest.mock",
+        "control_plane.services.markup"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/control-plane/alembic/versions/050_v3_model_manifest_seed.py": {
+      "exports": [
+        "down_revision",
+        "downgrade",
+        "upgrade",
+        "revision",
+        "branch_labels",
+        "depends_on"
+      ],
+      "imports": [
+        "__future__",
+        "sqlalchemy",
+        "sqlalchemy.dialects.postgresql",
+        "datetime",
+        "uuid",
+        "alembic"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/web/customer/src/data/mock-pipelines.ts": {
+      "exports": [
+        "MOCK_PIPELINES",
+        "MOCK_RECEIPTS",
+        "MOCK_DASHBOARD_STATS",
+        "getMockProgress"
+      ],
+      "imports": [],
+      "type": "module"
+    },
+    "../FieldV3/control-plane/control_plane/services/v3_pipeline_validation.py": {
+      "exports": [
+        "validate_pipeline_config",
+        "ValidationResult"
+      ],
+      "imports": [
+        "field_types.workloads",
+        "field_types.logging",
+        "typing",
+        "dataclasses",
+        "__future__"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/control-plane/control_plane/services/v3_dual_path.py": {
+      "exports": [
+        "DualPathService"
+      ],
+      "imports": [
+        "control_plane.utils.id_gen",
+        "control_plane.db.models.pipelines",
+        "field_types.logging",
+        "__future__",
+        "datetime",
+        "sqlalchemy.ext.asyncio",
+        "sqlalchemy"
+      ],
+      "type": "module"
+    },
+    "src/field_check/report/utils.py": {
+      "exports": [
+        "format_duration",
+        "format_size"
+      ],
+      "imports": [
+        "__future__"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/control-plane/control_plane/services/v3_metadata_propagation.py": {
+      "exports": [
+        "STANDARD_FIELDS",
+        "MetadataPropagationService"
+      ],
+      "imports": [
+        "__future__",
+        "field_types.logging"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/tests/integration/test_v3_error_handling.py": {
+      "exports": [
+        "test_agent_workloads_have_timeout_class"
+      ],
+      "imports": [
+        "typing",
+        "control_plane.schemas.v3_executions",
+        "__future__",
+        "pytest",
+        "field_types.pipelines",
+        "control_plane.db.models.pipelines",
+        "datetime",
+        "unittest.mock",
+        "control_plane.services.v3_pipeline_validation",
+        "control_plane.db.models.jobs",
+        "uuid",
+        "control_plane.services.v3_pipelines",
+        "control_plane.services.v3_executions",
+        "conftest",
+        "control_plane.services.v3_pipeline_state",
+        "control_plane.schemas.v3_pipelines",
+        "field_types.workloads"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/tests/integration/test_v3_connector_local.py": {
+      "exports": [],
+      "imports": [
+        "field_types.workloads",
+        "control_plane.services.v3_pipeline_validation",
+        "control_plane.services.v3_pipeline_state",
+        "unittest.mock",
+        "typing",
+        "control_plane.services.v3_pipelines",
+        "field_types.pipelines",
+        "uuid",
+        "__future__",
+        "control_plane.schemas.v3_pipelines",
+        "pytest",
+        "conftest"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/api-proxy/api_proxy/services/adapters/caption_image.py": {
+      "exports": [
+        "CaptionImageAdapter"
+      ],
+      "imports": [
+        "__future__",
+        "typing",
+        "api_proxy.services.adapters.base"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/api-proxy/api_proxy/services/adapters/caption_video.py": {
+      "exports": [
+        "CaptionVideoAdapter"
+      ],
+      "imports": [
+        "api_proxy.services.adapters.base",
+        "typing",
+        "__future__"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/api-proxy/api_proxy/services/adapters/summarize.py": {
+      "exports": [
+        "SummarizeAdapter"
+      ],
+      "imports": [
+        "api_proxy.services.adapters.base",
+        "typing",
+        "__future__"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/api-proxy/api_proxy/services/adapters/classify.py": {
+      "exports": [
+        "ClassifyAdapter"
+      ],
+      "imports": [
+        "typing",
+        "json",
+        "api_proxy.services.adapters.base",
+        "__future__"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/api-proxy/api_proxy/services/adapters/augment_image.py": {
+      "exports": [
+        "AugmentImageAdapter"
+      ],
+      "imports": [
+        "typing",
+        "api_proxy.services.adapters.base",
+        "__future__"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/api-proxy/api_proxy/services/adapters/augment_text.py": {
+      "exports": [
+        "AugmentTextAdapter"
+      ],
+      "imports": [
+        "api_proxy.services.adapters.base",
+        "__future__",
+        "typing"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/api-proxy/api_proxy/services/adapters/generate_qa.py": {
+      "exports": [
+        "GenerateQaAdapter"
+      ],
+      "imports": [
+        "__future__",
+        "json",
+        "typing",
+        "api_proxy.services.adapters.base"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/api-proxy/api_proxy/services/adapters/generate_synthetic.py": {
+      "exports": [
+        "GenerateSyntheticAdapter"
+      ],
+      "imports": [
+        "api_proxy.services.adapters.base",
+        "json",
+        "__future__",
+        "typing"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/api-proxy/api_proxy/services/adapters/generate_preference_pairs.py": {
+      "exports": [
+        "GeneratePreferencePairsAdapter"
+      ],
+      "imports": [
+        "__future__",
+        "typing",
+        "json",
+        "api_proxy.services.adapters.base"
+      ],
+      "type": "module"
+    },
+    "../FieldV3/api-proxy/api_proxy/services/adapters/custom_prompt.py": {
+      "exports": [
+        "CustomPromptAdapter"
+      ],
+      "imports": [
+        "typing",
+        "__future__",
+        "jinja2",
+        "api_proxy.services.adapters.base"
+      ],
+      "type": "module"
+    },
+    "src/field_check/scanner/text_workers.py": {
+      "exports": [],
+      "imports": [
+        "field_check.scanner.text",
+        "os",
+        "__future__"
+      ],
+      "type": "module"
+    },
+    ".claude/hooks/validators/ruff_validator.py": {
+      "exports": [
+        "main"
+      ],
+      "imports": [
+        "json",
+        "utils.stdin_parser",
+        "pathlib",
+        "sys",
+        "subprocess"
+      ],
+      "type": "module"
+    },
+    "src/field_check/report/terminal_content.py": {
+      "exports": [
+        "render_text_analysis",
+        "render_scanned_detection",
+        "render_content_classification",
+        "render_near_duplicates",
+        "render_mojibake_results",
+        "render_metadata_completeness",
+        "render_pii_results",
+        "render_language_encoding",
+        "render_readability_results",
+        "render_page_count_distribution"
+      ],
+      "imports": [
+        "field_check.scanner.text",
+        "rich.console",
+        "rich.panel",
+        "field_check.scanner.sampling",
+        "field_check.scanner.encoding",
+        "field_check.scanner.language",
+        "pathlib",
+        "field_check.scanner.mojibake",
+        "field_check.scanner.simhash",
+        "field_check.scanner.pii",
+        "field_check.scanner.readability",
+        "__future__",
+        "field_check.scanner",
+        "rich.text",
+        "rich.table"
+      ],
+      "type": "module"
+    },
+    "src/field_check/scanner/pii_helpers.py": {
+      "exports": [
+        "scan_text_for_pii",
+        "validate_es_dni",
+        "luhn_check",
+        "validate_iban",
+        "compute_context_confidence",
+        "validate_de_tax_id",
+        "validate_phone"
+      ],
+      "imports": [
+        "typing",
+        "re",
+        "__future__"
+      ],
+      "type": "module"
+    },
+    "src/field_check/scanner/mojibake.py": {
+      "exports": [
+        "detect_mojibake",
+        "MojibakeResult",
+        "logger"
+      ],
+      "imports": [
+        "ftfy",
+        "dataclasses",
+        "logging",
+        "__future__"
+      ],
+      "type": "module"
+    },
+    "tests/test_mojibake.py": {
+      "exports": [
+        "test_clean_text_no_mojibake",
+        "test_result_dataclass_defaults",
+        "test_mojibake_detected",
+        "test_empty_cache",
+        "test_short_text_skipped",
+        "test_mixed_clean_and_damaged"
+      ],
+      "imports": [
+        "field_check.scanner.mojibake",
+        "__future__"
+      ],
+      "type": "module"
+    },
+    "src/field_check/scanner/readability.py": {
+      "exports": [
+        "ReadabilityResult",
+        "ReadabilityScore",
+        "logger",
+        "analyze_readability",
+        "LOW_QUALITY_THRESHOLD"
+      ],
+      "imports": [
+        "dataclasses",
+        "__future__",
+        "logging"
+      ],
+      "type": "module"
+    },
+    "tests/test_readability.py": {
+      "exports": [
+        "TestReadabilityDataclasses",
+        "TestReadability"
+      ],
+      "imports": [
+        "field_check.scanner.readability",
+        "__future__",
+        "unittest.mock"
+      ],
+      "type": "module"
+    },
+    "src/field_check/report/sarif_report.py": {
+      "exports": [
+        "SARIF_SCHEMA",
+        "render_sarif_report",
+        "SARIF_VERSION"
+      ],
+      "imports": [
+        "json",
+        "field_check",
+        "field_check.scanner.dedup",
+        "field_check.scanner.mojibake",
+        "field_check.scanner.pii",
+        "__future__",
+        "field_check.scanner",
+        "field_check.scanner.corruption",
+        "field_check.scanner.inventory",
+        "pathlib"
+      ],
+      "type": "module"
+    },
+    "tests/test_sarif.py": {
+      "exports": [
+        "TestSARIFStructure"
+      ],
+      "imports": [
+        "field_check.scanner",
+        "field_check.scanner.pii",
+        "field_check.scanner.dedup",
+        "field_check.scanner.inventory",
+        "__future__",
+        "field_check.scanner.mojibake",
+        "field_check.report.sarif_report",
+        "field_check.scanner.corruption",
+        "pathlib",
+        "json"
+      ],
+      "type": "module"
+    },
+    "src/field_check/report/junit_report.py": {
+      "exports": [
+        "render_junit_report"
+      ],
+      "imports": [
+        "__future__",
+        "field_check.scanner.dedup",
+        "pathlib",
+        "field_check.scanner.inventory",
+        "field_check.scanner.corruption",
+        "field_check.scanner.pii",
+        "field_check.scanner",
+        "xml.etree.ElementTree"
+      ],
+      "type": "module"
+    },
+    "tests/test_junit.py": {
+      "exports": [
+        "TestJUnitStructure"
+      ],
+      "imports": [
+        "field_check.scanner",
+        "field_check.report.junit_report",
+        "xml.etree.ElementTree",
+        "field_check.scanner.dedup",
+        "pathlib",
+        "field_check.scanner.inventory",
+        "field_check.scanner.pii",
+        "field_check.scanner.corruption",
+        "__future__"
+      ],
+      "type": "module"
+    },
+    "src/field_check/scanner/minhash.py": {
+      "exports": [
+        "MinHashResult",
+        "MinHashCluster",
+        "logger",
+        "DEFAULT_JACCARD_THRESHOLD",
+        "MIN_TEXT_LENGTH",
+        "detect_near_duplicates_minhash"
+      ],
+      "imports": [
+        "collections",
+        "__future__",
+        "re",
+        "collections.abc",
+        "contextlib",
+        "dataclasses",
+        "logging"
+      ],
+      "type": "module"
+    },
+    "tests/test_minhash.py": {
+      "exports": [
+        "TestMinHashDetection",
+        "TestMinHashGracefulDegradation",
+        "TestTokenizeShingles"
+      ],
+      "imports": [
+        "pytest",
+        "field_check.scanner.minhash",
+        "__future__"
+      ],
+      "type": "module"
+    },
+    "src/field_check/scanner/semantic_dedup.py": {
+      "exports": [
+        "SemanticDedupResult",
+        "detect_semantic_duplicates",
+        "MIN_TEXT_LENGTH",
+        "logger",
+        "SemanticCluster",
+        "DEFAULT_SIMILARITY_THRESHOLD"
+      ],
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "collections.abc",
+        "logging"
+      ],
+      "type": "module"
+    },
+    "tests/test_semantic_dedup.py": {
+      "exports": [
+        "TestSemanticDedupWithSemHash",
+        "TestSemanticDedupGraceful"
+      ],
+      "imports": [
+        "pytest",
+        "field_check.scanner.semantic_dedup",
+        "__future__"
+      ],
+      "type": "module"
+    },
+    "tests/test_mock_deps.py": {
+      "exports": [
+        "TestCorruptionEdgeCases",
+        "TestReadabilityFixed",
+        "TestPIIValidatorEdgeCases",
+        "TestInventoryCrashIsolation",
+        "TestSimHashFaissMocked",
+        "TestTextWorkersPPTX",
+        "TestTextWorkersCache",
+        "TestTextWorkersEPUB",
+        "TestMinHashMocked",
+        "TestTextWorkersXLSX",
+        "TestExtractSingleDispatch",
+        "TestSemanticDedupMocked",
+        "TestEncodingDetection",
+        "TestTextWorkersEML",
+        "TestPdfOxideFallback"
+      ],
+      "imports": [
+        "unittest.mock",
+        "pathlib",
+        "types",
+        "zipfile",
+        "__future__"
+      ],
+      "type": "module"
+    }
+  }
+}
