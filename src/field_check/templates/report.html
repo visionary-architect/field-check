@@ -128,6 +128,7 @@
             {% if corruption.near_empty %}<tr><td class="text-dim">Near-empty (&lt;50 B)</td><td class="text-right">{{ corruption.near_empty }}</td></tr>{% endif %}
             {% if corruption.corrupt %}<tr><td class="text-danger">Corrupt</td><td class="text-right">{{ corruption.corrupt }}</td></tr>{% endif %}
             {% if corruption.encrypted %}<tr><td class="text-warn">Encrypted</td><td class="text-right">{{ corruption.encrypted }}</td></tr>{% endif %}
+            {% if corruption.truncated %}<tr><td class="text-danger">Truncated</td><td class="text-right">{{ corruption.truncated }}</td></tr>{% endif %}
             {% if corruption.unreadable %}<tr><td class="text-warn">Unreadable</td><td class="text-right">{{ corruption.unreadable }}</td></tr>{% endif %}
             </tbody>
         </table>

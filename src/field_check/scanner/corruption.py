@@ -204,7 +204,7 @@ def _check_docx_integrity(filepath: Path) -> str | None:
     except zipfile.BadZipFile:
         return "Invalid ZIP structure"
     except OSError:
-        return None
+        return "Could not read file for integrity check"
 
 
 def _check_truncated_image(filepath: Path, mime_type: str) -> bool:
@@ -306,13 +306,19 @@ def _check_single_file(
             detail="ZIP has encryption flag set",
         )
 
-    # OOXML Office encryption check (requires msoffcrypto-tool)
-    if mime_type in _OOXML_MIMES and _check_encrypted_office(entry_path):
+    # OOXML Office encryption check (requires msoffcrypto-tool).
+    # Fully-encrypted OOXML files use OLE2 containers (magic D0 CF 11 E0),
+    # so also check OLE2 files with Office extensions.
+    _is_office_candidate = mime_type in _OOXML_MIMES or (
+        header.startswith(b"\xd0\xcf\x11\xe0")
+        and entry_path.suffix.lower() in (".docx", ".xlsx", ".pptx")
+    )
+    if _is_office_candidate and _check_encrypted_office(entry_path):
         return FileHealth(
             path=entry_path,
             status=STATUS_ENCRYPTED_OFFICE,
-            mime_type=mime_type,
-            detail="OOXML file is encrypted",
+            mime_type=mime_type or "application/vnd.ms-office",
+            detail="Office file is encrypted",
         )
 
     # Truncation checks

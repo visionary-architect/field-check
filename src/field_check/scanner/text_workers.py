@@ -333,7 +333,9 @@ def _extract_pdf_text_fast(filepath: str) -> tuple[str, str | None, float, str |
 
         doc = PdfDocument(filepath)
         text = doc.to_plain_text_all()
-        return (text, None, 0.0, None)
+        if text.strip():
+            return (text, None, 0.0, None)
+        # Empty text — fall through to pdfplumber for better extraction
     except ImportError:
         pass
     except Exception:

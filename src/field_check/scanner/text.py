@@ -417,7 +417,15 @@ def extract_text_unified(
                 path_str = str(entry.path)
                 try:
                     text, enc_name, enc_conf, error = future.result(timeout=timeout)
-                except (TimeoutError, Exception):
+                except TimeoutError:
+                    cache_result.extraction_errors += 1
+                    cache_result.total_extracted += 1
+                    completed += 1
+                    if progress_callback is not None:
+                        progress_callback(completed, total)
+                    continue
+                except Exception:
+                    logger.debug("Plain text extraction failed for %s", path_str)
                     cache_result.extraction_errors += 1
                     cache_result.total_extracted += 1
                     completed += 1

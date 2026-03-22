@@ -72,17 +72,18 @@ class TestReadability:
 
     def test_graceful_without_textstat(self) -> None:
         """Returns empty result when textstat is not installed."""
+        import importlib
+
+        from field_check.scanner import readability
+
         with patch.dict("sys.modules", {"textstat": None}):
-            import importlib
-
-            from field_check.scanner import readability
-
             importlib.reload(readability)
-            result = readability.analyze_readability({"test.txt": "x" * 300})
-            assert result.total_checked == 0
-            assert result.scores == []
-            # Restore module
-            importlib.reload(readability)
+            try:
+                result = readability.analyze_readability({"test.txt": "x" * 300})
+                assert result.total_checked == 0
+                assert result.scores == []
+            finally:
+                importlib.reload(readability)
 
     def test_score_rounding(self) -> None:
         """Scores are rounded to 1 decimal place."""

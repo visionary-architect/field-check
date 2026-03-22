@@ -86,7 +86,7 @@ def render_csv_report(
                 path_str in dup_paths,
                 health_lookup.get(path_str, "ok"),
                 len(pii_types) > 0,
-                ";".join(pii_types) if pii_types else "",
+                _sanitize_csv_cell(";".join(pii_types)) if pii_types else "",
                 lang_lookup.get(path_str, ""),
                 enc_lookup.get(path_str, ""),
             ]

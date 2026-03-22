@@ -23,6 +23,7 @@ let scanStartTime = null;
 let elapsedTimer = null;
 let lastReport = null;
 let scanning = false;
+let shuttingDown = false;
 
 // --- DOM Elements (with null guards) ---
 function $(id) {
@@ -74,7 +75,7 @@ function attachScannerListeners() {
     if (phaseCounter)
       phaseCounter.textContent = `Phase ${msg.index + 1} / ${msg.total}`;
     if (phaseProgress) {
-      const pct = msg.total > 0 ? (msg.index / msg.total) * 100 : 0;
+      const pct = msg.total > 0 ? ((msg.index + 1) / msg.total) * 100 : 0;
       phaseProgress.style.width = pct + "%";
     }
   });
@@ -126,7 +127,7 @@ function attachScannerListeners() {
       showView(viewReport);
     }
     // Auto-restart sidecar so "New Scan" works after a crash
-    restartScanner();
+    if (!shuttingDown) restartScanner();
   });
 }
 
@@ -218,6 +219,12 @@ btnNewScan?.addEventListener("click", () => {
   selectedPath = null;
   if (selectedPathEl) selectedPathEl.textContent = "";
   if (btnStartScan) btnStartScan.disabled = true;
+  // Reset progress UI to avoid stale data flash on next scan
+  if (phaseName) phaseName.textContent = "Initializing";
+  if (phaseProgress) phaseProgress.style.width = "0%";
+  if (progressDetail) progressDetail.textContent = "";
+  if (phaseCounter) phaseCounter.textContent = "";
+  if (elapsedTime) elapsedTime.textContent = "0s";
   showView(viewSelect);
 });
 
@@ -269,6 +276,7 @@ btnExportHtml?.addEventListener("click", async () => {
 
 getCurrentWindow()
   .onCloseRequested(async () => {
+    shuttingDown = true;
     if (scanner) {
       await scanner.shutdown();
     }

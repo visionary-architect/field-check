@@ -614,7 +614,7 @@ def _get_script_distribution(text: str) -> dict[str, int]:
         if cp < 0x0041:
             continue
         # Skip general punctuation and symbols
-        if cp in range(0x005B, 0x0061) or cp in range(0x007B, 0x00C0):
+        if (0x005B <= cp < 0x0061) or (0x007B <= cp < 0x00C0):
             continue
         script = _classify_script(cp)
         if script:

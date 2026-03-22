@@ -300,7 +300,7 @@ def detect_near_duplicates(
     candidates = _faiss_candidates(fingerprints, threshold, bits=bits)
     if candidates is None:
         # Fallback: band bucketing via pigeonhole principle
-        num_bands = min(threshold + 1, bits)
+        num_bands = min(threshold + 1, bits // 4 or 1)
         candidates = _band_candidates(fingerprints, num_bands, bits=bits)
 
     for i, j in candidates:

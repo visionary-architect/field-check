@@ -60,7 +60,8 @@ def _build_config(raw: dict) -> FieldCheckConfig:
         if "simhash_threshold" in raw:
             config.simhash_threshold = max(0, int(raw["simhash_threshold"]))
         if "simhash_bits" in raw:
-            config.simhash_bits = max(1, min(256, int(raw["simhash_bits"])))
+            bits = int(raw["simhash_bits"])
+            config.simhash_bits = bits if bits in (64, 128) else 64
     except (ValueError, TypeError) as exc:
         msg = f"Invalid config value: {exc}"
         raise ValueError(msg) from exc
