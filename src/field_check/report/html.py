@@ -312,6 +312,21 @@ def _build_context(
             "low_quality_count": readability.low_quality_count,
         }
 
+    # Text extraction analysis section
+    if text is not None and text.total_processed > 0:
+        context["text_analysis"] = {
+            "total_processed": f"{text.total_processed:,}",
+            "extraction_errors": text.extraction_errors,
+            "scanned_count": text.scanned_count,
+            "native_count": text.native_count,
+            "text_heavy": text.text_heavy_count,
+            "image_heavy": text.image_heavy_count,
+            "mixed_content": text.mixed_content_count,
+            "page_count_total": f"{text.page_count_total:,}",
+            "page_count_min": text.page_count_min,
+            "page_count_max": text.page_count_max,
+        }
+
     return context
 
 

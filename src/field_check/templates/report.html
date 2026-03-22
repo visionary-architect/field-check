@@ -135,6 +135,25 @@
     </div>
     {% endif %}
 
+    {% if text_analysis %}
+    <div class="section">
+        <h2>Text Extraction Analysis</h2>
+        <table class="narrow">
+            <tbody>
+            <tr><td>Files processed</td><td class="text-right">{{ text_analysis.total_processed }}</td></tr>
+            {% if text_analysis.extraction_errors %}<tr><td class="text-warn">Extraction errors</td><td class="text-right">{{ text_analysis.extraction_errors }}</td></tr>{% endif %}
+            {% if text_analysis.scanned_count %}<tr><td>Scanned PDFs (image-based)</td><td class="text-right">{{ text_analysis.scanned_count }}</td></tr>{% endif %}
+            {% if text_analysis.native_count %}<tr><td>Native PDFs (text-based)</td><td class="text-right">{{ text_analysis.native_count }}</td></tr>{% endif %}
+            {% if text_analysis.text_heavy %}<tr><td>Text-heavy documents</td><td class="text-right">{{ text_analysis.text_heavy }}</td></tr>{% endif %}
+            {% if text_analysis.image_heavy %}<tr><td>Image-heavy documents</td><td class="text-right">{{ text_analysis.image_heavy }}</td></tr>{% endif %}
+            {% if text_analysis.mixed_content %}<tr><td>Mixed content documents</td><td class="text-right">{{ text_analysis.mixed_content }}</td></tr>{% endif %}
+            <tr><td>Total pages</td><td class="text-right">{{ text_analysis.page_count_total }}</td></tr>
+            {% if text_analysis.page_count_max %}<tr><td>Page range</td><td class="text-right">{{ text_analysis.page_count_min }} – {{ text_analysis.page_count_max }}</td></tr>{% endif %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
     {% if pii %}
     <div class="section">
         <h2>PII Risk Indicators</h2>
@@ -219,6 +238,43 @@
             </tbody>
         </table>
         {% endif %}
+    </div>
+    {% endif %}
+
+    {% if mojibake %}
+    <div class="section">
+        <h2>Encoding Damage (Mojibake)</h2>
+        <table class="narrow">
+            <thead><tr><th>Metric</th><th class="text-right">Value</th></tr></thead>
+            <tbody>
+            <tr><td>Files checked</td><td class="text-right">{{ mojibake.total_checked }}</td></tr>
+            <tr><td>Files with mojibake</td><td class="text-right">{{ mojibake.files_with_mojibake }}</td></tr>
+            </tbody>
+        </table>
+        {% if mojibake.files %}
+        <h3>Affected Files</h3>
+        <ul>
+            {% for f in mojibake.files %}
+            <li>{{ f }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        <p class="note">Mojibake detected via ftfy — indicates text decoded with the wrong encoding</p>
+    </div>
+    {% endif %}
+
+    {% if readability %}
+    <div class="section">
+        <h2>Readability Analysis</h2>
+        <table class="narrow">
+            <thead><tr><th>Metric</th><th class="text-right">Value</th></tr></thead>
+            <tbody>
+            <tr><td>Files checked</td><td class="text-right">{{ readability.total_checked }}</td></tr>
+            <tr><td>Avg. Flesch Reading Ease</td><td class="text-right">{{ readability.avg_flesch_score }}</td></tr>
+            <tr><td>Low quality files</td><td class="text-right">{{ readability.low_quality_count }}</td></tr>
+            </tbody>
+        </table>
+        <p class="note">Flesch Reading Ease: 0-29 = very difficult, 30-49 = difficult, 50-59 = fairly difficult, 60-69 = standard, 70-79 = fairly easy, 80-89 = easy, 90-100 = very easy</p>
     </div>
     {% endif %}
 

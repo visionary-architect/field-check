@@ -134,15 +134,22 @@ def _check_encrypted_zip(filepath: Path) -> bool:
     Bit 0 indicates encryption.
     """
     try:
-        with open(filepath, "rb") as f:
-            f.seek(6)
-            flag_bytes = f.read(2)
-            if len(flag_bytes) < 2:
-                return False
-            flags = struct.unpack("<H", flag_bytes)[0]
-            return bool(flags & 0x01)
-    except OSError:
-        return False
+        import zipfile
+
+        with zipfile.ZipFile(filepath) as zf:
+            return any(info.flag_bits & 0x01 for info in zf.infolist())
+    except Exception:
+        # Fallback: check first local file header directly
+        try:
+            with open(filepath, "rb") as f:
+                f.seek(6)
+                flag_bytes = f.read(2)
+                if len(flag_bytes) < 2:
+                    return False
+                flags = struct.unpack("<H", flag_bytes)[0]
+                return bool(flags & 0x01)
+        except OSError:
+            return False
 
 
 def _check_encrypted_office(filepath: Path) -> bool:
@@ -223,7 +230,7 @@ def _check_truncated_image(filepath: Path, mime_type: str) -> bool:
             f.seek(max(0, size - read_size))
             tail = f.read()
         if mime_type == "image/jpeg":
-            return tail[-2:] != b"\xff\xd9"
+            return b"\xff\xd9" not in tail
         if mime_type == "image/png":
             return b"IEND" not in tail
         return False

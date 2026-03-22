@@ -48,7 +48,8 @@ class TestComputeSimHash:
         assert dist < 20
 
     def test_empty_text(self) -> None:
-        assert compute_simhash("") == 0
+        # Returns 1 (not 0) to avoid false collisions between empty-token texts
+        assert compute_simhash("") == 1
 
     def test_short_text(self) -> None:
         h = compute_simhash("hello world")

@@ -111,17 +111,24 @@ def create_minimal_zip(path: Path) -> None:
 
 
 def create_encrypted_zip(path: Path) -> None:
-    """Write a ZIP file with the encryption flag set in the local header.
+    """Write a ZIP file with the encryption flag set in both headers.
 
-    Creates a valid ZIP structure, then patches byte 6 to set bit 0
-    (encryption flag) in the general purpose bit flag.
+    Creates a valid ZIP structure, then patches the encryption bit in
+    both the local file header and the central directory entry.
     """
     create_minimal_zip(path)
     data = bytearray(path.read_bytes())
-    # Local file header general purpose bit flag is at offset 6
+    # Local file header: general purpose bit flag at offset 6
     flags = struct.unpack_from("<H", data, 6)[0]
     flags |= 0x01  # Set encryption bit
     struct.pack_into("<H", data, 6, flags)
+    # Central directory entry: find PK\x01\x02 and patch flag at +8
+    cd_sig = b"PK\x01\x02"
+    cd_offset = bytes(data).find(cd_sig)
+    if cd_offset >= 0:
+        cd_flags = struct.unpack_from("<H", data, cd_offset + 8)[0]
+        cd_flags |= 0x01
+        struct.pack_into("<H", data, cd_offset + 8, cd_flags)
     path.write_bytes(bytes(data))
 
 

@@ -134,12 +134,12 @@ def _build_pii_lookup(
 
 
 def _build_dup_paths(dedup: DedupResult | None) -> set[str]:
-    """Build set of duplicate file paths (excluding first in each group)."""
+    """Build set of all duplicate file paths."""
     paths: set[str] = set()
     if dedup is None:
         return paths
     for group in dedup.duplicate_groups:
-        for p in group.paths[1:]:
+        for p in group.paths:
             paths.add(str(p))
     return paths
 

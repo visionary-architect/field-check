@@ -199,8 +199,11 @@ def main() -> None:
     def _signal_handler(signum: int, frame: object) -> None:
         shutdown_event.set()
 
+    import contextlib
+
     signal.signal(signal.SIGINT, _signal_handler)
-    signal.signal(signal.SIGTERM, _signal_handler)
+    with contextlib.suppress(OSError):
+        signal.signal(signal.SIGTERM, _signal_handler)
 
     _emit({"event": "ready", "version": __version__})
 

@@ -10,7 +10,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/lifecycle/session_start.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/lifecycle/session_start.py",
             "timeout": 15000
           }
         ]
@@ -21,7 +21,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/lifecycle/user_prompt_submit.py --log-only --store-last-prompt --name-agent --validate",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/lifecycle/user_prompt_submit.py --log-only --store-last-prompt --name-agent --validate",
             "timeout": 10000
           }
         ]
@@ -33,13 +33,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/session/warmup_cache.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/session/warmup_cache.py",
             "async": true,
             "timeout": 10000
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/session/session_coordinator.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/session/session_coordinator.py",
             "async": true,
             "timeout": 5000
           }
@@ -50,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/validators/dangerous_command_checker.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/validators/dangerous_command_checker.py",
             "async": false,
             "timeout": 5000
           }
@@ -61,7 +61,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/session/file_conflict_checker.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/session/file_conflict_checker.py",
             "async": false,
             "timeout": 3000
           }
@@ -73,7 +73,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/lifecycle/permission_request.py --auto-allow",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/lifecycle/permission_request.py --auto-allow",
             "timeout": 3000
           }
         ]
@@ -85,43 +85,43 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/intel/codebase_indexer.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/intel/codebase_indexer.py",
             "async": true,
             "timeout": 30000
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/validators/invariant_validator.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/validators/invariant_validator.py",
             "async": false,
             "timeout": 10000
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/validators/json_validator.py ",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/validators/json_validator.py",
             "async": true,
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/validators/markdown_validator.py ",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/validators/markdown_validator.py",
             "async": true,
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/intel/file_change_tracker.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/intel/file_change_tracker.py",
             "async": true,
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/validators/ruff_validator.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/validators/ruff_validator.py",
             "async": false,
             "timeout": 120000
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/validators/ty_validator.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/validators/ty_validator.py",
             "async": false,
             "timeout": 120000
           }
@@ -132,19 +132,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/intel/test_result_tracker.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/intel/test_result_tracker.py",
             "async": true,
             "timeout": 60000
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/intel/event_logger.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/intel/event_logger.py",
             "async": true,
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/validators/commit_validator.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/validators/commit_validator.py",
             "async": true,
             "timeout": 5000
           }
@@ -155,7 +155,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/session/task_claim_validator.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/session/task_claim_validator.py",
             "async": true,
             "timeout": 5000
           }
@@ -167,7 +167,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/lifecycle/post_tool_use_failure.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/lifecycle/post_tool_use_failure.py",
             "timeout": 5000
           }
         ]
@@ -178,7 +178,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/lifecycle/notification.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/lifecycle/notification.py",
             "async": true,
             "timeout": 5000
           }
@@ -190,7 +190,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/lifecycle/subagent_start.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/lifecycle/subagent_start.py",
             "async": true,
             "timeout": 5000
           }
@@ -202,7 +202,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/lifecycle/subagent_stop.py --notify --summarize",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/lifecycle/subagent_stop.py --notify --summarize",
             "async": true,
             "timeout": 15000
           }
@@ -214,36 +214,36 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/session/task_completion_reminder.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/session/task_completion_reminder.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/session/auto_snapshot.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/session/auto_snapshot.py",
             "async": true,
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/session/auto_devlog.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/session/auto_devlog.py",
             "async": true,
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/lifecycle/stop_completion.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/lifecycle/stop_completion.py",
             "async": true,
             "timeout": 10000
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/session/session_cleanup.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/session/session_cleanup.py",
             "async": true,
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/session/session_maintenance.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/session/session_maintenance.py",
             "async": true,
             "timeout": 10000
           }
@@ -255,13 +255,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/lifecycle/pre_compact.py --backup",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/lifecycle/pre_compact.py --backup",
             "async": true,
             "timeout": 10000
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/lifecycle/pre_compact_guidance.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/lifecycle/pre_compact_guidance.py",
             "async": false,
             "timeout": 5000
           }
@@ -273,7 +273,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/lifecycle/session_end.py",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/hooks/lifecycle/session_end.py",
             "async": true,
             "timeout": 5000
           }
@@ -283,7 +283,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "python .claude/status_lines/v6_context_bar.py",
+    "command": "cd \"$(git rev-parse --show-toplevel)\" && python .claude/status_lines/v6_context_bar.py",
     "timeout": 3000
   },
   "permissions": {

@@ -141,11 +141,11 @@ class TestJUnitStructure:
         root = fromstring(output)
 
         cases = root.findall("testcase")
-        # copy.pdf should have a failure, orig.pdf should not
+        # Both files in a duplicate group should have a failure
         copy_case = next(c for c in cases if c.get("name") == "copy.pdf")
         assert copy_case.find("failure") is not None
         orig_case = next(c for c in cases if c.get("name") == "orig.pdf")
-        assert orig_case.find("failure") is None
+        assert orig_case.find("failure") is not None
 
     def test_xml_declaration(self, tmp_path: Path) -> None:
         """Output starts with XML declaration."""

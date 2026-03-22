@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 import time
 from pathlib import Path
@@ -130,6 +131,16 @@ def scan(
     # Merge CLI --exclude patterns
     if exclude:
         config.exclude = list(config.exclude) + list(exclude)
+
+    # Validate output path writability before running the scan
+    if output:
+        output_dir = Path(output).parent.resolve()
+        if not output_dir.exists():
+            console.print(f"[red]Error:[/red] Output directory does not exist: {output_dir}")
+            sys.exit(2)
+        if not os.access(str(output_dir), os.W_OK):
+            console.print(f"[red]Error:[/red] Output directory is not writable: {output_dir}")
+            sys.exit(2)
 
     scan_start = time.monotonic()
 

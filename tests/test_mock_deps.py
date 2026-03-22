@@ -25,6 +25,14 @@ class TestMinHashMocked:
         """Pre-import module so patch.dict doesn't remove it on cleanup."""
         import field_check.scanner.minhash  # noqa: F401
 
+    def teardown_method(self) -> None:
+        """Restore minhash module after reload-based mocking."""
+        import importlib
+
+        from field_check.scanner import minhash
+
+        importlib.reload(minhash)
+
     def _mock_datasketch(self):
         """Create mock datasketch module with MinHash and MinHashLSH."""
         mock_module = MagicMock()

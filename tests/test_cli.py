@@ -51,8 +51,8 @@ def test_cli_scan_with_exclude(tmp_corpus: Path) -> None:
     r2 = runner.invoke(main, ["scan", "--exclude", "*.bin", str(tmp_corpus)])
     assert r1.exit_code == 0
     assert r2.exit_code == 0
-    # Output with exclude should show fewer files (or same sections)
-    assert "7" in r1.output or "Files" in r1.output
+    # Output with exclude should show fewer files
+    assert "Files" in r1.output
     assert r2.output != r1.output
 
 
@@ -77,8 +77,11 @@ def test_cli_scan_file_count_in_output(tmp_corpus: Path) -> None:
     """Report shows correct total file count."""
     runner = CliRunner()
     result = runner.invoke(main, ["scan", str(tmp_corpus)])
-    # 7 files in tmp_corpus (with default excludes=[.git, etc.] which don't apply)
-    assert "7" in result.output
+    # 7 files in tmp_corpus — verify "Files:" header and count of 7
+    assert "Files" in result.output
+    import re
+
+    assert re.search(r"\b7\b", result.output), "Expected file count of 7 in output"
 
 
 def test_cli_scan_shows_duration(tmp_corpus: Path) -> None:

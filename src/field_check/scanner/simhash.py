@@ -50,14 +50,14 @@ def compute_simhash(text: str, bits: int = SIMHASH_BITS) -> int:
     """
     shingles = _tokenize(text)
     if not shingles:
-        return 0
+        return 1  # Avoid 0 — all-zero fingerprints would collide as false duplicates
 
     vector = [0] * bits
     # MD5 produces 128 bits; use 8 bytes for 64-bit, 16 for 128-bit
     hash_bytes = 8 if bits <= 64 else 16
 
     for shingle in shingles:
-        digest = hashlib.md5(shingle.encode("utf-8")).digest()
+        digest = hashlib.md5(shingle.encode("utf-8"), usedforsecurity=False).digest()
         hash_val = int.from_bytes(digest[:hash_bytes], "big")
 
         for i in range(bits):
@@ -300,8 +300,24 @@ def detect_near_duplicates(
     candidates = _faiss_candidates(fingerprints, threshold, bits=bits)
     if candidates is None:
         # Fallback: band bucketing via pigeonhole principle
-        num_bands = min(threshold + 1, bits // 4 or 1)
-        candidates = _band_candidates(fingerprints, num_bands, bits=bits)
+        # Need threshold+1 bands for zero false negatives; if we can't
+        # partition enough bands, fall back to brute-force O(n^2).
+        required_bands = threshold + 1
+        max_bands = bits // 4 or 1
+        if required_bands <= max_bands:
+            candidates = _band_candidates(fingerprints, required_bands, bits=bits)
+        else:
+            # Can't guarantee zero false negatives via banding — brute-force
+            logger.debug(
+                "SimHash threshold %d too high for %d-bit banding "
+                "(need %d bands, max %d); using brute-force",
+                threshold, bits, required_bands, max_bands,
+            )
+            candidates = {
+                (i, j)
+                for i in range(len(fingerprints))
+                for j in range(i + 1, len(fingerprints))
+            }
 
     for i, j in candidates:
         dist = hamming_distance(fingerprints[i], fingerprints[j])

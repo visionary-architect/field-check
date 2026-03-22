@@ -309,6 +309,7 @@ def analyze_inventory(
             # Still record basic info so file isn't silently dropped
             file_types[entry.path] = "application/octet-stream"
             type_counts["application/octet-stream"] += 1
+            type_sizes["application/octet-stream"] += entry.size
             sizes.append(entry.size)
             mtimes.append(entry.mtime)
 

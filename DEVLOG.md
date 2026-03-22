@@ -24,6 +24,219 @@
 
 ## Recent Sessions
 
+### Session: 2026-03-22 (Auto-captured at 00:40)
+**Note:** This session ended without /pause-work.
+
+**Uncommitted changes:**
+- .claude/settings.json
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+- src/field_check/cli.py
+- src/field_check/report/html.py
+- src/field_check/report/json_report.py
+- src/field_check/report/junit_report.py
+- src/field_check/scanner/corruption.py
+- ... and 14 more
+
+
+### Session: 2026-03-21 (Auto-captured at 23:54)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: second-pass review findings (orphaned sidecar, OLE2 encryption, HTML gaps)
+- fix: address full-system evaluation findings (CRITICAL/HIGH/MEDIUM)
+- fix(gui): harden GUI with crash recovery, XSS escaping, and Tauri v2 alignment
+- fix: address comprehensive review findings and boost coverage to 94%
+- feat(gui): add integration tests and CI workflow for sidecar
+
+**Uncommitted changes:**
+- .claude/settings.json
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+
+
+### Session: 2026-03-21 (Auto-captured at 22:21)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: second-pass review findings (orphaned sidecar, OLE2 encryption, HTML gaps)
+- fix: address full-system evaluation findings (CRITICAL/HIGH/MEDIUM)
+- fix(gui): harden GUI with crash recovery, XSS escaping, and Tauri v2 alignment
+- fix: address comprehensive review findings and boost coverage to 94%
+- feat(gui): add integration tests and CI workflow for sidecar
+
+**Uncommitted changes:**
+- .claude/settings.json
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+
+
+### Session: 2026-03-21 (Auto-captured at 22:16)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: second-pass review findings (orphaned sidecar, OLE2 encryption, HTML gaps)
+- fix: address full-system evaluation findings (CRITICAL/HIGH/MEDIUM)
+- fix(gui): harden GUI with crash recovery, XSS escaping, and Tauri v2 alignment
+- fix: address comprehensive review findings and boost coverage to 94%
+- feat(gui): add integration tests and CI workflow for sidecar
+
+**Uncommitted changes:**
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+
+
+### Session: 2026-03-21 (Auto-captured at 22:15)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: second-pass review findings (orphaned sidecar, OLE2 encryption, HTML gaps)
+- fix: address full-system evaluation findings (CRITICAL/HIGH/MEDIUM)
+- fix(gui): harden GUI with crash recovery, XSS escaping, and Tauri v2 alignment
+- fix: address comprehensive review findings and boost coverage to 94%
+- feat(gui): add integration tests and CI workflow for sidecar
+
+**Uncommitted changes:**
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+
+
+### Session: 2026-03-21 (Auto-captured at 21:38)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: address full-system evaluation findings (CRITICAL/HIGH/MEDIUM)
+- fix(gui): harden GUI with crash recovery, XSS escaping, and Tauri v2 alignment
+- fix: address comprehensive review findings and boost coverage to 94%
+- feat(gui): add integration tests and CI workflow for sidecar
+- feat(gui): add Tauri v2 project scaffolding with frontend and build scripts
+
+**Uncommitted changes:**
+- DEVLOG.md
+
+
+### Session: 2026-03-21 (Auto-captured at 21:16)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: address comprehensive review findings and boost coverage to 94%
+- feat(gui): add integration tests and CI workflow for sidecar
+- feat(gui): add Tauri v2 project scaffolding with frontend and build scripts
+- feat(gui): extract scan pipeline and add sidecar IPC entry point
+- chore: add tooling config, cloud module stubs, and lockfile
+
+**Uncommitted changes:**
+- .github/workflows/gui-build.yml
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+- gui/src/main.js
+- gui/src/report-renderer.js
+- gui/vite.config.js
+- src-tauri/capabilities/default.json
+- src/field_check/sidecar.py
+
+
+### Session: 2026-03-21 (Auto-captured at 21:15)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: address comprehensive review findings and boost coverage to 94%
+- feat(gui): add integration tests and CI workflow for sidecar
+- feat(gui): add Tauri v2 project scaffolding with frontend and build scripts
+- feat(gui): extract scan pipeline and add sidecar IPC entry point
+- chore: add tooling config, cloud module stubs, and lockfile
+
+**Uncommitted changes:**
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+
+
+### Session: 2026-03-21 (Auto-captured at 20:55)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: address comprehensive review findings and boost coverage to 94%
+- feat(gui): add integration tests and CI workflow for sidecar
+- feat(gui): add Tauri v2 project scaffolding with frontend and build scripts
+- feat(gui): extract scan pipeline and add sidecar IPC entry point
+- chore: add tooling config, cloud module stubs, and lockfile
+
+**Uncommitted changes:**
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+
+
+### Session: 2026-03-21 (Auto-captured at 20:43)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- feat(gui): add integration tests and CI workflow for sidecar
+- feat(gui): add Tauri v2 project scaffolding with frontend and build scripts
+- feat(gui): extract scan pipeline and add sidecar IPC entry point
+- chore: add tooling config, cloud module stubs, and lockfile
+- chore: update development log, state, and project rules
+
+**Uncommitted changes:**
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+
+
+### Session: 2026-03-21 (Auto-captured at 20:00)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- feat(gui): add Tauri v2 project scaffolding with frontend and build scripts
+- feat(gui): extract scan pipeline and add sidecar IPC entry point
+- chore: add tooling config, cloud module stubs, and lockfile
+- chore: update development log, state, and project rules
+- docs: add planning artifacts, spec, license, and project docs
+
+**Uncommitted changes:**
+- DEVLOG.md
+
+
+### Session: 2026-03-21 (Auto-captured at 19:01)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- chore: add tooling config, cloud module stubs, and lockfile
+- chore: update development log, state, and project rules
+- docs: add planning artifacts, spec, license, and project docs
+- docs: update README with auto-tuning info and correct repo URLs
+- feat(sampling): add auto-tuning sampling rate based on corpus size
+
+**Uncommitted changes:**
+- .claude/hooks/validators/invariant_validator.py
+- .claude/hooks/validators/ruff_validator.py
+- .claude/settings.json
+- .gitignore
+- CLAUDE.md
+- DEVLOG.md
+- PROJECT.md
+- REQUIREMENTS.md
+- ROADMAP.md
+- STATE.md
+- ... and 4 more
+
+
 ### Session: 2026-03-21 (Auto-captured at 13:29)
 **Note:** This session ended without /pause-work.
 

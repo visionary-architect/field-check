@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 # Minimum text length worth checking for mojibake
 _MIN_TEXT_LENGTH = 20
 
+# Maximum text length to pass to ftfy (avoid slow processing on huge texts)
+_MAX_TEXT_LENGTH = 50_000
+
 
 @dataclass
 class MojibakeResult:
@@ -55,7 +58,7 @@ def detect_mojibake(text_cache: dict[str, str]) -> MojibakeResult:
         result.total_checked += 1
 
         try:
-            _fixed, explanations = ftfy.fix_and_explain(text)
+            _fixed, explanations = ftfy.fix_and_explain(text[:_MAX_TEXT_LENGTH])
             if explanations:
                 result.files_with_mojibake += 1
                 result.mojibake_files.append(path)

@@ -198,7 +198,7 @@ class TestRenderMinimal:
             walk_result=_make_walk(),
             elapsed_seconds=1.0,
         )
-        assert "Duplicate" not in html or "duplicate_groups" not in html
+        assert "Duplicate" not in html and "duplicate_groups" not in html
 
 
 # ---------------------------------------------------------------------------

@@ -92,8 +92,8 @@ BUILTIN_PATTERNS: list[dict[str, str | float]] = [
     {
         "name": "de_tax_id",
         "label": "German Tax ID (Steuer-IdNr)",
-        "pattern": r"\b\d{11}\b",
-        "fp_rate": 0.40,
+        "pattern": r"\b[1-9]\d{10}\b",
+        "fp_rate": 0.35,
         "validator": "de_tax_id",
     },
     {

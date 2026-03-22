@@ -5,6 +5,7 @@ from __future__ import annotations
 import bisect
 import logging
 import re
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
@@ -668,6 +669,7 @@ def _detect_non_latin_language(text: str, script: str) -> str | None:
     return None
 
 
+_lingua_lock = threading.Lock()
 _lingua_detector: object | None = None
 _lingua_unavailable: bool = False
 
@@ -676,6 +678,7 @@ def _try_lingua(text: str) -> str | None:
     """Attempt language detection via Lingua (optional, most accurate).
 
     Returns language display name if available, None otherwise.
+    Thread-safe: uses a lock to protect the lazy-initialized detector.
     Install with: pip install field-check[accurate-lang]
     """
     global _lingua_detector, _lingua_unavailable
@@ -684,10 +687,11 @@ def _try_lingua(text: str) -> str | None:
         return None
 
     try:
-        if _lingua_detector is None:
-            from lingua import LanguageDetectorBuilder  # type: ignore[import-untyped]
+        with _lingua_lock:
+            if _lingua_detector is None:
+                from lingua import LanguageDetectorBuilder  # type: ignore[import-untyped]
 
-            _lingua_detector = LanguageDetectorBuilder.from_all_languages().build()
+                _lingua_detector = LanguageDetectorBuilder.from_all_languages().build()
 
         lang = _lingua_detector.detect_language_of(text[:2000])
         if lang is not None:

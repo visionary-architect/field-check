@@ -221,9 +221,12 @@ def _build_summary(
                 {
                     "files": len(c.paths),
                     "similarity": round(c.similarity, 4),
-                    "paths": [_try_relative(p, walk_result.scan_root) for p in c.paths],
+                    "paths": [
+                        _try_relative(p, walk_result.scan_root)
+                        for p in c.paths[:50]
+                    ],
                 }
-                for c in simhash.clusters
+                for c in simhash.clusters[:100]
             ],
         }
     else:

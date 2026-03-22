@@ -115,11 +115,9 @@ def _sample_by_directory(entries: list[FileEntry], target: int) -> list[FileEntr
     allocations: list[tuple[str, int]] = []
     for dir_path, dir_files in sorted(by_dir.items()):
         alloc = max(1, round(len(dir_files) / total * target))
-        alloc = min(alloc, len(dir_files), remaining)
+        alloc = min(alloc, len(dir_files), max(remaining, 0))
         allocations.append((dir_path, alloc))
         remaining -= alloc
-        if remaining <= 0:
-            break
 
     # Distribute any remaining budget to largest directories
     if remaining > 0:
