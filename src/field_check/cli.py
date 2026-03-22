@@ -225,7 +225,8 @@ def main() -> None:
     "--sampling-rate",
     type=float,
     default=None,
-    help="Sampling rate for content analysis (0.0-1.0, default: 0.10).",
+    help="Sampling rate for content analysis (0.0-1.0). "
+    "Auto-tuned by default based on corpus size.",
 )
 @click.option(
     "--show-pii-samples",
@@ -269,6 +270,7 @@ def scan(
     # Override sampling rate from CLI if provided
     if sampling_rate is not None:
         config.sampling_rate = max(0.0, min(1.0, sampling_rate))
+        config.sampling_rate_auto = False
 
     # Override PII min confidence from CLI if provided
     if pii_min_confidence is not None:

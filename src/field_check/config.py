@@ -21,6 +21,7 @@ class FieldCheckConfig:
 
     exclude: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDES))
     sampling_rate: float = 0.10
+    sampling_rate_auto: bool = True
     sampling_min_per_type: int = 30
     pii_custom_patterns: list[dict[str, str]] = field(default_factory=list)
     show_pii_samples: bool = False
@@ -68,11 +69,13 @@ def load_config(scan_path: Path, config_path: Path | None = None) -> FieldCheckC
     # Parse sampling config
     sampling = raw.get("sampling", {})
     sampling_rate = 0.10
+    sampling_rate_auto = True
     sampling_min_per_type = 30
     if isinstance(sampling, dict):
         rate = sampling.get("rate")
         if isinstance(rate, (int, float)):
             sampling_rate = float(max(0.0, min(1.0, rate)))
+            sampling_rate_auto = False  # User explicitly set a rate
         min_per = sampling.get("min_per_type")
         if isinstance(min_per, int) and min_per >= 0:
             sampling_min_per_type = min_per
@@ -138,6 +141,7 @@ def load_config(scan_path: Path, config_path: Path | None = None) -> FieldCheckC
     return FieldCheckConfig(
         exclude=patterns,
         sampling_rate=sampling_rate,
+        sampling_rate_auto=sampling_rate_auto,
         sampling_min_per_type=sampling_min_per_type,
         pii_custom_patterns=pii_custom_patterns,
         pii_min_confidence=pii_min_confidence,

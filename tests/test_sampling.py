@@ -55,7 +55,11 @@ def test_select_sample_basic(tmp_path: Path) -> None:
     """Basic sampling selects a subset of files."""
     specs = [(f"file{i}.txt", "text/plain", 100) for i in range(100)]
     walk, inv = _make_walk_and_inventory(tmp_path, specs)
-    config = FieldCheckConfig(sampling_rate=0.10, sampling_min_per_type=5)
+    config = FieldCheckConfig(
+        sampling_rate=0.10,
+        sampling_rate_auto=False,
+        sampling_min_per_type=5,
+    )
 
     result = select_sample(walk, inv, config)
 
@@ -355,3 +359,78 @@ class TestDirectoryAwareSampling:
 
         assert sample.total_sample_size == 2
         assert sample.is_census
+
+
+# --- Auto Sampling Rate tests ---
+
+
+class TestAutoSamplingRate:
+    """Tests for automatic sampling rate computation."""
+
+    def test_zero_population(self) -> None:
+        """Zero files returns rate 1.0 (census)."""
+        from field_check.scanner.sampling import compute_auto_sampling_rate
+
+        assert compute_auto_sampling_rate(0) == 1.0
+
+    def test_small_corpus_census(self) -> None:
+        """Small corpus (<=3000) returns 1.0 for full census."""
+        from field_check.scanner.sampling import compute_auto_sampling_rate
+
+        assert compute_auto_sampling_rate(100) == 1.0
+        assert compute_auto_sampling_rate(1000) == 1.0
+        assert compute_auto_sampling_rate(3000) == 1.0
+
+    def test_medium_corpus(self) -> None:
+        """Medium corpus gets a rate that yields ~2500 samples."""
+        from field_check.scanner.sampling import (
+            _AUTO_TARGET_SAMPLE,
+            compute_auto_sampling_rate,
+        )
+
+        rate = compute_auto_sampling_rate(10_000)
+        expected = _AUTO_TARGET_SAMPLE / 10_000
+        assert abs(rate - expected) < 0.001
+
+    def test_large_corpus_consistent_target(self) -> None:
+        """All large corpora target 3,000 samples."""
+        from field_check.scanner.sampling import compute_auto_sampling_rate
+
+        # 3000 / 50_000 = 0.06
+        assert abs(compute_auto_sampling_rate(50_000) - 0.06) < 0.001
+        # 3000 / 500_000 = 0.006
+        assert abs(compute_auto_sampling_rate(500_000) - 0.006) < 0.001
+        # 3000 / 1_000_000 = 0.003
+        assert abs(compute_auto_sampling_rate(1_000_000) - 0.003) < 0.001
+
+    def test_auto_rate_used_by_default(self, tmp_path: Path) -> None:
+        """select_sample uses auto rate when sampling_rate_auto=True."""
+        specs = [(f"file{i}.txt", "text/plain", 100) for i in range(100)]
+        walk, inv = _make_walk_and_inventory(tmp_path, specs)
+        config = FieldCheckConfig(
+            sampling_rate=0.10,
+            sampling_rate_auto=True,
+            sampling_min_per_type=5,
+        )
+
+        result = select_sample(walk, inv, config)
+
+        # 100 files <= 3000 threshold, so auto should do census
+        assert result.is_census
+        assert result.total_sample_size == 100
+
+    def test_explicit_rate_overrides_auto(self, tmp_path: Path) -> None:
+        """Explicit sampling_rate_auto=False uses the configured rate."""
+        specs = [(f"file{i}.txt", "text/plain", 100) for i in range(100)]
+        walk, inv = _make_walk_and_inventory(tmp_path, specs)
+        config = FieldCheckConfig(
+            sampling_rate=0.10,
+            sampling_rate_auto=False,
+            sampling_min_per_type=5,
+        )
+
+        result = select_sample(walk, inv, config)
+
+        # Should use 10% = 10 files, not census
+        assert not result.is_census
+        assert result.total_sample_size == 10

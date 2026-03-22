@@ -13,6 +13,36 @@ from field_check.scanner.inventory import InventoryResult
 
 logger = logging.getLogger(__name__)
 
+# Below this threshold, sample everything (census). Small enough
+# that full content analysis is fast.
+_AUTO_CENSUS_THRESHOLD = 3000
+
+# Target sample size for all corpora above census threshold.
+# 3,000 gives ~1.8% margin of error at 95% confidence.
+_AUTO_TARGET_SAMPLE = _AUTO_CENSUS_THRESHOLD
+
+
+def compute_auto_sampling_rate(population_size: int) -> float:
+    """Compute an optimal sampling rate based on corpus size.
+
+    Targets a fixed sample size of 3,000 for consistent ~1.8%
+    margin of error at 95% confidence. For small corpora (<=3,000),
+    returns 1.0 (full census) for a seamless transition.
+
+    Args:
+        population_size: Total number of files in the corpus.
+
+    Returns:
+        Sampling rate between 0.0 and 1.0.
+    """
+    if population_size <= 0:
+        return 1.0
+
+    if population_size <= _AUTO_CENSUS_THRESHOLD:
+        return 1.0
+
+    return _AUTO_TARGET_SAMPLE / population_size
+
 
 @dataclass
 class ConfidenceInterval:
@@ -138,7 +168,17 @@ def select_sample(
     if not walk_result.files:
         return SampleResult(sampling_rate=config.sampling_rate)
 
-    rate = config.sampling_rate
+    population = len(walk_result.files)
+    if config.sampling_rate_auto:
+        rate = compute_auto_sampling_rate(population)
+        logger.info(
+            "Auto sampling: %d files → rate %.2f (target ~%d samples)",
+            population,
+            rate,
+            min(population, _AUTO_TARGET_SAMPLE),
+        )
+    else:
+        rate = config.sampling_rate
     min_per_type = config.sampling_min_per_type
 
     # Group files by MIME type
