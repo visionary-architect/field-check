@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Field Check</title>
+    <link rel="stylesheet" href="/src/styles/main.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- View: Select Folder -->
+      <div id="view-select" class="view active">
+        <div class="hero">
+          <h1>Field Check</h1>
+          <p class="subtitle">Document corpus health scanner</p>
+          <button id="btn-select-folder" class="btn-primary">
+            Select Folder
+          </button>
+          <p id="selected-path" class="selected-path"></p>
+          <button id="btn-start-scan" class="btn-start" disabled>
+            Start Scan
+          </button>
+        </div>
+      </div>
+
+      <!-- View: Scanning Progress -->
+      <div id="view-progress" class="view">
+        <div class="progress-container">
+          <h2>Scanning...</h2>
+          <p id="phase-name" class="phase-name">Initializing</p>
+          <div class="progress-bar-wrapper">
+            <div id="phase-progress" class="progress-bar"></div>
+          </div>
+          <p id="progress-detail" class="progress-detail"></p>
+          <div class="progress-meta">
+            <span id="phase-counter">Phase 0 / 12</span>
+            <span id="elapsed-time">0s</span>
+          </div>
+          <button id="btn-cancel" class="btn-cancel">Cancel</button>
+        </div>
+      </div>
+
+      <!-- View: Report -->
+      <div id="view-report" class="view">
+        <div class="report-header">
+          <h2>Scan Results</h2>
+          <div class="report-actions">
+            <button id="btn-export-json" class="btn-export">Export JSON</button>
+            <button id="btn-export-html" class="btn-export">Export HTML</button>
+            <button id="btn-new-scan" class="btn-secondary">New Scan</button>
+          </div>
+        </div>
+        <div id="report-content" class="report-content"></div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -134,3 +134,16 @@ field-check-report.*
 
 # Coverage
 coverage.xml
+
+# Tauri build artifacts
+src-tauri/target/
+src-tauri/gen/
+src-tauri/binaries/scanner-*
+
+# GUI build artifacts
+gui/dist/
+gui/node_modules/
+
+# PyInstaller artifacts
+*.spec
+build/pyinstaller/
