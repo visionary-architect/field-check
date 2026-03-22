@@ -145,16 +145,30 @@ def validate_iban(iban_str: str) -> bool:
 
 
 def validate_de_tax_id(tax_id_str: str) -> bool:
-    """Validate a German Tax ID (Steuer-IdNr) using python-stdnum.
+    """Validate a German Tax ID (Steuer-IdNr).
 
-    Returns True if valid, or True if stdnum is not installed (graceful).
+    Uses python-stdnum if available, otherwise applies basic structural checks:
+    - Exactly 11 digits, first digit non-zero
+    - No digit appears more than 3 times
+    - At least one digit (0-9) must be absent
     """
     try:
         from stdnum.de import idnr
 
         return idnr.is_valid(tax_id_str)
     except ImportError:
-        return True  # Accept without library
+        # Basic structural validation without stdnum
+        digits = tax_id_str.strip()
+        if len(digits) != 11 or not digits.isdigit() or digits[0] == "0":
+            return False
+        from collections import Counter
+
+        counts = Counter(digits)
+        # No digit may appear more than 3 times
+        if max(counts.values()) > 3:
+            return False
+        # At least one digit 0-9 must be absent
+        return len(counts) != 10
     except Exception:
         return False
 
@@ -277,8 +291,12 @@ def scan_text_for_pii(
         return file_result
 
     ctx = context_config or {}
+    _MAX_MATCHES_PER_FILE = 10_000
+    total_matches = 0
 
     for line_num, line in enumerate(text.split("\n"), 1):
+        if total_matches >= _MAX_MATCHES_PER_FILE:
+            break
         for name, _label, pattern, validator in compiled_patterns:
             for match in pattern.finditer(line):
                 matched = match.group()
@@ -302,6 +320,7 @@ def scan_text_for_pii(
                 if conf < min_confidence:
                     continue
                 file_result.matches_by_type[name] = file_result.matches_by_type.get(name, 0) + 1
+                total_matches += 1
                 if show_samples and len(file_result.sample_matches) < 5:
                     file_result.sample_matches.append(
                         PIIMatch(

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import struct
 from collections.abc import Callable
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -365,18 +366,55 @@ def _check_single_file(
     )
 
 
+_PER_FILE_TIMEOUT = 30  # seconds per file before giving up
+
+
+def _tally_health(result: CorruptionResult, health: FileHealth) -> None:
+    """Update result counters based on health status."""
+    if health.status == STATUS_OK:
+        result.ok_count += 1
+    elif health.status == STATUS_EMPTY:
+        result.empty_count += 1
+        result.flagged_files.append(health)
+    elif health.status == STATUS_NEAR_EMPTY:
+        result.near_empty_count += 1
+        result.flagged_files.append(health)
+    elif health.status == STATUS_CORRUPT:
+        result.corrupt_count += 1
+        result.flagged_files.append(health)
+    elif health.status == STATUS_TRUNCATED:
+        result.truncated_count += 1
+        result.flagged_files.append(health)
+    elif health.status in (
+        STATUS_ENCRYPTED_PDF,
+        STATUS_ENCRYPTED_ZIP,
+        STATUS_ENCRYPTED_OFFICE,
+    ):
+        result.encrypted_count += 1
+        result.flagged_files.append(health)
+    elif health.status == STATUS_UNREADABLE:
+        result.unreadable_count += 1
+        result.flagged_files.append(health)
+
+
 def check_corruption(
     walk_result: WalkResult,
     progress_callback: Callable[[int, int], None] | None = None,
     file_types: dict[Path, str] | None = None,
+    max_workers: int | None = None,
 ) -> CorruptionResult:
     """Check all files for corruption, encryption, and emptiness.
+
+    Uses ProcessPoolExecutor for crash isolation (Invariant 5):
+    a malformed file crashing zipfile/msoffcrypto cannot kill the scan.
 
     Args:
         walk_result: Results from directory walk.
         progress_callback: Called with (current, total) after each file.
         file_types: Pre-computed MIME types from inventory (avoids
             redundant filetype.guess calls).
+        max_workers: Maximum worker processes. Default: min(4, cpu_count).
+            Pass 0 for sequential processing (useful for testing/debugging).
 
     Returns:
         CorruptionResult with counts and flagged files.
@@ -384,35 +422,33 @@ def check_corruption(
     total = len(walk_result.files)
     result = CorruptionResult(total_checked=total)
 
+    if total == 0:
+        return result
+
+    if max_workers is None:
+        import os
+
+        max_workers = min(4, os.cpu_count() or 1)
+
+    if max_workers == 0:
+        return _check_sequential(walk_result, result, file_types, progress_callback)
+
+    return _check_parallel(walk_result, result, file_types, progress_callback, max_workers)
+
+
+def _check_sequential(
+    walk_result: WalkResult,
+    result: CorruptionResult,
+    file_types: dict[Path, str] | None,
+    progress_callback: Callable[[int, int], None] | None,
+) -> CorruptionResult:
+    """Sequential fallback (max_workers=0) for testing and debugging."""
+    total = len(walk_result.files)
     for i, entry in enumerate(walk_result.files):
         try:
             known_mime = file_types.get(entry.path) if file_types else None
             health = _check_single_file(entry.path, entry.size, known_mime)
-
-            if health.status == STATUS_OK:
-                result.ok_count += 1
-            elif health.status == STATUS_EMPTY:
-                result.empty_count += 1
-                result.flagged_files.append(health)
-            elif health.status == STATUS_NEAR_EMPTY:
-                result.near_empty_count += 1
-                result.flagged_files.append(health)
-            elif health.status == STATUS_CORRUPT:
-                result.corrupt_count += 1
-                result.flagged_files.append(health)
-            elif health.status == STATUS_TRUNCATED:
-                result.truncated_count += 1
-                result.flagged_files.append(health)
-            elif health.status in (
-                STATUS_ENCRYPTED_PDF,
-                STATUS_ENCRYPTED_ZIP,
-                STATUS_ENCRYPTED_OFFICE,
-            ):
-                result.encrypted_count += 1
-                result.flagged_files.append(health)
-            elif health.status == STATUS_UNREADABLE:
-                result.unreadable_count += 1
-                result.flagged_files.append(health)
+            _tally_health(result, health)
         except Exception:
             logger.warning("Corruption check failed for %s", entry.path, exc_info=True)
             result.unreadable_count += 1
@@ -424,8 +460,49 @@ def check_corruption(
                     detail="Corruption check raised an unexpected error",
                 )
             )
-
         if progress_callback is not None:
             progress_callback(i + 1, total)
+    return result
+
+
+def _check_parallel(
+    walk_result: WalkResult,
+    result: CorruptionResult,
+    file_types: dict[Path, str] | None,
+    progress_callback: Callable[[int, int], None] | None,
+    max_workers: int,
+) -> CorruptionResult:
+    """Process-pool based corruption check for crash isolation (Invariant 5)."""
+    total = len(walk_result.files)
+    completed = 0
+    with ProcessPoolExecutor(max_workers=max_workers) as pool:
+        future_to_entry = {}
+        for entry in walk_result.files:
+            known_mime = file_types.get(entry.path) if file_types else None
+            fut = pool.submit(_check_single_file, entry.path, entry.size, known_mime)
+            future_to_entry[fut] = entry
+
+        for fut in as_completed(future_to_entry):
+            entry = future_to_entry[fut]
+            try:
+                health = fut.result(timeout=_PER_FILE_TIMEOUT)
+                _tally_health(result, health)
+            except Exception:
+                logger.warning(
+                    "Corruption check failed for %s", entry.path, exc_info=True
+                )
+                result.unreadable_count += 1
+                result.flagged_files.append(
+                    FileHealth(
+                        path=entry.path,
+                        status=STATUS_UNREADABLE,
+                        mime_type="",
+                        detail="Corruption check raised an unexpected error",
+                    )
+                )
+
+            completed += 1
+            if progress_callback is not None:
+                progress_callback(completed, total)
 
     return result

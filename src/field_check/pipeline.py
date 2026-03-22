@@ -33,7 +33,7 @@ from field_check.scanner.text import (
 logger = logging.getLogger(__name__)
 
 
-class CancelledError(Exception):
+class ScanCancelledError(Exception):
     """Raised by callbacks to abort the pipeline early."""
 
 

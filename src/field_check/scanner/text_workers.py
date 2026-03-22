@@ -288,9 +288,14 @@ def _extract_epub(filepath: str) -> TextResult:
     try:
         with zipfile.ZipFile(filepath) as zf:
             parts: list[str] = []
+            total_bytes = 0
             for name in zf.namelist():
                 if re.search(r"\.(xhtml|html|htm)$", name, re.IGNORECASE):
-                    raw = zf.read(name).decode("utf-8", errors="replace")
+                    raw_bytes = zf.read(name)
+                    total_bytes += len(raw_bytes)
+                    if total_bytes > _MAX_TEXT_READ:
+                        break  # size limit to prevent zip bombs
+                    raw = raw_bytes.decode("utf-8", errors="replace")
                     parser = _TextExtractor()
                     parser.feed(raw)
                     parts.extend(parser.parts)
@@ -332,7 +337,7 @@ def _extract_pdf_text_fast(filepath: str) -> tuple[str, str | None, float, str |
         from pdf_oxide import PdfDocument
 
         doc = PdfDocument(filepath)
-        text = doc.to_plain_text_all()
+        text = doc.to_plain_text_all()[:_MAX_TEXT_READ]
         if text.strip():
             return (text, None, 0.0, None)
         # Empty text — fall through to pdfplumber for better extraction
@@ -397,12 +402,23 @@ def _extract_text_for_cache(
 
 
 def _detect_encoding(raw: bytes) -> tuple[str, str, float]:
-    """Detect encoding of raw bytes, preferring chardet over charset-normalizer.
+    """Detect encoding of raw bytes using charset-normalizer.
 
     Returns:
         Tuple of (decoded_text, encoding_name, confidence).
     """
-    # Try chardet first (faster, MIT licensed since v7.0)
+    try:
+        from charset_normalizer import from_bytes
+
+        result = from_bytes(raw).best()
+        if result:
+            return (str(result), result.encoding, 1.0 - result.chaos)
+    except ImportError:
+        pass
+    except Exception:
+        pass
+
+    # Fallback to chardet if available (optional)
     try:
         import chardet
 
@@ -412,18 +428,6 @@ def _detect_encoding(raw: bytes) -> tuple[str, str, float]:
         if enc and conf > 0.5:
             text = raw.decode(enc, errors="replace")
             return (text, enc, conf)
-    except ImportError:
-        pass
-    except Exception:
-        pass
-
-    # Fallback to charset-normalizer
-    try:
-        from charset_normalizer import from_bytes
-
-        result = from_bytes(raw).best()
-        if result:
-            return (str(result), result.encoding, 1.0 - result.chaos)
     except ImportError:
         pass
     except Exception:

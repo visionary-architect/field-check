@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from rich.console import Console
+from rich.markup import escape as _esc
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -75,7 +76,7 @@ def render_terminal_report(
     """
     # Header
     header_lines = [
-        f"[bold]Scan path:[/bold]  {walk_result.scan_root}",
+        f"[bold]Scan path:[/bold]  {_esc(str(walk_result.scan_root))}",
         f"[bold]Scan date:[/bold]  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         f"[bold]Duration:[/bold]   {format_duration(elapsed_seconds)}",
         f"[bold]Files:[/bold]      {inventory.total_files:,}",

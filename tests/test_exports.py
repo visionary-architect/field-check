@@ -163,10 +163,11 @@ class TestJSONReport:
         r = _make_results()
         output = render_json_report(**r)
         assert "matched_text" not in output
-        # Verify no email addresses leak into file-level data
+        # Verify no PII sample content leaks into file-level data
         data = json.loads(output)
-        files_json = json.dumps(data.get("files", []))
-        assert "@" not in files_json, "Email content leaked into file entries"
+        for f in data.get("files", []):
+            assert "matched_text" not in f, "PII matched_text leaked into file entry"
+            assert "sample_matches" not in f, "PII sample_matches leaked into file entry"
 
     def test_json_dedup_data(self) -> None:
         r = _make_results()
@@ -193,14 +194,14 @@ class TestCSVReport:
     def test_csv_valid(self) -> None:
         r = _make_results()
         output = render_csv_report(**r)
-        reader = csv.reader(io.StringIO(output))
+        reader = csv.reader(io.StringIO(output.lstrip("\ufeff")))
         rows = list(reader)
         assert len(rows) > 1
 
     def test_csv_header_row(self) -> None:
         r = _make_results()
         output = render_csv_report(**r)
-        reader = csv.reader(io.StringIO(output))
+        reader = csv.reader(io.StringIO(output.lstrip("\ufeff")))
         header = next(reader)
         expected = [
             "path",
@@ -219,7 +220,7 @@ class TestCSVReport:
     def test_csv_row_count(self) -> None:
         r = _make_results()
         output = render_csv_report(**r)
-        reader = csv.reader(io.StringIO(output))
+        reader = csv.reader(io.StringIO(output.lstrip("\ufeff")))
         rows = list(reader)
         assert len(rows) == 5  # 1 header + 4 files
 
@@ -232,7 +233,7 @@ class TestCSVReport:
     def test_csv_duplicate_flag(self) -> None:
         r = _make_results()
         output = render_csv_report(**r)
-        reader = csv.DictReader(io.StringIO(output))
+        reader = csv.DictReader(io.StringIO(output.lstrip("\ufeff")))
         rows = list(reader)
         dup_flags = {row["path"]: row["is_duplicate"] for row in rows}
         assert dup_flags["dup1.txt"] == "True"
@@ -380,9 +381,8 @@ class TestCLIExportIntegration:
         )
         assert result.exit_code == 0, result.output
         assert out_file.exists()
-        reader = csv.reader(
-            io.StringIO(out_file.read_text(encoding="utf-8")),
-        )
+        content = out_file.read_text(encoding="utf-8-sig")
+        reader = csv.reader(io.StringIO(content))
         rows = list(reader)
         assert rows[0][0] == "path"
 

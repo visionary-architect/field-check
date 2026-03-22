@@ -1,24 +1,24 @@
 {
   "_comment": "Codebase index",
   "_version": "1.0",
-  "_lastUpdated": "2026-03-21T23:53:11.598309",
+  "_lastUpdated": "2026-03-22T01:24:54.477785",
   "files": {
     "src/field_check/config.py": {
       "exports": [
-        "CONFIG_FILENAME",
-        "DEFAULT_EXCLUDES",
+        "should_exclude",
         "logger",
+        "DEFAULT_EXCLUDES",
         "FieldCheckConfig",
         "load_config",
-        "should_exclude"
+        "CONFIG_FILENAME"
       ],
       "imports": [
-        "dataclasses",
-        "pathlib",
         "__future__",
         "fnmatch",
-        "logging",
-        "re"
+        "pathlib",
+        "re",
+        "dataclasses",
+        "logging"
       ],
       "type": "module"
     },
@@ -44,23 +44,23 @@
     },
     "src/field_check/cli.py": {
       "exports": [
-        "main",
         "console",
+        "main",
         "scan"
       ],
       "imports": [
-        "field_check.config",
-        "os",
-        "__future__",
-        "sys",
+        "pathlib",
+        "field_check",
         "time",
         "rich.console",
-        "field_check",
-        "field_check.pipeline",
-        "pathlib",
-        "rich.progress",
+        "field_check.config",
+        "field_check.report",
         "click",
-        "field_check.report"
+        "os",
+        "rich.progress",
+        "field_check.pipeline",
+        "sys",
+        "__future__"
       ],
       "type": "module"
     },
@@ -94,27 +94,28 @@
         "render_terminal_report"
       ],
       "imports": [
-        "rich.panel",
-        "field_check.scanner.corruption",
-        "datetime",
-        "field_check.scanner.inventory",
-        "field_check.report.utils",
+        "__future__",
         "field_check.scanner",
+        "rich.console",
+        "field_check",
+        "rich.markup",
+        "field_check.scanner.mojibake",
+        "field_check.scanner.encoding",
         "field_check.scanner.dedup",
-        "field_check.scanner.language",
+        "field_check.report.terminal_content",
+        "field_check.scanner.text",
+        "field_check.report.utils",
+        "rich.table",
+        "rich.text",
+        "field_check.scanner.inventory",
+        "datetime",
+        "field_check.scanner.readability",
+        "rich.panel",
         "field_check.scanner.sampling",
         "field_check.scanner.simhash",
-        "rich.table",
+        "field_check.scanner.corruption",
         "field_check.scanner.pii",
-        "field_check.scanner.text",
-        "rich.console",
-        "field_check.scanner.mojibake",
-        "__future__",
-        "field_check.report.terminal_content",
-        "field_check.scanner.readability",
-        "field_check",
-        "field_check.scanner.encoding",
-        "rich.text"
+        "field_check.scanner.language"
       ],
       "type": "module"
     },
@@ -124,28 +125,32 @@
         "determine_exit_code"
       ],
       "imports": [
-        "rich.console",
-        "field_check.report.csv_report",
-        "field_check.scanner.mojibake",
-        "field_check.scanner",
-        "field_check.report.json_report",
-        "field_check.scanner.text",
-        "field_check.scanner.encoding",
-        "field_check.config",
-        "field_check.scanner.simhash",
-        "field_check.scanner.dedup",
-        "field_check.report.html",
         "field_check.report.terminal",
-        "field_check.report.sarif_report",
-        "field_check.scanner.pii",
-        "pathlib",
-        "field_check.scanner.language",
-        "field_check.scanner.inventory",
-        "__future__",
+        "field_check.scanner.dedup",
         "field_check.scanner.readability",
-        "field_check.report.junit_report",
+        "__future__",
+        "field_check.scanner.pii",
+        "field_check.scanner.language",
+        "field_check.scanner.mojibake",
+        "field_check.scanner.inventory",
+        "field_check.scanner.text",
+        "rich.console",
+        "tempfile",
+        "field_check.config",
+        "field_check.scanner.sampling",
         "field_check.scanner.corruption",
-        "field_check.scanner.sampling"
+        "pathlib",
+        "os",
+        "field_check.report.json_report",
+        "field_check.scanner.encoding",
+        "field_check.scanner.simhash",
+        "field_check.report.junit_report",
+        "field_check.report.csv_report",
+        "field_check.report.sarif_report",
+        "rich.markup",
+        "field_check.report.html",
+        "field_check.scanner",
+        "contextlib"
       ],
       "type": "module"
     },
@@ -260,22 +265,23 @@
     },
     "tests/test_cli.py": {
       "exports": [
-        "test_cli_scan_unsupported_format",
-        "test_cli_scan_with_exclude",
-        "test_cli_scan_nonexistent_path",
-        "test_cli_scan_with_config",
-        "test_cli_scan_file_count_in_output",
         "test_cli_scan_output_contains_sections",
-        "test_cli_scan_basic",
+        "test_cli_scan_with_exclude",
+        "test_cli_scan_with_config",
+        "test_cli_scan_unsupported_format",
         "test_cli_scan_shows_duration",
+        "test_cli_scan_file_count_in_output",
+        "test_cli_version",
         "test_invariant2_scan_never_modifies_files",
-        "test_cli_version"
+        "test_cli_scan_nonexistent_path",
+        "test_cli_scan_basic"
       ],
       "imports": [
-        "click.testing",
         "field_check.cli",
+        "pathlib",
         "__future__",
-        "pathlib"
+        "field_check",
+        "click.testing"
       ],
       "type": "module"
     },
@@ -301,28 +307,29 @@
     },
     "src/field_check/scanner/corruption.py": {
       "exports": [
-        "logger",
-        "FileHealth",
-        "STATUS_CORRUPT",
         "STATUS_ENCRYPTED_PDF",
-        "check_corruption",
         "STATUS_UNREADABLE",
         "STATUS_EMPTY",
-        "CorruptionResult",
-        "STATUS_OK",
-        "STATUS_TRUNCATED",
+        "FileHealth",
         "STATUS_ENCRYPTED_OFFICE",
+        "CorruptionResult",
+        "STATUS_CORRUPT",
+        "STATUS_ENCRYPTED_ZIP",
+        "STATUS_TRUNCATED",
         "STATUS_NEAR_EMPTY",
-        "STATUS_ENCRYPTED_ZIP"
+        "check_corruption",
+        "STATUS_OK",
+        "logger"
       ],
       "imports": [
         "dataclasses",
-        "collections.abc",
         "pathlib",
-        "__future__",
-        "struct",
         "field_check.scanner",
-        "logging"
+        "__future__",
+        "collections.abc",
+        "logging",
+        "concurrent.futures",
+        "struct"
       ],
       "type": "module"
     },
@@ -350,33 +357,33 @@
     },
     "tests/test_corruption.py": {
       "exports": [
-        "test_check_encrypted_zip",
-        "test_only_flagged_in_results",
-        "test_check_corrupt_pdf_via_mock",
         "test_check_empty_file",
-        "test_corruption_result_counts",
-        "test_file_types_skips_filetype_guess",
-        "TestTruncationDetection",
-        "test_check_near_empty_file",
-        "test_check_corrupt_pdf",
-        "test_check_corruption_progress_callback",
+        "test_check_valid_png",
         "test_check_corrupt_magic_mismatch",
-        "test_check_valid_pdf",
-        "test_unreadable_file",
         "test_check_encrypted_pdf",
-        "TestOfficeEncryption",
-        "test_check_normal_zip",
+        "test_check_valid_pdf",
+        "test_check_corrupt_pdf",
+        "test_check_encrypted_zip",
         "test_check_corruption_empty_walk",
-        "test_check_valid_png"
+        "test_file_types_skips_filetype_guess",
+        "test_unreadable_file",
+        "test_check_near_empty_file",
+        "test_corruption_result_counts",
+        "TestTruncationDetection",
+        "test_check_corruption_progress_callback",
+        "TestOfficeEncryption",
+        "test_check_corrupt_pdf_via_mock",
+        "test_check_normal_zip",
+        "test_only_flagged_in_results"
       ],
       "imports": [
+        "field_check.scanner.corruption",
         "field_check.scanner",
-        "field_check.config",
-        "unittest.mock",
+        "__future__",
         "tests.conftest",
         "pathlib",
-        "__future__",
-        "field_check.scanner.corruption"
+        "unittest.mock",
+        "field_check.config"
       ],
       "type": "module"
     },
@@ -396,25 +403,25 @@
     },
     "src/field_check/scanner/sampling.py": {
       "exports": [
+        "compute_confidence_interval",
+        "estimate_design_effect",
+        "compute_auto_sampling_rate",
+        "ConfidenceInterval",
         "select_sample",
         "SampleResult",
         "format_ci",
-        "ConfidenceInterval",
-        "estimate_design_effect",
-        "logger",
-        "compute_confidence_interval",
-        "compute_auto_sampling_rate",
-        "compute_confidence_interval_adjusted"
+        "compute_confidence_interval_adjusted",
+        "logger"
       ],
       "imports": [
-        "dataclasses",
-        "logging",
-        "field_check.scanner",
-        "collections",
         "__future__",
+        "collections",
+        "field_check.scanner",
+        "math",
+        "dataclasses",
         "field_check.config",
         "field_check.scanner.inventory",
-        "math"
+        "logging"
       ],
       "type": "module"
     },
@@ -508,25 +515,25 @@
     },
     "src/field_check/scanner/pii.py": {
       "exports": [
-        "logger",
         "PIIMatch",
+        "logger",
+        "PIIFileResult",
         "PIIScanResult",
-        "scan_pii",
-        "PIIFileResult"
+        "scan_pii"
       ],
       "imports": [
-        "concurrent.futures",
+        "__future__",
+        "logging",
         "field_check.scanner.pii_helpers",
         "dataclasses",
+        "os",
         "collections.abc",
-        "logging",
-        "field_check.scanner.inventory",
         "re",
-        "field_check.config",
+        "concurrent.futures",
         "field_check.scanner",
-        "__future__",
+        "field_check.scanner.inventory",
         "field_check.scanner.sampling",
-        "os"
+        "field_check.config"
       ],
       "type": "module"
     },
@@ -534,45 +541,45 @@
       "exports": [
         "TestInternationalPII",
         "TestScanPiiIntegration",
-        "TestPhoneValidation",
-        "TestCustomPatterns",
-        "TestPatternMatching",
-        "TestLuhnValidation",
         "TestSingleFileScanner",
-        "TestContextScoring",
+        "TestPatternMatching",
+        "TestCustomPatterns",
+        "TestPhoneValidation",
         "TestPageCountDistribution",
-        "TestContextScoringFixes"
+        "TestLuhnValidation",
+        "TestContextScoringFixes",
+        "TestContextScoring"
       ],
       "imports": [
         "field_check.scanner",
-        "field_check.scanner.text",
-        "__future__",
         "pathlib",
-        "field_check.scanner.pii",
-        "tests.conftest",
         "field_check.scanner.inventory",
-        "field_check.scanner.sampling",
-        "field_check.config"
+        "tests.conftest",
+        "field_check.config",
+        "__future__",
+        "field_check.scanner.text",
+        "field_check.scanner.pii",
+        "field_check.scanner.sampling"
       ],
       "type": "module"
     },
     "src/field_check/scanner/language.py": {
       "exports": [
-        "logger",
+        "LanguageFileResult",
         "MIN_STOPWORD_MATCHES",
-        "detect_language",
         "analyze_languages",
-        "MIN_CHARS_FOR_DETECTION",
+        "detect_language",
+        "logger",
         "LanguageResult",
-        "LanguageFileResult"
+        "MIN_CHARS_FOR_DETECTION"
       ],
       "imports": [
-        "logging",
-        "re",
+        "threading",
         "dataclasses",
         "__future__",
-        "threading",
         "bisect",
+        "re",
+        "logging",
         "collections.abc"
       ],
       "type": "module"
@@ -620,25 +627,25 @@
     },
     "src/field_check/scanner/simhash.py": {
       "exports": [
-        "detect_near_duplicates",
-        "similarity_score",
-        "compute_simhash",
         "logger",
-        "MIN_TEXT_LENGTH",
-        "SimHashResult",
-        "DEFAULT_THRESHOLD",
-        "SIMHASH_BITS",
         "NearDuplicateCluster",
-        "hamming_distance"
+        "SimHashResult",
+        "hamming_distance",
+        "SIMHASH_BITS",
+        "compute_simhash",
+        "DEFAULT_THRESHOLD",
+        "MIN_TEXT_LENGTH",
+        "detect_near_duplicates",
+        "similarity_score"
       ],
       "imports": [
-        "__future__",
-        "hashlib",
-        "re",
         "logging",
+        "re",
         "collections.abc",
         "collections",
-        "dataclasses"
+        "dataclasses",
+        "__future__",
+        "hashlib"
       ],
       "type": "module"
     },
@@ -664,46 +671,47 @@
         "render_json_report"
       ],
       "imports": [
-        "__future__",
+        "field_check.scanner.text",
+        "field_check.scanner.dedup",
+        "field_check.report.utils",
+        "field_check.scanner.pii",
         "field_check.scanner",
         "field_check.scanner.encoding",
-        "field_check",
-        "json",
         "field_check.scanner.readability",
-        "field_check.scanner.corruption",
-        "pathlib",
-        "field_check.scanner.pii",
-        "field_check.scanner.mojibake",
-        "field_check.scanner.inventory",
+        "field_check.scanner.simhash",
+        "field_check",
         "field_check.scanner.sampling",
         "datetime",
-        "field_check.scanner.simhash",
-        "field_check.scanner.dedup",
-        "field_check.scanner.text",
-        "field_check.scanner.language"
+        "field_check.scanner.mojibake",
+        "field_check.scanner.language",
+        "json",
+        "field_check.scanner.corruption",
+        "__future__",
+        "field_check.scanner.inventory"
       ],
       "type": "module"
     },
     "src/field_check/report/csv_report.py": {
       "exports": [
-        "CSV_COLUMNS",
-        "render_csv_report"
+        "render_csv_report",
+        "CSV_COLUMNS"
       ],
       "imports": [
-        "field_check.scanner.corruption",
-        "field_check.scanner.pii",
-        "field_check.scanner.simhash",
-        "field_check.scanner",
         "field_check.scanner.inventory",
-        "field_check.scanner.sampling",
-        "field_check.scanner.language",
+        "field_check.scanner.simhash",
         "__future__",
-        "field_check.scanner.encoding",
-        "field_check.scanner.mojibake",
         "io",
-        "csv",
         "field_check.scanner.text",
-        "field_check.scanner.dedup"
+        "field_check.report.utils",
+        "field_check.scanner.dedup",
+        "field_check.scanner.pii",
+        "field_check.scanner.language",
+        "field_check.scanner.sampling",
+        "csv",
+        "field_check.scanner.encoding",
+        "field_check.scanner.corruption",
+        "field_check.scanner.mojibake",
+        "field_check.scanner"
       ],
       "type": "module"
     },
@@ -712,56 +720,56 @@
         "render_html_report"
       ],
       "imports": [
-        "field_check.scanner.mojibake",
         "field_check.report.utils",
-        "field_check.scanner.readability",
-        "field_check.scanner.text",
-        "field_check.scanner.sampling",
-        "field_check.scanner.encoding",
-        "__future__",
-        "jinja2",
-        "field_check.scanner.corruption",
-        "field_check.scanner.language",
         "datetime",
-        "field_check.scanner.simhash",
-        "field_check.scanner",
-        "field_check.scanner.inventory",
-        "pathlib",
+        "__future__",
+        "field_check.scanner.language",
         "field_check.scanner.pii",
+        "field_check",
+        "field_check.scanner.corruption",
+        "pathlib",
+        "field_check.scanner.inventory",
+        "field_check.scanner",
+        "field_check.scanner.encoding",
+        "field_check.scanner.mojibake",
         "field_check.scanner.dedup",
-        "field_check"
+        "field_check.scanner.readability",
+        "field_check.scanner.simhash",
+        "field_check.scanner.text",
+        "jinja2",
+        "field_check.scanner.sampling"
       ],
       "type": "module"
     },
     "tests/test_exports.py": {
       "exports": [
-        "TestExitCodes",
         "TestHTMLReport",
-        "TestConfigThresholds",
         "TestCSVReport",
+        "TestConfigThresholds",
+        "TestExitCodes",
         "TestCLIExportIntegration",
         "TestJSONReport"
       ],
       "imports": [
-        "csv",
-        "re",
-        "field_check.config",
-        "pathlib",
-        "field_check.report",
-        "__future__",
-        "json",
-        "field_check.report.csv_report",
-        "field_check.scanner",
-        "field_check.scanner.pii",
-        "io",
-        "field_check.report.html",
         "field_check.scanner.corruption",
-        "click.testing",
+        "field_check.report.html",
+        "field_check.scanner.pii",
+        "field_check.scanner",
+        "re",
+        "json",
         "field_check.report.json_report",
-        "field_check.scanner.dedup",
-        "field_check.scanner.sampling",
+        "pathlib",
+        "__future__",
+        "field_check.report",
+        "click.testing",
+        "io",
+        "csv",
         "field_check.cli",
-        "field_check.scanner.inventory"
+        "field_check.scanner.dedup",
+        "field_check.report.csv_report",
+        "field_check.scanner.sampling",
+        "field_check.scanner.inventory",
+        "field_check.config"
       ],
       "type": "module"
     },
@@ -853,43 +861,44 @@
     },
     "tests/test_coverage_gaps.py": {
       "exports": [
+        "TestTextGaps",
+        "TestConfigGaps",
         "TestReportGaps",
         "TestDedupGaps",
-        "TestLanguageGaps",
-        "TestCorruptionGaps",
-        "TestJSONGaps",
-        "TestConfigGaps",
-        "TestTextGaps",
-        "TestEncodingGaps",
-        "TestInventoryGaps",
         "ROOT",
+        "TestEncodingGaps",
+        "TestCorruptionGaps",
         "TestPIIGaps",
-        "TestCLIGaps",
-        "TestCSVGaps"
+        "TestCSVGaps",
+        "TestJSONGaps",
+        "TestInventoryGaps",
+        "TestLanguageGaps",
+        "TestCLIGaps"
       ],
       "imports": [
-        "click.testing",
-        "field_check.scanner.dedup",
-        "field_check.report.json_report",
-        "field_check.scanner.corruption",
-        "json",
-        "unittest.mock",
-        "field_check.scanner",
         "field_check.scanner.inventory",
-        "field_check.scanner.text_workers",
-        "field_check.report",
-        "__future__",
-        "field_check.scanner.pii",
-        "field_check.cli",
-        "field_check.scanner.language",
+        "pathlib",
         "field_check.report.csv_report",
         "field_check.scanner.text",
-        "pytest",
-        "pathlib",
-        "re",
-        "field_check.scanner.encoding",
+        "field_check.report",
+        "field_check.report.json_report",
         "field_check.scanner.sampling",
-        "field_check.config"
+        "field_check.scanner.dedup",
+        "field_check.config",
+        "field_check.scanner",
+        "json",
+        "unittest.mock",
+        "field_check.report.utils",
+        "field_check.scanner.pii",
+        "re",
+        "field_check.scanner.corruption",
+        "pytest",
+        "field_check.scanner.encoding",
+        "__future__",
+        "field_check.scanner.language",
+        "field_check.cli",
+        "click.testing",
+        "field_check.scanner.text_workers"
       ],
       "type": "module"
     },
@@ -1242,11 +1251,26 @@
     },
     "src/field_check/report/utils.py": {
       "exports": [
+        "try_relative",
+        "build_corruption_detail_lookup",
+        "build_duplicate_paths",
+        "try_relative_forward",
         "format_duration",
-        "format_size"
+        "build_language_lookup",
+        "build_encoding_lookup",
+        "format_size",
+        "build_hash_lookup",
+        "build_pii_lookup",
+        "build_health_lookup"
       ],
       "imports": [
-        "__future__"
+        "field_check.scanner.corruption",
+        "field_check.scanner.encoding",
+        "field_check.scanner.dedup",
+        "field_check.scanner.pii",
+        "pathlib",
+        "__future__",
+        "field_check.scanner.language"
       ],
       "type": "module"
     },
@@ -1422,9 +1446,9 @@
     "src/field_check/scanner/text_workers.py": {
       "exports": [],
       "imports": [
-        "field_check.scanner.text",
+        "__future__",
         "os",
-        "__future__"
+        "field_check.scanner.text"
       ],
       "type": "module"
     },
@@ -1475,18 +1499,18 @@
     },
     "src/field_check/scanner/pii_helpers.py": {
       "exports": [
-        "scan_text_for_pii",
-        "validate_es_dni",
-        "luhn_check",
-        "validate_iban",
-        "compute_context_confidence",
         "validate_de_tax_id",
-        "validate_phone"
+        "validate_iban",
+        "validate_phone",
+        "scan_text_for_pii",
+        "compute_context_confidence",
+        "validate_es_dni",
+        "luhn_check"
       ],
       "imports": [
-        "typing",
+        "__future__",
         "re",
-        "__future__"
+        "typing"
       ],
       "type": "module"
     },
@@ -1520,16 +1544,16 @@
     },
     "src/field_check/scanner/readability.py": {
       "exports": [
+        "LOW_QUALITY_THRESHOLD",
         "ReadabilityResult",
-        "ReadabilityScore",
         "logger",
         "analyze_readability",
-        "LOW_QUALITY_THRESHOLD"
+        "ReadabilityScore"
       ],
       "imports": [
         "dataclasses",
-        "__future__",
-        "logging"
+        "logging",
+        "__future__"
       ],
       "type": "module"
     },
@@ -1552,16 +1576,17 @@
         "SARIF_SCHEMA"
       ],
       "imports": [
+        "field_check.scanner.corruption",
+        "__future__",
+        "field_check.scanner.inventory",
+        "field_check.report.utils",
+        "field_check.scanner",
+        "json",
+        "field_check.scanner.mojibake",
         "field_check.scanner.pii",
         "field_check.scanner.dedup",
-        "field_check.scanner.mojibake",
-        "field_check",
-        "field_check.scanner.corruption",
         "pathlib",
-        "__future__",
-        "json",
-        "field_check.scanner.inventory",
-        "field_check.scanner"
+        "field_check"
       ],
       "type": "module"
     },
@@ -1588,14 +1613,14 @@
         "render_junit_report"
       ],
       "imports": [
-        "field_check.scanner.pii",
-        "field_check.scanner.dedup",
-        "__future__",
-        "pathlib",
-        "field_check.scanner.corruption",
-        "field_check.scanner.inventory",
         "xml.etree.ElementTree",
-        "field_check.scanner"
+        "field_check.scanner.corruption",
+        "field_check.scanner.pii",
+        "field_check.scanner",
+        "field_check.report.utils",
+        "field_check.scanner.inventory",
+        "__future__",
+        "field_check.scanner.dedup"
       ],
       "type": "module"
     },
@@ -1652,17 +1677,17 @@
     "src/field_check/scanner/semantic_dedup.py": {
       "exports": [
         "SemanticDedupResult",
-        "detect_semantic_duplicates",
-        "MIN_TEXT_LENGTH",
         "logger",
         "SemanticCluster",
-        "DEFAULT_SIMILARITY_THRESHOLD"
+        "DEFAULT_SIMILARITY_THRESHOLD",
+        "MIN_TEXT_LENGTH",
+        "detect_semantic_duplicates"
       ],
       "imports": [
-        "__future__",
-        "dataclasses",
         "collections.abc",
-        "logging"
+        "dataclasses",
+        "logging",
+        "__future__"
       ],
       "type": "module"
     },
@@ -1680,61 +1705,61 @@
     },
     "tests/test_mock_deps.py": {
       "exports": [
-        "TestSemanticDedupMocked",
-        "TestInventoryCrashIsolation",
         "TestReadabilityFixed",
-        "TestTextWorkersEPUB",
-        "TestPIIValidatorEdgeCases",
+        "TestSimHashFaissMocked",
+        "TestSemanticDedupMocked",
+        "TestMinHashMocked",
         "TestTextWorkersCache",
         "TestEncodingDetection",
-        "TestPdfOxideFallback",
-        "TestSimHashFaissMocked",
-        "TestExtractSingleDispatch",
-        "TestTextWorkersPPTX",
-        "TestMinHashMocked",
         "TestTextWorkersXLSX",
+        "TestCorruptionEdgeCases",
         "TestTextWorkersEML",
-        "TestCorruptionEdgeCases"
+        "TestTextWorkersPPTX",
+        "TestInventoryCrashIsolation",
+        "TestExtractSingleDispatch",
+        "TestPdfOxideFallback",
+        "TestTextWorkersEPUB",
+        "TestPIIValidatorEdgeCases"
       ],
       "imports": [
-        "types",
-        "unittest.mock",
-        "zipfile",
         "pathlib",
-        "__future__"
+        "types",
+        "__future__",
+        "zipfile",
+        "unittest.mock"
       ],
       "type": "module"
     },
     "src/field_check/pipeline.py": {
       "exports": [
-        "CancelledError",
-        "PipelineResult",
-        "logger",
-        "PhaseCallback",
-        "run_pipeline",
         "PHASES",
-        "ProgressCallback"
+        "logger",
+        "ProgressCallback",
+        "run_pipeline",
+        "PhaseCallback",
+        "ScanCancelledError",
+        "PipelineResult"
       ],
       "imports": [
-        "field_check.scanner.text",
-        "field_check.scanner.encoding",
-        "pathlib",
-        "field_check.scanner.mojibake",
-        "logging",
         "__future__",
-        "field_check.scanner.sampling",
-        "dataclasses",
-        "field_check.scanner.readability",
-        "time",
-        "field_check.config",
-        "field_check.scanner.corruption",
-        "collections.abc",
         "field_check.scanner.language",
-        "field_check.scanner",
-        "field_check.scanner.pii",
+        "dataclasses",
+        "field_check.scanner.text",
         "field_check.scanner.inventory",
+        "field_check.config",
+        "field_check.scanner.readability",
+        "field_check.scanner.corruption",
+        "field_check.scanner.dedup",
+        "field_check.scanner.pii",
+        "time",
+        "field_check.scanner.encoding",
         "field_check.scanner.simhash",
-        "field_check.scanner.dedup"
+        "collections.abc",
+        "logging",
+        "field_check.scanner.sampling",
+        "field_check.scanner",
+        "pathlib",
+        "field_check.scanner.mojibake"
       ],
       "type": "module"
     },
@@ -1761,16 +1786,17 @@
         "logger"
       ],
       "imports": [
-        "threading",
-        "field_check.config",
-        "pathlib",
-        "field_check.report.json_report",
         "__future__",
-        "json",
-        "sys",
-        "field_check.pipeline",
         "logging",
-        "field_check"
+        "field_check.pipeline",
+        "field_check.report.json_report",
+        "math",
+        "pathlib",
+        "field_check",
+        "sys",
+        "field_check.config",
+        "threading",
+        "json"
       ],
       "type": "module"
     },
@@ -1950,6 +1976,13 @@
         "field_check.scanner",
         "__future__",
         "field_check.report.html"
+      ],
+      "type": "module"
+    },
+    "src/field_check/__init__.py": {
+      "exports": [],
+      "imports": [
+        "importlib.metadata"
       ],
       "type": "module"
     }

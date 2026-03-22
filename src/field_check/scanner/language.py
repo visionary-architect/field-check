@@ -632,7 +632,8 @@ def _detect_latin_language(text: str) -> str:
     Returns:
         Language name or "Latin (Unknown)" if no profile matches well.
     """
-    words = [w.lower() for w in _WORD_PATTERN.findall(text)]
+    # Limit analysis to first 5000 chars — sufficient for language detection
+    words = [w.lower() for w in _WORD_PATTERN.findall(text[:5000])]
     if not words:
         return "Latin (Unknown)"
 
@@ -693,7 +694,7 @@ def _try_lingua(text: str) -> str | None:
 
                 _lingua_detector = LanguageDetectorBuilder.from_all_languages().build()
 
-        lang = _lingua_detector.detect_language_of(text[:2000])
+            lang = _lingua_detector.detect_language_of(text[:2000])
         if lang is not None:
             return lang.name.title()
         return None

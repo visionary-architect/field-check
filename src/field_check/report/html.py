@@ -301,7 +301,10 @@ def _build_context(
         context["mojibake"] = {
             "total_checked": f"{mojibake.total_checked:,}",
             "files_with_mojibake": mojibake.files_with_mojibake,
-            "files": [Path(p).name for p in mojibake.mojibake_files[:20]],
+            "files": [
+                _try_relative_str(p, walk_result.scan_root)
+                for p in mojibake.mojibake_files[:20]
+            ],
         }
 
     # Readability section

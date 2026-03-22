@@ -6,6 +6,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
+from field_check import __version__
 from field_check.cli import main
 
 
@@ -14,7 +15,7 @@ def test_cli_version() -> None:
     runner = CliRunner()
     result = runner.invoke(main, ["--version"])
     assert result.exit_code == 0
-    assert "0.1.0" in result.output
+    assert __version__ in result.output
 
 
 def test_cli_scan_basic(tmp_corpus: Path) -> None:

@@ -23,6 +23,15 @@ from field_check.scanner.sampling import SampleResult
 
 logger = logging.getLogger(__name__)
 
+# Known IBAN country codes (ISO 3166-1 alpha-2 with active IBAN usage)
+_IBAN_COUNTRIES = (
+    "AL|AD|AT|AZ|BH|BY|BE|BA|BR|BG|CR|HR|CY|CZ|DK|DO|TL|EG|SV|EE|FO|FI|FR|"
+    "GE|DE|GI|GR|GL|GT|HU|IS|IQ|IE|IL|IT|JO|KZ|XK|KW|LV|LB|LY|LI|LT|LU|MK|"
+    "MT|MR|MU|MC|MD|ME|NL|NO|PK|PS|PL|PT|QA|RO|LC|SM|ST|SA|RS|SC|SK|SI|ES|SD|"
+    "SE|CH|TN|TR|UA|AE|GB|VA|VG"
+)
+_IBAN_PATTERN = rf"\b(?:{_IBAN_COUNTRIES})\d{{2}}[A-Z0-9]{{11,30}}\b"
+
 # Built-in PII patterns with expected false positive rates
 BUILTIN_PATTERNS: list[dict[str, str | float]] = [
     {
@@ -79,8 +88,8 @@ BUILTIN_PATTERNS: list[dict[str, str | float]] = [
     {
         "name": "iban",
         "label": "IBAN (International)",
-        "pattern": r"\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b",
-        "fp_rate": 0.20,
+        "pattern": _IBAN_PATTERN,
+        "fp_rate": 0.15,
         "validator": "iban",
     },
     {

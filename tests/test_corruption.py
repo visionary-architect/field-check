@@ -77,7 +77,7 @@ def test_check_corrupt_pdf_via_mock(tmp_path: Path) -> None:
         "field_check.scanner.corruption._detect_mime",
         return_value="application/pdf",
     ):
-        result = check_corruption(walk)
+        result = check_corruption(walk, max_workers=0)
 
     assert result.corrupt_count == 1
     flagged = [f for f in result.flagged_files if f.status == "corrupt"]
@@ -96,7 +96,7 @@ def test_check_corrupt_magic_mismatch(tmp_path: Path) -> None:
         "field_check.scanner.corruption._detect_mime",
         return_value="application/pdf",
     ):
-        result = check_corruption(walk)
+        result = check_corruption(walk, max_workers=0)
 
     assert result.corrupt_count == 1
     flagged = [f for f in result.flagged_files if f.status == "corrupt"]
@@ -192,7 +192,7 @@ def test_unreadable_file(tmp_path: Path) -> None:
         return original_open(path, *args, **kwargs)
 
     with patch("builtins.open", side_effect=mock_open):
-        result = check_corruption(walk)
+        result = check_corruption(walk, max_workers=0)
 
     assert result.unreadable_count == 1
     flagged = [f for f in result.flagged_files if f.status == "unreadable"]
@@ -211,7 +211,7 @@ def test_file_types_skips_filetype_guess(tmp_path: Path) -> None:
     with patch(
         "field_check.scanner.corruption._detect_mime",
     ) as mock_detect:
-        result = check_corruption(walk, file_types=file_types)
+        result = check_corruption(walk, file_types=file_types, max_workers=0)
         # _detect_mime should NOT be called since we provided file_types
         mock_detect.assert_not_called()
 
@@ -240,7 +240,7 @@ class TestOfficeEncryption:
             "field_check.scanner.corruption._check_encrypted_office",
             return_value=True,
         ):
-            result = check_corruption(walk, file_types=file_types)
+            result = check_corruption(walk, file_types=file_types, max_workers=0)
 
         assert result.encrypted_count == 1
         flagged = [f for f in result.flagged_files if f.status == "encrypted_office"]
@@ -263,7 +263,7 @@ class TestOfficeEncryption:
             "field_check.scanner.corruption._check_encrypted_office",
             return_value=False,
         ):
-            result = check_corruption(walk, file_types=file_types)
+            result = check_corruption(walk, file_types=file_types, max_workers=0)
 
         assert result.encrypted_count == 0
         assert result.ok_count == 1

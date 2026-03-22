@@ -14,7 +14,8 @@ from field_check.cli import main
 from field_check.config import FieldCheckConfig, load_config
 from field_check.report import generate_report
 from field_check.report.csv_report import render_csv_report
-from field_check.report.json_report import _try_relative, render_json_report
+from field_check.report.json_report import render_json_report
+from field_check.report.utils import try_relative
 from field_check.scanner import FileEntry, WalkResult
 from field_check.scanner.corruption import (
     _check_encrypted_pdf,
@@ -424,7 +425,7 @@ class TestConfigGaps:
 
 class TestJSONGaps:
     def test_try_relative_value_error(self):
-        assert _try_relative("/other/path", Path("/root")) == "/other/path"
+        assert try_relative("/other/path", Path("/root")) == "/other/path"
 
     def test_encoding_section(self):
         f = [_e("d.txt")]

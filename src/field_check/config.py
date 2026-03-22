@@ -31,6 +31,7 @@ class FieldCheckConfig:
     pii_critical: float = 0.05
     duplicate_critical: float = 0.10
     corrupt_critical: float = 0.01
+    seed: int | None = None
 
 
 def load_config(scan_path: Path, config_path: Path | None = None) -> FieldCheckConfig:
@@ -60,8 +61,11 @@ def load_config(scan_path: Path, config_path: Path | None = None) -> FieldCheckC
 
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except Exception:
-        logger.warning("Failed to parse %s, using defaults", path)
+    except yaml.YAMLError:
+        logger.warning("Failed to parse %s: invalid YAML, using defaults", path)
+        return FieldCheckConfig()
+    except UnicodeDecodeError:
+        logger.warning("Failed to read %s: file is not valid UTF-8, using defaults", path)
         return FieldCheckConfig()
 
     if not isinstance(raw, dict):

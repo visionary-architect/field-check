@@ -13,6 +13,9 @@ _MIN_TEXT_LENGTH = 200
 # Below this Flesch Reading Ease score, text is likely OCR garbage or legalese
 LOW_QUALITY_THRESHOLD = 30.0
 
+# Maximum text length to pass to textstat (5-10KB is sufficient for reliable scores)
+_MAX_TEXT_LENGTH = 10_000
+
 
 @dataclass
 class ReadabilityScore:
@@ -60,7 +63,7 @@ def analyze_readability(text_cache: dict[str, str]) -> ReadabilityResult:
             continue
 
         try:
-            score = textstat.flesch_reading_ease(text)
+            score = textstat.flesch_reading_ease(text[:_MAX_TEXT_LENGTH])
             result.total_checked += 1
             is_low = score < LOW_QUALITY_THRESHOLD
             if is_low:

@@ -177,6 +177,9 @@ def _band_candidates(
     bits_per_band = bits // num_bands
     candidates: set[tuple[int, int]] = set()
 
+    # Cap bucket size to avoid O(k^2) pair generation in degenerate cases
+    max_bucket_size = 1000
+
     for band in range(num_bands):
         shift = band * bits_per_band
         # Last band gets remaining bits
@@ -190,6 +193,12 @@ def _band_candidates(
 
         for indices in buckets.values():
             if len(indices) >= 2:
+                if len(indices) > max_bucket_size:
+                    # Skip oversized buckets — documents will be caught by other bands
+                    logger.debug(
+                        "Skipping oversized band bucket (%d entries)", len(indices)
+                    )
+                    continue
                 for i in range(len(indices)):
                     for j in range(i + 1, len(indices)):
                         candidates.add((indices[i], indices[j]))
@@ -304,20 +313,30 @@ def detect_near_duplicates(
         # partition enough bands, fall back to brute-force O(n^2).
         required_bands = threshold + 1
         max_bands = bits // 4 or 1
+        _BRUTE_FORCE_LIMIT = 10_000  # max corpus size for O(n^2) fallback
         if required_bands <= max_bands:
             candidates = _band_candidates(fingerprints, required_bands, bits=bits)
-        else:
+        elif len(fingerprints) <= _BRUTE_FORCE_LIMIT:
             # Can't guarantee zero false negatives via banding — brute-force
             logger.debug(
                 "SimHash threshold %d too high for %d-bit banding "
-                "(need %d bands, max %d); using brute-force",
-                threshold, bits, required_bands, max_bands,
+                "(need %d bands, max %d); using brute-force on %d files",
+                threshold, bits, required_bands, max_bands, len(fingerprints),
             )
             candidates = {
                 (i, j)
                 for i in range(len(fingerprints))
                 for j in range(i + 1, len(fingerprints))
             }
+        else:
+            # Corpus too large for brute-force — use max available bands
+            # (may miss some near-duplicates with high Hamming distance)
+            logger.warning(
+                "SimHash: %d files too large for brute-force with threshold %d; "
+                "using %d bands (may have false negatives)",
+                len(fingerprints), threshold, max_bands,
+            )
+            candidates = _band_candidates(fingerprints, max_bands, bits=bits)
 
     for i, j in candidates:
         dist = hamming_distance(fingerprints[i], fingerprints[j])
@@ -330,14 +349,19 @@ def detect_near_duplicates(
         if len(members) < 2:
             continue
 
-        # Calculate average pairwise similarity
+        # Calculate average similarity (sample pairs for large clusters)
         member_fps = [result.fingerprints[p] for p in members]
         total_sim = 0.0
         pair_count = 0
+        max_pairs = 100  # cap pairwise comparisons to avoid O(k^2)
         for mi in range(len(member_fps)):
             for mj in range(mi + 1, len(member_fps)):
                 total_sim += similarity_score(member_fps[mi], member_fps[mj], bits)
                 pair_count += 1
+                if pair_count >= max_pairs:
+                    break
+            if pair_count >= max_pairs:
+                break
 
         avg_sim = total_sim / pair_count if pair_count > 0 else 0.0
 

@@ -644,8 +644,8 @@ class TestInternationalPII:
             # 86095742719 passes check digit validation
             assert validate_de_tax_id("86095742719") is True
         except ImportError:
-            # Without stdnum, all pass (graceful)
-            assert validate_de_tax_id("12345678901") is True
+            # Without stdnum, structural checks still apply
+            assert validate_de_tax_id("11234567899") is True
 
     def test_de_tax_id_invalid(self):
         """Invalid German Tax ID should fail validation."""

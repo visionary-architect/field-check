@@ -601,18 +601,27 @@ class TestExtractSingleDispatch:
 class TestEncodingDetection:
     """Test _detect_encoding fallback chain."""
 
-    def test_chardet_preferred(self) -> None:
+    def test_chardet_fallback_when_normalizer_unavailable(self) -> None:
         mock_chardet = MagicMock()
         mock_chardet.detect.return_value = {
             "encoding": "utf-8",
             "confidence": 0.99,
         }
-        with patch.dict("sys.modules", {"chardet": mock_chardet}):
-            from field_check.scanner.text_workers import _detect_encoding
+        with patch.dict(
+            "sys.modules",
+            {"chardet": mock_chardet, "charset_normalizer": None},
+        ):
+            import importlib
 
-            _text, enc, conf = _detect_encoding(b"hello")
+            from field_check.scanner import text_workers
+
+            importlib.reload(text_workers)
+
+            _text, enc, conf = text_workers._detect_encoding(b"hello")
             assert enc == "utf-8"
             assert conf == 0.99
+
+        importlib.reload(text_workers)
 
     def test_chardet_low_confidence_falls_through(self) -> None:
         mock_chardet = MagicMock()
@@ -620,11 +629,21 @@ class TestEncodingDetection:
             "encoding": "ascii",
             "confidence": 0.3,
         }
-        with patch.dict("sys.modules", {"chardet": mock_chardet}):
-            from field_check.scanner.text_workers import _detect_encoding
+        with patch.dict(
+            "sys.modules",
+            {"chardet": mock_chardet, "charset_normalizer": None},
+        ):
+            import importlib
 
-            _text, enc, _conf = _detect_encoding(b"hello")
+            from field_check.scanner import text_workers
+
+            importlib.reload(text_workers)
+
+            _text, enc, _conf = text_workers._detect_encoding(b"hello")
+            # Low confidence chardet → falls through to UTF-8 fallback
             assert enc is not None
+
+        importlib.reload(text_workers)
 
     def test_both_unavailable(self) -> None:
         """When both chardet and charset-normalizer unavailable."""
@@ -782,7 +801,7 @@ class TestCorruptionEdgeCases:
             "field_check.scanner.corruption._check_single_file",
             side_effect=RuntimeError("boom"),
         ):
-            result = check_corruption(walk)
+            result = check_corruption(walk, max_workers=0)
             assert result.unreadable_count == 1
 
     def test_encrypted_pdf_in_tail(self, tmp_path: Path) -> None:
@@ -843,7 +862,8 @@ class TestPIIValidatorEdgeCases:
         ):
             from field_check.scanner.pii_helpers import validate_de_tax_id
 
-            assert validate_de_tax_id("12345678901") is True
+            # Must pass structural checks: first digit non-zero, ≤3 repeats, <10 unique
+            assert validate_de_tax_id("11234567899") is True
 
     def test_validate_es_dni_not_installed(self) -> None:
         with patch.dict(

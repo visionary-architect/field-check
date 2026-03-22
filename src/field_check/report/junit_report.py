@@ -6,9 +6,14 @@ No external dependencies — uses stdlib xml.etree.ElementTree.
 
 from __future__ import annotations
 
-from pathlib import Path
 from xml.etree.ElementTree import Element, SubElement, tostring
 
+from field_check.report.utils import (
+    build_corruption_detail_lookup,
+    build_duplicate_paths,
+    build_pii_lookup,
+    try_relative,
+)
 from field_check.scanner import WalkResult
 from field_check.scanner.corruption import CorruptionResult
 from field_check.scanner.dedup import DedupResult
@@ -42,9 +47,9 @@ def render_junit_report(
         JUnit XML string.
     """
     # Build lookup dicts for findings
-    corruption_lookup = _build_corruption_lookup(corruption_result)
-    pii_lookup = _build_pii_lookup(pii_result)
-    dup_paths = _build_dup_paths(dedup_result)
+    corruption_lookup = build_corruption_detail_lookup(corruption_result)
+    pii_lookup = build_pii_lookup(pii_result)
+    dup_paths = build_duplicate_paths(dedup_result)
 
     # Create test suite
     testsuite = Element("testsuite")
@@ -57,7 +62,7 @@ def render_junit_report(
 
     for entry in walk_result.files:
         path_str = str(entry.path)
-        rel_path = _try_relative(entry.path, walk_result.scan_root)
+        rel_path = try_relative(entry.path, walk_result.scan_root)
 
         testcase = SubElement(testsuite, "testcase")
         testcase.set("name", rel_path)
@@ -106,47 +111,3 @@ def render_junit_report(
 
     xml_bytes = tostring(testsuite, encoding="unicode", xml_declaration=False)
     return f'<?xml version="1.0" encoding="UTF-8"?>\n{xml_bytes}\n'
-
-
-def _build_corruption_lookup(
-    corruption: CorruptionResult | None,
-) -> dict[str, tuple[str, str]]:
-    """Build path → (status, detail) lookup."""
-    lookup: dict[str, tuple[str, str]] = {}
-    if corruption is None:
-        return lookup
-    for fh in corruption.flagged_files:
-        lookup[str(fh.path)] = (fh.status, fh.detail)
-    return lookup
-
-
-def _build_pii_lookup(
-    pii: PIIScanResult | None,
-) -> dict[str, list[str]]:
-    """Build path → list of PII pattern types."""
-    lookup: dict[str, list[str]] = {}
-    if pii is None:
-        return lookup
-    for fr in pii.file_results:
-        if fr.matches_by_type:
-            lookup[fr.path] = list(fr.matches_by_type.keys())
-    return lookup
-
-
-def _build_dup_paths(dedup: DedupResult | None) -> set[str]:
-    """Build set of all duplicate file paths."""
-    paths: set[str] = set()
-    if dedup is None:
-        return paths
-    for group in dedup.duplicate_groups:
-        for p in group.paths:
-            paths.add(str(p))
-    return paths
-
-
-def _try_relative(path: Path, root: Path) -> str:
-    """Return path relative to root if possible."""
-    try:
-        return str(path.relative_to(root))
-    except (ValueError, TypeError):
-        return str(path)

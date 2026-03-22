@@ -9,13 +9,14 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import sys
 import threading
 from pathlib import Path
 
 from field_check import __version__
 from field_check.config import FieldCheckConfig
-from field_check.pipeline import CancelledError, run_pipeline
+from field_check.pipeline import ScanCancelledError, run_pipeline
 from field_check.report.json_report import render_json_report
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,11 @@ def _emit(event: dict) -> None:
     """Write a JSON event to stdout, newline-terminated and flushed."""
     line = json.dumps(event, default=str)
     with _emit_lock:
-        print(line, flush=True)
+        try:
+            print(line, flush=True)
+        except BrokenPipeError:
+            # Parent closed stdout (e.g., Tauri window closed). Silently stop.
+            return
 
 
 def _build_config(raw: dict) -> FieldCheckConfig:
@@ -47,10 +52,15 @@ def _build_config(raw: dict) -> FieldCheckConfig:
     config = FieldCheckConfig()
     try:
         if "sampling_rate" in raw:
-            config.sampling_rate = max(0.0, min(1.0, float(raw["sampling_rate"])))
+            val = float(raw["sampling_rate"])
+            if math.isnan(val) or math.isinf(val):
+                raise ValueError("sampling_rate must be a finite number")
+            config.sampling_rate = max(0.0, min(1.0, val))
             config.sampling_rate_auto = False
         if "exclude" in raw and isinstance(raw["exclude"], list):
-            config.exclude = list(config.exclude) + raw["exclude"]
+            config.exclude = list(config.exclude) + [
+                str(p) for p in raw["exclude"] if isinstance(p, str)
+            ]
         if "show_pii_samples" in raw:
             config.show_pii_samples = bool(raw["show_pii_samples"])
         if "pii_min_confidence" in raw:
@@ -58,7 +68,9 @@ def _build_config(raw: dict) -> FieldCheckConfig:
                 0.0, min(1.0, float(raw["pii_min_confidence"]))
             )
         if "simhash_threshold" in raw:
-            config.simhash_threshold = max(0, int(raw["simhash_threshold"]))
+            config.simhash_threshold = max(
+                0, min(config.simhash_bits, int(raw["simhash_threshold"]))
+            )
         if "simhash_bits" in raw:
             bits = int(raw["simhash_bits"])
             config.simhash_bits = bits if bits in (64, 128) else 64
@@ -93,7 +105,7 @@ def _run_scan(
 
     def on_phase(name: str, index: int, total: int) -> None:
         if cancel_event.is_set():
-            raise CancelledError
+            raise ScanCancelledError
         _emit({
             "event": "phase",
             "name": name,
@@ -103,7 +115,7 @@ def _run_scan(
 
     def on_progress(phase: str, current: int, total: int) -> None:
         if cancel_event.is_set():
-            raise CancelledError
+            raise ScanCancelledError
         _emit({
             "event": "progress",
             "phase": phase,
@@ -115,7 +127,7 @@ def _run_scan(
         result = run_pipeline(
             path, config, on_phase=on_phase, on_progress=on_progress
         )
-    except CancelledError:
+    except ScanCancelledError:
         _emit({"event": "cancelled"})
         return
     except Exception as exc:
@@ -233,12 +245,19 @@ def main() -> None:
             if scan_thread and scan_thread.is_alive():
                 if cancel_event is not None:
                     cancel_event.set()
-                scan_thread.join(timeout=5)
+                scan_thread.join(timeout=10)
+                if scan_thread.is_alive():
+                    logging.warning("Previous scan thread did not exit in time")
 
             # Fresh cancel event per scan to avoid races
             cancel_event = threading.Event()
             scan_path = msg.get("path", "")
+            if not isinstance(scan_path, str):
+                _emit({"event": "error", "message": "Invalid path type"})
+                continue
             config_raw = msg.get("config", {})
+            if not isinstance(config_raw, dict):
+                config_raw = {}
             scan_thread = threading.Thread(
                 target=_run_scan,
                 args=(scan_path, config_raw, cancel_event),

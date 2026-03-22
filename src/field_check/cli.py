@@ -61,7 +61,7 @@ def main() -> None:
 
 
 @main.command()
-@click.argument("path", type=click.Path(exists=True))
+@click.argument("path", type=click.Path(exists=True, file_okay=False))
 @click.option(
     "--config",
     "config_path",
@@ -107,6 +107,12 @@ def main() -> None:
     default=None,
     help="Minimum confidence for PII matches (0.0-1.0, default: 0.0).",
 )
+@click.option(
+    "--seed",
+    type=int,
+    default=None,
+    help="Random seed for reproducible sampling.",
+)
 def scan(
     path: str,
     config_path: str | None,
@@ -116,6 +122,7 @@ def scan(
     sampling_rate: float | None,
     show_pii_samples: bool,
     pii_min_confidence: float | None,
+    seed: int | None,
 ) -> None:
     """Scan a document corpus and generate a health report."""
     scan_path = Path(path).resolve()
@@ -146,16 +153,30 @@ def scan(
 
     # Override sampling rate from CLI if provided
     if sampling_rate is not None:
+        if not 0.0 <= sampling_rate <= 1.0:
+            console.print(
+                f"[yellow]Warning:[/yellow] --sampling-rate {sampling_rate} "
+                "clamped to [0.0, 1.0]"
+            )
         config.sampling_rate = max(0.0, min(1.0, sampling_rate))
         config.sampling_rate_auto = False
 
     # Override PII min confidence from CLI if provided
     if pii_min_confidence is not None:
+        if not 0.0 <= pii_min_confidence <= 1.0:
+            console.print(
+                f"[yellow]Warning:[/yellow] --pii-min-confidence {pii_min_confidence} "
+                "clamped to [0.0, 1.0]"
+            )
         config.pii_min_confidence = max(0.0, min(1.0, pii_min_confidence))
 
     # Set show_pii_samples on config
     if show_pii_samples:
         config.show_pii_samples = True
+
+    # Set seed for reproducible sampling
+    if seed is not None:
+        config.seed = seed
 
     # Run pipeline with overall progress tracking
     try:

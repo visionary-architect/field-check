@@ -4,9 +4,17 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from pathlib import Path
 
 from field_check import __version__
+from field_check.report.utils import (
+    build_duplicate_paths,
+    build_encoding_lookup,
+    build_hash_lookup,
+    build_health_lookup,
+    build_language_lookup,
+    build_pii_lookup,
+    try_relative,
+)
 from field_check.scanner import WalkResult
 from field_check.scanner.corruption import CorruptionResult
 from field_check.scanner.dedup import DedupResult
@@ -42,12 +50,12 @@ def render_json_report(
         Pretty-printed JSON string.
     """
     # Build per-file lookup dicts
-    hash_lookup = _build_hash_lookup(walk_result, dedup_result)
-    dup_paths = _build_duplicate_paths(dedup_result)
-    health_lookup = _build_health_lookup(corruption_result)
-    pii_lookup = _build_pii_lookup(pii_result)
-    lang_lookup = _build_language_lookup(language_result)
-    enc_lookup = _build_encoding_lookup(encoding_result)
+    hash_lookup = build_hash_lookup(dedup_result)
+    dup_paths = build_duplicate_paths(dedup_result)
+    health_lookup = build_health_lookup(corruption_result)
+    pii_lookup = build_pii_lookup(pii_result)
+    lang_lookup = build_language_lookup(language_result)
+    enc_lookup = build_encoding_lookup(encoding_result)
 
     data = {
         "version": __version__,
@@ -80,7 +88,7 @@ def render_json_report(
         ),
     }
 
-    return json.dumps(data, indent=2, ensure_ascii=False)
+    return json.dumps(data, indent=2, ensure_ascii=False, allow_nan=False)
 
 
 def _build_summary(
@@ -222,7 +230,7 @@ def _build_summary(
                     "files": len(c.paths),
                     "similarity": round(c.similarity, 4),
                     "paths": [
-                        _try_relative(p, walk_result.scan_root)
+                        try_relative(p, walk_result.scan_root)
                         for p in c.paths[:50]
                     ],
                 }
@@ -246,97 +254,13 @@ def _build_summary(
     if readability is not None and readability.total_checked > 0:
         summary["readability"] = {
             "total_checked": readability.total_checked,
-            "avg_flesch_score": readability.avg_flesch_score,
+            "avg_flesch_score": round(readability.avg_flesch_score, 2),
             "low_quality_count": readability.low_quality_count,
         }
     else:
         summary["readability"] = None
 
     return summary
-
-
-def _try_relative(p: str, root: Path) -> str:
-    """Return path relative to root if possible, otherwise the original."""
-    try:
-        return str(Path(p).relative_to(root))
-    except ValueError:
-        return p
-
-
-def _build_hash_lookup(
-    walk_result: WalkResult,
-    dedup: DedupResult | None,
-) -> dict[str, str]:
-    """Build path → blake3 hash lookup from dedup result."""
-    lookup: dict[str, str] = {}
-    if dedup is None:
-        return lookup
-    for group in dedup.duplicate_groups:
-        for p in group.paths:
-            lookup[str(p)] = group.hash
-    # Also need hashes for non-duplicate files — but dedup only stores groups.
-    # We don't have single-file hashes stored. Return what we have.
-    return lookup
-
-
-def _build_duplicate_paths(dedup: DedupResult | None) -> set[str]:
-    """Build set of paths that are duplicates."""
-    paths: set[str] = set()
-    if dedup is None:
-        return paths
-    for group in dedup.duplicate_groups:
-        for p in group.paths:
-            paths.add(str(p))
-    return paths
-
-
-def _build_health_lookup(
-    corruption: CorruptionResult | None,
-) -> dict[str, str]:
-    """Build path → health status lookup."""
-    lookup: dict[str, str] = {}
-    if corruption is None:
-        return lookup
-    for fh in corruption.flagged_files:
-        lookup[str(fh.path)] = fh.status
-    return lookup
-
-
-def _build_pii_lookup(
-    pii: PIIScanResult | None,
-) -> dict[str, list[str]]:
-    """Build path → list of PII pattern types lookup."""
-    lookup: dict[str, list[str]] = {}
-    if pii is None:
-        return lookup
-    for fr in pii.file_results:
-        if fr.matches_by_type:
-            lookup[fr.path] = list(fr.matches_by_type.keys())
-    return lookup
-
-
-def _build_language_lookup(
-    language: LanguageResult | None,
-) -> dict[str, str]:
-    """Build path → detected language lookup."""
-    lookup: dict[str, str] = {}
-    if language is None:
-        return lookup
-    for fr in language.file_results:
-        lookup[fr.path] = fr.language
-    return lookup
-
-
-def _build_encoding_lookup(
-    encoding: EncodingResult | None,
-) -> dict[str, str]:
-    """Build path → detected encoding lookup."""
-    lookup: dict[str, str] = {}
-    if encoding is None:
-        return lookup
-    for fr in encoding.file_results:
-        lookup[fr.path] = fr.encoding
-    return lookup
 
 
 def _build_files_array(

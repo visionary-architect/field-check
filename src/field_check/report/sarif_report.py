@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 from field_check import __version__
+from field_check.report.utils import try_relative_forward
 from field_check.scanner import WalkResult
 from field_check.scanner.corruption import CorruptionResult
 from field_check.scanner.dedup import DedupResult
@@ -114,7 +115,7 @@ def render_sarif_report(
                 _make_result(
                     rule_id=rule_id,
                     message=fh.detail,
-                    path=_try_relative(fh.path, walk_result.scan_root),
+                    path=try_relative_forward(fh.path, walk_result.scan_root),
                 )
             )
 
@@ -129,7 +130,7 @@ def render_sarif_report(
                 _make_result(
                     rule_id="FC005",
                     message=f"{total} PII risk indicator(s) found: {', '.join(types)}",
-                    path=_try_relative(Path(fr.path), walk_result.scan_root),
+                    path=try_relative_forward(Path(fr.path), walk_result.scan_root),
                 )
             )
 
@@ -137,13 +138,13 @@ def render_sarif_report(
     if dedup_result is not None:
         for group in dedup_result.duplicate_groups:
             # Skip the first path (the "original"), flag the rest as duplicates
-            orig = _try_relative(group.paths[0], walk_result.scan_root)
+            orig = try_relative_forward(group.paths[0], walk_result.scan_root)
             for dup_path in group.paths[1:]:
                 results.append(
                     _make_result(
                         rule_id="FC006",
                         message=f"Exact duplicate of {orig}",
-                        path=_try_relative(dup_path, walk_result.scan_root),
+                        path=try_relative_forward(dup_path, walk_result.scan_root),
                     )
                 )
 
@@ -154,7 +155,7 @@ def render_sarif_report(
                 _make_result(
                     rule_id="FC007",
                     message="File contains encoding damage (mojibake)",
-                    path=_try_relative(Path(path), walk_result.scan_root),
+                    path=try_relative_forward(Path(path), walk_result.scan_root),
                 )
             )
 
@@ -172,6 +173,12 @@ def render_sarif_report(
                     },
                 },
                 "results": results,
+                "invocations": [
+                    {
+                        "executionSuccessful": True,
+                        "commandLine": "field-check scan",
+                    },
+                ],
             },
         ],
     }
@@ -202,11 +209,3 @@ def _make_result(rule_id: str, message: str, path: str | Path) -> dict:
             },
         ],
     }
-
-
-def _try_relative(path: Path, root: Path) -> str:
-    """Return path relative to root if possible (SARIF requires forward slashes)."""
-    try:
-        return str(Path(path).relative_to(root)).replace("\\", "/")
-    except (ValueError, TypeError):
-        return str(path).replace("\\", "/")

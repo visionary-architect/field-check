@@ -83,6 +83,18 @@ def detect_semantic_duplicates(
     if result.total_analyzed < 2:
         return result
 
+    # Guard against excessive memory usage from embeddings
+    _MAX_SEMANTIC_FILES = 50_000
+    if result.total_analyzed > _MAX_SEMANTIC_FILES:
+        logger.warning(
+            "Semantic dedup: %d files exceeds limit of %d; "
+            "truncating to first %d files",
+            result.total_analyzed, _MAX_SEMANTIC_FILES, _MAX_SEMANTIC_FILES,
+        )
+        paths = paths[:_MAX_SEMANTIC_FILES]
+        texts = texts[:_MAX_SEMANTIC_FILES]
+        result.total_analyzed = _MAX_SEMANTIC_FILES
+
     try:
         # NOTE: SemHash downloads a Model2Vec model from Hugging Face Hub
         # on first use. This is an intentional network call by the optional

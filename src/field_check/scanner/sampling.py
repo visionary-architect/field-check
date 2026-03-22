@@ -179,6 +179,12 @@ def select_sample(
         rate = config.sampling_rate
     min_per_type = config.sampling_min_per_type
 
+    # Seed RNG for reproducibility if configured
+    if config.seed is not None:
+        import random
+
+        random.seed(config.seed)
+
     # Group files by MIME type
     files_by_type: defaultdict[str, list[FileEntry]] = defaultdict(list)
     for entry in walk_result.files:

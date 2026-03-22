@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
+import os
+import tempfile
 from pathlib import Path
 
 from rich.console import Console
+from rich.markup import escape as _esc
 
 from field_check.config import FieldCheckConfig
 from field_check.report.csv_report import render_csv_report
@@ -25,6 +29,26 @@ from field_check.scanner.readability import ReadabilityResult
 from field_check.scanner.sampling import SampleResult
 from field_check.scanner.simhash import SimHashResult
 from field_check.scanner.text import TextExtractionResult
+
+
+def _atomic_write(path: Path, content: str) -> None:
+    """Write content to a file atomically via temp file + rename.
+
+    Prevents partial/corrupt reports if the process crashes mid-write.
+    """
+    parent = path.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=parent, suffix=".tmp")
+    try:
+        os.write(fd, content.encode("utf-8"))
+        os.close(fd)
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.close(fd)
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
 
 
 def generate_report(
@@ -97,8 +121,8 @@ def generate_report(
             **kwargs,
         )
         path = output_path or Path("field-check-report.json")
-        path.write_text(content, encoding="utf-8")
-        console.print(f"Report saved to [bold]{path}[/bold]")
+        _atomic_write(path, content)
+        console.print(f"Report saved to [bold]{_esc(str(path))}[/bold]")
     elif fmt == "csv":
         content = render_csv_report(
             inventory,
@@ -107,8 +131,8 @@ def generate_report(
             **kwargs,
         )
         path = output_path or Path("field-check-report.csv")
-        path.write_text(content, encoding="utf-8")
-        console.print(f"Report saved to [bold]{path}[/bold]")
+        _atomic_write(path, content)
+        console.print(f"Report saved to [bold]{_esc(str(path))}[/bold]")
     elif fmt == "html":
         content = render_html_report(
             inventory,
@@ -117,8 +141,8 @@ def generate_report(
             **kwargs,
         )
         path = output_path or Path("field-check-report.html")
-        path.write_text(content, encoding="utf-8")
-        console.print(f"Report saved to [bold]{path}[/bold]")
+        _atomic_write(path, content)
+        console.print(f"Report saved to [bold]{_esc(str(path))}[/bold]")
     elif fmt == "sarif":
         content = render_sarif_report(
             inventory,
@@ -126,8 +150,8 @@ def generate_report(
             **kwargs,
         )
         path = output_path or Path("field-check-report.sarif.json")
-        path.write_text(content, encoding="utf-8")
-        console.print(f"Report saved to [bold]{path}[/bold]")
+        _atomic_write(path, content)
+        console.print(f"Report saved to [bold]{_esc(str(path))}[/bold]")
     elif fmt == "junit":
         content = render_junit_report(
             inventory,
@@ -136,8 +160,8 @@ def generate_report(
             **kwargs,
         )
         path = output_path or Path("field-check-report.xml")
-        path.write_text(content, encoding="utf-8")
-        console.print(f"Report saved to [bold]{path}[/bold]")
+        _atomic_write(path, content)
+        console.print(f"Report saved to [bold]{_esc(str(path))}[/bold]")
     else:
         raise ValueError(
             f"Format '{fmt}' not yet supported. Available: terminal, html, json, csv, sarif, junit"
