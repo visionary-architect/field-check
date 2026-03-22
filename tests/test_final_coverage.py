@@ -110,7 +110,7 @@ class TestCLIKeyboardInterrupt:
         """cli.py lines 101-103: KeyboardInterrupt prints message and exits 2."""
         (tmp_path / "f.txt").write_text("x", encoding="utf-8")
         with patch(
-            "field_check.cli.walk_directory",
+            "field_check.pipeline.walk_directory",
             side_effect=KeyboardInterrupt,
         ):
             runner = CliRunner()

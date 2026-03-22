@@ -79,6 +79,7 @@ dev = [
 
 [project.scripts]
 field-check = "field_check.cli:main"
+field-check-sidecar = "field_check.sidecar:main"
 
 [project.urls]
 Homepage = "https://github.com/usefield/field-check"

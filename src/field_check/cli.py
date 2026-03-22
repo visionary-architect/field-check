@@ -12,50 +12,21 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeEl
 
 from field_check import __version__
 from field_check.config import load_config
+from field_check.pipeline import PHASES, PipelineResult, run_pipeline
 from field_check.report import determine_exit_code, generate_report
-from field_check.scanner import walk_directory
-from field_check.scanner.corruption import check_corruption
-from field_check.scanner.dedup import compute_hashes
-from field_check.scanner.encoding import analyze_encodings
-from field_check.scanner.inventory import analyze_inventory
-from field_check.scanner.language import analyze_languages
-from field_check.scanner.mojibake import detect_mojibake
-from field_check.scanner.pii import scan_pii
-from field_check.scanner.readability import analyze_readability
-from field_check.scanner.sampling import estimate_design_effect, select_sample
-from field_check.scanner.simhash import detect_near_duplicates
-from field_check.scanner.text import extract_text_unified
 
 console = Console()
-
-# Scan phases for progress display
-_PHASES = [
-    "Scanning files",
-    "Analyzing file types",
-    "Hashing files",
-    "Checking file health",
-    "Selecting sample",
-    "Extracting text",
-    "Scanning for PII",
-    "Detecting languages",
-    "Analyzing encodings",
-    "Checking for encoding damage",
-    "Analyzing readability",
-    "Detecting near-duplicates",
-]
 
 
 def _run_scan_pipeline(
     scan_path: Path,
     config: object,
     con: Console,
-) -> dict:
-    """Run the full scan pipeline with overall progress tracking.
+) -> PipelineResult:
+    """Run the full scan pipeline with Rich progress display.
 
-    Returns dict of all scan results keyed by name.
+    Returns PipelineResult with all scan results.
     """
-    results: dict = {}
-
     with Progress(
         SpinnerColumn(),
         TextColumn("[bold blue]{task.description}"),
@@ -65,126 +36,21 @@ def _run_scan_pipeline(
         console=con,
         transient=True,
     ) as progress:
-        overall = progress.add_task("Scanning corpus", total=len(_PHASES), detail="")
+        overall = progress.add_task("Scanning corpus", total=len(PHASES), detail="")
 
-        def _advance(phase_name: str) -> None:
-            progress.update(overall, advance=1, description=phase_name)
+        def on_phase(name: str, index: int, total: int) -> None:
+            progress.update(overall, completed=index, description=name, detail="")
 
-        # Phase 1: Walk directory
-        progress.update(overall, description="Scanning files", detail="")
-
-        def on_walk(count: int) -> None:
-            progress.update(overall, detail=f"{count} files found")
-
-        walk_result = walk_directory(scan_path, config, progress_callback=on_walk)
-
-        if not walk_result.files:
-            con.print("[yellow]No files found in the specified directory.[/yellow]")
-            con.print("Check your path and exclude patterns.")
-            sys.exit(0)
-
-        results["walk"] = walk_result
-        _advance("Analyzing file types")
-
-        # Phase 2: Inventory
-        def on_inventory(current: int, total: int) -> None:
-            progress.update(overall, detail=f"{current}/{total}")
-
-        results["inventory"] = analyze_inventory(walk_result, progress_callback=on_inventory)
-        _advance("Hashing files")
-
-        # Phase 3: Dedup hashing
-        def on_hash(current: int, total: int) -> None:
-            progress.update(overall, detail=f"{current}/{total}")
-
-        results["dedup"] = compute_hashes(walk_result, progress_callback=on_hash)
-        _advance("Checking file health")
-
-        # Phase 4: Corruption
-        def on_corruption(current: int, total: int) -> None:
-            progress.update(overall, detail=f"{current}/{total}")
-
-        results["corruption"] = check_corruption(
-            walk_result,
-            progress_callback=on_corruption,
-            file_types=results["inventory"].file_types,
-        )
-        _advance("Selecting sample")
-
-        # Phase 5: Sampling
-        progress.update(overall, detail="")
-        sample = select_sample(walk_result, results["inventory"], config)
-        if not sample.is_census:
-            sample.deff = estimate_design_effect(sample.selected_files, results["inventory"])
-        results["sample"] = sample
-        _advance("Extracting text")
-
-        # Phase 6: Text extraction
-        has_sample = sample.total_sample_size > 0
-        if has_sample:
-
-            def on_extract(current: int, total: int) -> None:
+        def on_progress(phase: str, current: int, total: int) -> None:
+            if total > 0:
                 progress.update(overall, detail=f"{current}/{total}")
+            else:
+                progress.update(overall, detail=f"{current} files found")
 
-            text_result, text_cache_result = extract_text_unified(
-                sample, results["inventory"], progress_callback=on_extract
-            )
-            results["text"] = text_result
-            results["text_cache"] = text_cache_result
-        _advance("Scanning for PII")
+        result = run_pipeline(scan_path, config, on_phase=on_phase, on_progress=on_progress)
+        progress.update(overall, completed=len(PHASES), detail="done")
 
-        # Phase 7: PII scan
-        text_cache_result = results.get("text_cache")
-        if has_sample:
-
-            def on_pii(current: int, total: int) -> None:
-                progress.update(overall, detail=f"{current}/{total}")
-
-            results["pii"] = scan_pii(
-                sample,
-                results["inventory"],
-                config,
-                text_cache=(text_cache_result.text_cache if text_cache_result else None),
-                progress_callback=on_pii,
-            )
-        _advance("Detecting languages")
-
-        # Phase 8: Language detection
-        progress.update(overall, detail="")
-        if text_cache_result and text_cache_result.text_cache:
-            results["language"] = analyze_languages(text_cache_result.text_cache)
-        _advance("Analyzing encodings")
-
-        # Phase 9: Encoding analysis
-        if text_cache_result and text_cache_result.encoding_map:
-            results["encoding"] = analyze_encodings(text_cache_result.encoding_map)
-        _advance("Checking for encoding damage")
-
-        # Phase 10: Mojibake
-        if text_cache_result and text_cache_result.text_cache:
-            results["mojibake"] = detect_mojibake(text_cache_result.text_cache)
-        _advance("Analyzing readability")
-
-        # Phase 11: Readability
-        if text_cache_result and text_cache_result.text_cache:
-            results["readability"] = analyze_readability(text_cache_result.text_cache)
-        _advance("Detecting near-duplicates")
-
-        # Phase 12: SimHash
-        if text_cache_result and text_cache_result.text_cache:
-
-            def on_simhash(current: int, total: int) -> None:
-                progress.update(overall, detail=f"{current}/{total}")
-
-            results["simhash"] = detect_near_duplicates(
-                text_cache_result.text_cache,
-                threshold=config.simhash_threshold,
-                bits=config.simhash_bits,
-                progress_callback=on_simhash,
-            )
-        progress.update(overall, advance=1, detail="done")
-
-    return results
+    return result
 
 
 @click.group()
@@ -282,47 +148,38 @@ def scan(
 
     # Run pipeline with overall progress tracking
     try:
-        scan_results = _run_scan_pipeline(scan_path, config, console)
+        pipeline_result = _run_scan_pipeline(scan_path, config, console)
     except KeyboardInterrupt:
         console.print("\n[yellow]Scan interrupted.[/yellow]")
         sys.exit(2)
 
-    elapsed = time.monotonic() - scan_start
+    if pipeline_result.empty:
+        console.print("[yellow]No files found in the specified directory.[/yellow]")
+        console.print("Check your path and exclude patterns.")
+        sys.exit(0)
 
-    # Unpack results
-    result = scan_results["walk"]
-    inventory = scan_results["inventory"]
-    dedup_result = scan_results["dedup"]
-    corruption_result = scan_results["corruption"]
-    sample = scan_results["sample"]
-    text_result = scan_results.get("text")
-    pii_result = scan_results.get("pii")
-    language_result = scan_results.get("language")
-    encoding_result = scan_results.get("encoding")
-    mojibake_result = scan_results.get("mojibake")
-    readability_result = scan_results.get("readability")
-    simhash_result = scan_results.get("simhash")
+    elapsed = time.monotonic() - scan_start
 
     # Generate report
     output_path = Path(output) if output else None
     try:
         generate_report(
             output_format,
-            inventory,
-            result,
+            pipeline_result.inventory,
+            pipeline_result.walk,
             elapsed,
             output_path,
             console,
-            dedup_result=dedup_result,
-            corruption_result=corruption_result,
-            sample_result=sample,
-            text_result=text_result,
-            pii_result=pii_result,
-            language_result=language_result,
-            encoding_result=encoding_result,
-            simhash_result=simhash_result,
-            mojibake_result=mojibake_result,
-            readability_result=readability_result,
+            dedup_result=pipeline_result.dedup,
+            corruption_result=pipeline_result.corruption,
+            sample_result=pipeline_result.sample,
+            text_result=pipeline_result.text,
+            pii_result=pipeline_result.pii,
+            language_result=pipeline_result.language,
+            encoding_result=pipeline_result.encoding,
+            simhash_result=pipeline_result.simhash,
+            mojibake_result=pipeline_result.mojibake,
+            readability_result=pipeline_result.readability,
         )
     except ValueError as exc:
         raise click.UsageError(str(exc)) from exc
@@ -330,10 +187,10 @@ def scan(
     # Determine CI exit code based on thresholds
     exit_code, breaches = determine_exit_code(
         config,
-        inventory,
-        dedup_result=dedup_result,
-        corruption_result=corruption_result,
-        pii_result=pii_result,
+        pipeline_result.inventory,
+        dedup_result=pipeline_result.dedup,
+        corruption_result=pipeline_result.corruption,
+        pii_result=pipeline_result.pii,
     )
     if exit_code != 0:
         for breach in breaches:
