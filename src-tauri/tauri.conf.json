@@ -16,6 +16,8 @@
         "title": "Field Check",
         "width": 1024,
         "height": 768,
+        "minWidth": 600,
+        "minHeight": 480,
         "resizable": true,
         "fullscreen": false
       }

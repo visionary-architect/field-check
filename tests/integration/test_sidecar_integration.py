@@ -34,13 +34,16 @@ def _send(proc: subprocess.Popen, msg: dict) -> None:
 
 
 def _read_event(proc: subprocess.Popen, timeout: float = 10.0) -> dict:
-    """Read a single JSON event from the sidecar stdout."""
+    """Read a single JSON event from the sidecar stdout.
+
+    Raises pytest.fail on timeout or if no event is received (EOF).
+    """
     import threading
 
-    result = [None]
-    error = [None]
+    result: list[dict | None] = [None]
+    error: list[Exception | None] = [None]
 
-    def _read():
+    def _read() -> None:
         try:
             line = proc.stdout.readline()
             if line:
@@ -64,8 +67,11 @@ def _read_event(proc: subprocess.Popen, timeout: float = 10.0) -> dict:
 def _collect_events(
     proc: subprocess.Popen, until_event: str, timeout: float = 30.0
 ) -> list[dict]:
-    """Collect events from sidecar until a specific event type is seen."""
-    events = []
+    """Collect events from sidecar until a specific event type is seen.
+
+    Raises pytest.fail if a read times out before the target event.
+    """
+    events: list[dict] = []
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         remaining = deadline - time.monotonic()
@@ -74,6 +80,16 @@ def _collect_events(
         if event.get("event") == until_event:
             break
     return events
+
+
+def _cleanup(proc: subprocess.Popen) -> None:
+    """Gracefully shut down the sidecar, force-kill if needed."""
+    try:
+        _send(proc, {"cmd": "shutdown"})
+        proc.wait(timeout=5)
+    except Exception:
+        proc.kill()
+        proc.wait()
 
 
 class TestSidecarIntegration:
@@ -87,16 +103,18 @@ class TestSidecarIntegration:
             assert event["event"] == "ready"
             assert "version" in event
         finally:
-            _send(proc, {"cmd": "shutdown"})
-            proc.wait(timeout=5)
+            _cleanup(proc)
 
     def test_shutdown_command(self) -> None:
         """Sidecar exits cleanly on shutdown command."""
         proc = _spawn_sidecar()
-        _read_event(proc)  # consume ready
-        _send(proc, {"cmd": "shutdown"})
-        rc = proc.wait(timeout=5)
-        assert rc == 0
+        try:
+            _read_event(proc)  # consume ready
+            _send(proc, {"cmd": "shutdown"})
+            rc = proc.wait(timeout=5)
+            assert rc == 0
+        finally:
+            _cleanup(proc)
 
     def test_unknown_command(self) -> None:
         """Unknown command produces an error event."""
@@ -108,8 +126,19 @@ class TestSidecarIntegration:
             assert event["event"] == "error"
             assert "foobar" in event["message"]
         finally:
-            _send(proc, {"cmd": "shutdown"})
-            proc.wait(timeout=5)
+            _cleanup(proc)
+
+    def test_missing_cmd_field(self) -> None:
+        """Message with no cmd field produces an error event."""
+        proc = _spawn_sidecar()
+        try:
+            _read_event(proc)  # consume ready
+            _send(proc, {"not_cmd": "scan"})
+            event = _read_event(proc)
+            assert event["event"] == "error"
+            assert "None" in event["message"]
+        finally:
+            _cleanup(proc)
 
     def test_invalid_json(self) -> None:
         """Invalid JSON input produces an error event."""
@@ -122,8 +151,7 @@ class TestSidecarIntegration:
             assert event["event"] == "error"
             assert "Invalid JSON" in event["message"]
         finally:
-            _send(proc, {"cmd": "shutdown"})
-            proc.wait(timeout=5)
+            _cleanup(proc)
 
     def test_scan_nonexistent_path(self) -> None:
         """Scanning a nonexistent path emits an error event."""
@@ -135,8 +163,7 @@ class TestSidecarIntegration:
             assert event["event"] == "error"
             assert "Not a directory" in event["message"]
         finally:
-            _send(proc, {"cmd": "shutdown"})
-            proc.wait(timeout=5)
+            _cleanup(proc)
 
     def test_scan_empty_directory(self, tmp_path: Path) -> None:
         """Scanning an empty directory emits a complete event."""
@@ -149,8 +176,7 @@ class TestSidecarIntegration:
             assert len(complete) == 1
             assert complete[0]["report"]["summary"]["total_files"] == 0
         finally:
-            _send(proc, {"cmd": "shutdown"})
-            proc.wait(timeout=5)
+            _cleanup(proc)
 
     def test_scan_with_files(self, tmp_path: Path) -> None:
         """Full scan produces phase events and a complete event with report."""
@@ -179,8 +205,7 @@ class TestSidecarIntegration:
             assert "type_distribution" in report["summary"]
             assert "duplicates" in report["summary"]
         finally:
-            _send(proc, {"cmd": "shutdown"})
-            proc.wait(timeout=5)
+            _cleanup(proc)
 
     def test_cancel_during_scan(self, tmp_path: Path) -> None:
         """Cancel command stops a running scan."""
@@ -203,8 +228,7 @@ class TestSidecarIntegration:
             event_types = [e["event"] for e in events]
             assert "cancelled" in event_types or "complete" in event_types
         finally:
-            _send(proc, {"cmd": "shutdown"})
-            proc.wait(timeout=5)
+            _cleanup(proc)
 
     def test_multiple_scans(self, tmp_path: Path) -> None:
         """Can run multiple scans sequentially."""
@@ -224,5 +248,12 @@ class TestSidecarIntegration:
             events2 = _collect_events(proc, "complete", timeout=15)
             assert any(e["event"] == "complete" for e in events2)
         finally:
-            _send(proc, {"cmd": "shutdown"})
-            proc.wait(timeout=5)
+            _cleanup(proc)
+
+    def test_stdin_eof_exits_cleanly(self) -> None:
+        """Sidecar exits cleanly when stdin is closed (simulates GUI crash)."""
+        proc = _spawn_sidecar()
+        _read_event(proc)  # consume ready
+        proc.stdin.close()  # simulate parent crash
+        rc = proc.wait(timeout=10)
+        assert rc == 0

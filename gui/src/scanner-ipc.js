@@ -19,6 +19,9 @@ export class ScannerIPC {
    * Resolves when the sidecar emits the "ready" event.
    */
   async spawn() {
+    // Clear stale listeners from any previous lifecycle
+    this._listeners.clear();
+
     const command = Command.sidecar("binaries/scanner");
 
     command.stdout.on("data", (line) => {
@@ -43,13 +46,20 @@ export class ScannerIPC {
 
     this._child = await command.spawn();
 
-    // Wait for ready event
+    // Wait for ready event, or reject on close/timeout
     await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("Sidecar startup timeout")), 15000);
+      const timeout = setTimeout(
+        () => reject(new Error("Sidecar startup timeout")),
+        15000
+      );
       this.once("ready", () => {
         clearTimeout(timeout);
         this._ready = true;
         resolve();
+      });
+      this.once("close", () => {
+        clearTimeout(timeout);
+        reject(new Error("Sidecar process exited before becoming ready"));
       });
     });
   }
@@ -68,12 +78,21 @@ export class ScannerIPC {
     this._send({ cmd: "cancel" });
   }
 
-  /** Gracefully shut down the sidecar. */
+  /** Gracefully shut down the sidecar, force-kill if needed. */
   async shutdown() {
     if (this._child) {
+      const child = this._child;
       this._send({ cmd: "shutdown" });
       // Give it a moment to exit cleanly
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Force-kill if still running
+      if (this._child) {
+        try {
+          await child.kill();
+        } catch {
+          // Already exited
+        }
+      }
       this._child = null;
       this._ready = false;
     }
@@ -135,7 +154,9 @@ export class ScannerIPC {
   _dispatch(event, data) {
     const handlers = this._listeners.get(event);
     if (handlers) {
-      for (const handler of handlers) {
+      // Copy array before iterating — handlers may call off()/once() which
+      // mutates the array, causing skipped handlers if iterated in-place.
+      for (const handler of [...handlers]) {
         try {
           handler(data);
         } catch (err) {

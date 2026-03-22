@@ -159,3 +159,75 @@ def test_main_invalid_json() -> None:
     errors = [ev for ev in lines if ev["event"] == "error"]
     assert len(errors) == 1
     assert "Invalid JSON" in errors[0]["message"]
+
+
+def test_main_eof_exits_cleanly() -> None:
+    """main() exits cleanly when stdin reaches EOF (no commands)."""
+    stdin = StringIO("")  # immediate EOF
+    stdout = StringIO()
+
+    with patch("sys.stdin", stdin), patch("sys.stdout", stdout):
+        from field_check.sidecar import main
+
+        main()
+
+    output = stdout.getvalue()
+    lines = [json.loads(line) for line in output.strip().split("\n") if line.strip()]
+    # Should have emitted ready and then exited
+    assert lines[0]["event"] == "ready"
+    assert len(lines) == 1
+
+
+def test_main_missing_cmd_field() -> None:
+    """Message with no cmd field emits an error event."""
+    stdin = StringIO('{"not_cmd": "scan"}\n{"cmd": "shutdown"}\n')
+    stdout = StringIO()
+
+    with patch("sys.stdin", stdin), patch("sys.stdout", stdout):
+        from field_check.sidecar import main
+
+        main()
+
+    output = stdout.getvalue()
+    lines = [json.loads(line) for line in output.strip().split("\n") if line.strip()]
+    errors = [ev for ev in lines if ev["event"] == "error"]
+    assert len(errors) == 1
+    assert "None" in errors[0]["message"]
+
+
+def test_build_config_invalid_values() -> None:
+    """Invalid config values raise ValueError."""
+    import pytest
+
+    with pytest.raises(ValueError, match="Invalid config value"):
+        _build_config({"sampling_rate": "not_a_number"})
+
+
+def test_build_config_invalid_simhash() -> None:
+    """Non-numeric simhash_threshold raises ValueError."""
+    import pytest
+
+    with pytest.raises(ValueError, match="Invalid config value"):
+        _build_config({"simhash_threshold": "abc"})
+
+
+def test_emit_non_serializable(capsys: object) -> None:
+    """_emit handles non-serializable types via default=str."""
+    _emit({"event": "test", "path": Path("/some/path")})
+    captured = capsys.readouterr()  # type: ignore[attr-defined]
+    parsed = json.loads(captured.out.strip())
+    assert parsed["event"] == "test"
+    # Path should be serialized as string
+    assert "/some/path" in parsed["path"] or "\\some\\path" in parsed["path"]
+
+
+def test_run_scan_bad_config(capsys: object, tmp_path: Path) -> None:
+    """Bad config values emit an error event instead of crashing."""
+    cancel = threading.Event()
+    _run_scan(str(tmp_path), {"sampling_rate": "invalid"}, cancel)
+
+    captured = capsys.readouterr()  # type: ignore[attr-defined]
+    events = [json.loads(line) for line in captured.out.strip().split("\n") if line.strip()]
+    errors = [e for e in events if e["event"] == "error"]
+    assert len(errors) == 1
+    assert "Invalid config value" in errors[0]["message"]

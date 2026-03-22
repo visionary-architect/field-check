@@ -18,7 +18,7 @@ import field_check.scanner.pii as _pii_mod
 import field_check.scanner.text as _text_mod
 from field_check import __version__
 from field_check.config import FieldCheckConfig
-from field_check.pipeline import run_pipeline
+from field_check.pipeline import CancelledError, run_pipeline
 from field_check.report.json_report import render_json_report
 
 # The sidecar runs as a subprocess with piped stdin/stdout. On Windows,
@@ -37,10 +37,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Lock for thread-safe stdout writes. The main thread and scan thread
+# both call _emit(), and interleaved writes would corrupt the JSON stream.
+_emit_lock = threading.Lock()
+
 
 def _emit(event: dict) -> None:
     """Write a JSON event to stdout, newline-terminated and flushed."""
-    print(json.dumps(event, default=str), flush=True)
+    line = json.dumps(event, default=str)
+    with _emit_lock:
+        print(line, flush=True)
 
 
 def _build_config(raw: dict) -> FieldCheckConfig:
@@ -51,23 +57,30 @@ def _build_config(raw: dict) -> FieldCheckConfig:
 
     Returns:
         FieldCheckConfig with values from raw, defaults for missing keys.
+
+    Raises:
+        ValueError: If a config value cannot be converted to the expected type.
     """
     config = FieldCheckConfig()
-    if "sampling_rate" in raw:
-        config.sampling_rate = max(0.0, min(1.0, float(raw["sampling_rate"])))
-        config.sampling_rate_auto = False
-    if "exclude" in raw and isinstance(raw["exclude"], list):
-        config.exclude = list(config.exclude) + raw["exclude"]
-    if "show_pii_samples" in raw:
-        config.show_pii_samples = bool(raw["show_pii_samples"])
-    if "pii_min_confidence" in raw:
-        config.pii_min_confidence = max(
-            0.0, min(1.0, float(raw["pii_min_confidence"]))
-        )
-    if "simhash_threshold" in raw:
-        config.simhash_threshold = int(raw["simhash_threshold"])
-    if "simhash_bits" in raw:
-        config.simhash_bits = int(raw["simhash_bits"])
+    try:
+        if "sampling_rate" in raw:
+            config.sampling_rate = max(0.0, min(1.0, float(raw["sampling_rate"])))
+            config.sampling_rate_auto = False
+        if "exclude" in raw and isinstance(raw["exclude"], list):
+            config.exclude = list(config.exclude) + raw["exclude"]
+        if "show_pii_samples" in raw:
+            config.show_pii_samples = bool(raw["show_pii_samples"])
+        if "pii_min_confidence" in raw:
+            config.pii_min_confidence = max(
+                0.0, min(1.0, float(raw["pii_min_confidence"]))
+            )
+        if "simhash_threshold" in raw:
+            config.simhash_threshold = int(raw["simhash_threshold"])
+        if "simhash_bits" in raw:
+            config.simhash_bits = int(raw["simhash_bits"])
+    except (ValueError, TypeError) as exc:
+        msg = f"Invalid config value: {exc}"
+        raise ValueError(msg) from exc
     return config
 
 
@@ -88,11 +101,15 @@ def _run_scan(
         _emit({"event": "error", "message": f"Not a directory: {path}"})
         return
 
-    config = _build_config(config_raw)
+    try:
+        config = _build_config(config_raw)
+    except ValueError as exc:
+        _emit({"event": "error", "message": str(exc)})
+        return
 
     def on_phase(name: str, index: int, total: int) -> None:
         if cancel_event.is_set():
-            return
+            raise CancelledError
         _emit({
             "event": "phase",
             "name": name,
@@ -102,7 +119,7 @@ def _run_scan(
 
     def on_progress(phase: str, current: int, total: int) -> None:
         if cancel_event.is_set():
-            return
+            raise CancelledError
         _emit({
             "event": "progress",
             "phase": phase,
@@ -114,6 +131,9 @@ def _run_scan(
         result = run_pipeline(
             path, config, on_phase=on_phase, on_progress=on_progress
         )
+    except CancelledError:
+        _emit({"event": "cancelled"})
+        return
     except Exception as exc:
         if cancel_event.is_set():
             _emit({"event": "cancelled"})
@@ -159,12 +179,14 @@ def main() -> None:
     """Sidecar main loop. Reads commands from stdin, emits events to stdout."""
     _emit({"event": "ready", "version": __version__})
 
-    cancel_event = threading.Event()
     scan_thread: threading.Thread | None = None
+    cancel_event: threading.Event | None = None
 
     while True:
         line = sys.stdin.readline()
-        if not line:  # EOF
+        if not line:  # EOF — parent process closed stdin
+            if cancel_event is not None:
+                cancel_event.set()
             break
         line = line.strip()
         if not line:
@@ -181,10 +203,12 @@ def main() -> None:
         if cmd == "scan":
             # Cancel any running scan first
             if scan_thread and scan_thread.is_alive():
-                cancel_event.set()
+                if cancel_event is not None:
+                    cancel_event.set()
                 scan_thread.join(timeout=5)
 
-            cancel_event.clear()
+            # Fresh cancel event per scan to avoid races
+            cancel_event = threading.Event()
             scan_path = msg.get("path", "")
             config_raw = msg.get("config", {})
             scan_thread = threading.Thread(
@@ -194,10 +218,12 @@ def main() -> None:
             scan_thread.start()
 
         elif cmd == "cancel":
-            cancel_event.set()
+            if cancel_event is not None:
+                cancel_event.set()
 
         elif cmd == "shutdown":
-            cancel_event.set()
+            if cancel_event is not None:
+                cancel_event.set()
             if scan_thread and scan_thread.is_alive():
                 scan_thread.join(timeout=5)
             break
@@ -208,9 +234,9 @@ def main() -> None:
                 "message": f"Unknown command: {cmd}",
             })
 
-    # Wait for any running scan to finish before exiting
+    # Wait for any running scan to finish before exiting (bounded)
     if scan_thread and scan_thread.is_alive():
-        scan_thread.join()
+        scan_thread.join(timeout=10)
 
 
 if __name__ == "__main__":

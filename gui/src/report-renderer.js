@@ -3,12 +3,25 @@
  */
 
 /**
+ * Escape HTML special characters to prevent XSS.
+ * @param {string} str
+ * @returns {string}
+ */
+function esc(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
  * Format bytes into a human-readable string.
  * @param {number} bytes
  * @returns {string}
  */
 function formatSize(bytes) {
-  if (bytes === 0) return "0 B";
+  if (bytes <= 0) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
   return (bytes / Math.pow(1024, i)).toFixed(1) + " " + units[i];
@@ -68,7 +81,7 @@ function renderTypeDistribution(summary) {
   const rows = entries
     .map(([type, count]) => {
       const pct = ((count / totalFiles) * 100).toFixed(1);
-      return `<tr><td>${type}</td><td>${count.toLocaleString()} (${pct}%)</td></tr>`;
+      return `<tr><td>${esc(type)}</td><td>${count.toLocaleString()} (${pct}%)</td></tr>`;
     })
     .join("");
 
@@ -140,7 +153,7 @@ function renderPII(summary) {
   if (Object.keys(types).length > 0) {
     const rows = Object.entries(types)
       .sort((a, b) => b[1] - a[1])
-      .map(([type, count]) => `<tr><td>${type}</td><td>${count}</td></tr>`)
+      .map(([type, count]) => `<tr><td>${esc(type)}</td><td>${count}</td></tr>`)
       .join("");
     detail += `<table><tr><th>Pattern</th><th>Files</th></tr>${rows}</table>`;
   }
@@ -157,7 +170,7 @@ function renderLanguage(summary) {
 
   const entries = Object.entries(lang.distribution).sort((a, b) => b[1] - a[1]);
   const rows = entries
-    .map(([language, count]) => `<tr><td>${language}</td><td>${count}</td></tr>`)
+    .map(([language, count]) => `<tr><td>${esc(language)}</td><td>${count}</td></tr>`)
     .join("");
 
   return card(
@@ -178,7 +191,7 @@ function renderEncoding(summary) {
 
   const entries = Object.entries(enc.distribution).sort((a, b) => b[1] - a[1]);
   const rows = entries
-    .map(([encoding, count]) => `<tr><td>${encoding}</td><td>${count}</td></tr>`)
+    .map(([encoding, count]) => `<tr><td>${esc(encoding)}</td><td>${count}</td></tr>`)
     .join("");
 
   return card(
@@ -222,7 +235,7 @@ export function renderReport(report) {
   html += renderNearDuplicates(summary);
 
   html += `<div class="privacy-footer">
-    Field Check v${report.version || "0.1.0"} — All processing local. No data transmitted.
+    Field Check v${esc(report.version || "0.1.0")} — All processing local. No data transmitted.
   </div>`;
 
   return html;

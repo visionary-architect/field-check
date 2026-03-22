@@ -4,9 +4,17 @@
  * Manages the three-screen flow: folder selection → scanning → report display.
  */
 
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { ScannerIPC } from "./scanner-ipc.js";
 import { renderReport } from "./report-renderer.js";
+
+/** Escape HTML to prevent XSS from sidecar error messages. */
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = String(str);
+  return div.innerHTML;
+}
 
 // --- State ---
 let scanner = null;
@@ -75,7 +83,7 @@ async function initScanner() {
     stopTimer();
     reportContent.innerHTML = `<div class="card card-full">
       <h3>Error</h3>
-      <p style="color: var(--danger)">${msg.message}</p>
+      <p style="color: var(--danger)">${escapeHtml(msg.message)}</p>
     </div>`;
     showView(viewReport);
   });
@@ -174,6 +182,18 @@ btnExportHtml.addEventListener("click", async () => {
   }
 });
 
+// --- Window Close ---
+
+getCurrentWindow()
+  .onCloseRequested(async () => {
+    if (scanner) {
+      await scanner.shutdown();
+    }
+  })
+  .catch(() => {
+    // May fail in dev mode — non-critical
+  });
+
 // --- Init ---
 
 initScanner().catch((err) => {
@@ -181,7 +201,7 @@ initScanner().catch((err) => {
   document.getElementById("app").innerHTML = `
     <div class="view active" style="text-align:center">
       <h2>Scanner failed to start</h2>
-      <p style="color:var(--danger)">${err.message}</p>
+      <p style="color:var(--danger)">${escapeHtml(err.message)}</p>
       <p style="color:var(--text-muted);margin-top:1rem">
         Make sure the scanner binary is available in src-tauri/binaries/
       </p>
