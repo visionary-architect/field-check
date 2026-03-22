@@ -16,7 +16,7 @@ Each invariant should have:
 USAGE:
   Manual:   python invariant_validator.py <file_path>
   All:      python invariant_validator.py --all
-  Hook:     Add to .claude/settings.json hooks for automatic checking
+  Hook:     Reads CLAUDE_FILE_PATH env var automatically (set by Claude Code)
 
 EXAMPLE INVARIANTS:
   - No debug statements in production code
@@ -25,12 +25,13 @@ EXAMPLE INVARIANTS:
   - Component isolation rules
 """
 
-import sys
+import json
 import os
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Any
 
 # Log file for this validator
 LOG_FILE = ".claude/hooks/validators/invariant_validator.log"
@@ -40,7 +41,7 @@ LOG_FILE = ".claude/hooks/validators/invariant_validator.log"
 # =============================================================================
 
 # Example invariants - customize or replace for your project
-INVARIANTS: List[Dict[str, Any]] = [
+INVARIANTS: list[dict[str, Any]] = [
     # {
     #     "id": "INV-1",
     #     "name": "No Debug Statements",
@@ -70,10 +71,15 @@ INVARIANTS: List[Dict[str, Any]] = [
 ]
 
 # File extensions to validate (if not specified per-invariant)
-DEFAULT_EXTENSIONS = {'.py', '.js', '.ts', '.jsx', '.tsx', '.go', '.rs', '.java'}
+DEFAULT_EXTENSIONS = {
+    '.py', '.js', '.ts', '.jsx', '.tsx', '.go', '.rs', '.java',
+}
 
 # Directories to skip
-SKIP_DIRS = {'node_modules', 'venv', '.venv', '__pycache__', '.git', 'dist', 'build', 'target', '.next'}
+SKIP_DIRS = {
+    'node_modules', 'venv', '.venv', '__pycache__',
+    '.git', 'dist', 'build', 'target', '.next',
+}
 
 
 # =============================================================================
@@ -83,9 +89,11 @@ SKIP_DIRS = {'node_modules', 'venv', '.venv', '__pycache__', '.git', 'dist', 'bu
 def find_project_root() -> Path:
     """Find the project root by looking for common markers."""
     current = Path(__file__).resolve()
-    markers = ['pyproject.toml', 'package.json', 'Cargo.toml', 'go.mod', '.git']
+    markers = [
+        'pyproject.toml', 'package.json', 'Cargo.toml', 'go.mod', '.git',
+    ]
 
-    for parent in [current] + list(current.parents):
+    for parent in [current, *list(current.parents)]:
         for marker in markers:
             if (parent / marker).exists():
                 return parent
@@ -95,7 +103,7 @@ def find_project_root() -> Path:
 PROJECT_ROOT = find_project_root()
 
 
-def matches_component(file_path: str, components: List[str]) -> bool:
+def matches_component(file_path: str, components: list[str]) -> bool:
     """Check if a file path matches any of the component patterns."""
     if not components or "*" in components:
         return True
@@ -116,18 +124,27 @@ def get_file_extension(file_path: str) -> str:
     return os.path.splitext(file_path)[1].lower()
 
 
-def check_invariant(content: str, lines: List[str], invariant: Dict, file_path: str) -> List[str]:
+def check_invariant(
+    content: str,
+    lines: list[str],
+    invariant: dict[str, Any],
+    file_path: str,
+) -> list[str]:
     """Check a single invariant against file content."""
-    issues = []
+    issues: list[str] = []
 
     # Check file extension
     file_ext = get_file_extension(file_path)
-    allowed_extensions = invariant.get("file_extensions", DEFAULT_EXTENSIONS)
+    allowed_extensions = invariant.get(
+        "file_extensions", DEFAULT_EXTENSIONS,
+    )
     if file_ext not in allowed_extensions:
         return issues
 
     # Check component match
-    if not matches_component(file_path, invariant.get("components", ["*"])):
+    if not matches_component(
+        file_path, invariant.get("components", ["*"]),
+    ):
         return issues
 
     # Check patterns
@@ -135,18 +152,24 @@ def check_invariant(content: str, lines: List[str], invariant: Dict, file_path: 
         for i, line in enumerate(lines, 1):
             # Skip comments (basic detection)
             stripped = line.strip()
-            if stripped.startswith("#") or stripped.startswith("//") or stripped.startswith("/*"):
+            if (
+                stripped.startswith("#")
+                or stripped.startswith("//")
+                or stripped.startswith("/*")
+            ):
                 continue
 
             if re.search(pattern, line, re.IGNORECASE):
                 severity = invariant.get("severity", "error")
                 inv_id = invariant.get("id", "INV-?")
-                issues.append(f"{inv_id} (Line {i}, {severity}): {message}")
+                issues.append(
+                    f"{inv_id} (Line {i}, {severity}): {message}",
+                )
 
     return issues
 
 
-def validate(target_path: str) -> dict:
+def validate(target_path: str) -> dict[str, Any]:
     """
     Validate a file against all defined invariants.
 
@@ -156,29 +179,38 @@ def validate(target_path: str) -> dict:
     Returns:
         dict with 'valid' (bool) and 'message' (str)
     """
-    issues = []
+    issues: list[str] = []
 
     # Check if we have any invariants defined
     if not INVARIANTS:
         return {
             "valid": True,
-            "message": f"No invariants configured. See invariant_validator.py to add project invariants."
+            "message": (
+                "No invariants configured."
+                " See invariant_validator.py to add project invariants."
+            ),
         }
 
     # Skip files in excluded directories
     path_str = str(target_path).replace("\\", "/")
     for skip_dir in SKIP_DIRS:
-        if f"/{skip_dir}/" in path_str or path_str.startswith(f"{skip_dir}/"):
+        if (
+            f"/{skip_dir}/" in path_str
+            or path_str.startswith(f"{skip_dir}/")
+        ):
+            basename = os.path.basename(target_path)
             return {
                 "valid": True,
-                "message": f"Skipped (excluded directory): {os.path.basename(target_path)}"
+                "message": f"Skipped (excluded directory): {basename}",
             }
 
     # Skip test files
-    if "/tests/" in path_str or "/test/" in path_str or "_test." in path_str or ".test." in path_str:
+    test_markers = ["/tests/", "/test/", "_test.", ".test."]
+    if any(marker in path_str for marker in test_markers):
+        basename = os.path.basename(target_path)
         return {
             "valid": True,
-            "message": f"Skipped (test file): {os.path.basename(target_path)}"
+            "message": f"Skipped (test file): {basename}",
         }
 
     try:
@@ -186,21 +218,28 @@ def validate(target_path: str) -> dict:
         if not os.path.exists(target_path):
             issues.append(f"File not found: {target_path}")
             log_result(target_path, issues)
-            return {"valid": False, "message": f"Validation failed: {issues[0]}"}
+            return {
+                "valid": False,
+                "message": f"Validation failed: {issues[0]}",
+            }
 
         # Read content
-        with open(target_path, 'r', encoding='utf-8', errors='replace') as f:
+        with open(
+            target_path, encoding='utf-8', errors='replace',
+        ) as f:
             content = f.read()
 
         lines = content.splitlines()
 
         # Check each invariant
         for invariant in INVARIANTS:
-            inv_issues = check_invariant(content, lines, invariant, target_path)
+            inv_issues = check_invariant(
+                content, lines, invariant, target_path,
+            )
             issues.extend(inv_issues)
 
     except Exception as e:
-        issues.append(f"Validation error: {str(e)}")
+        issues.append(f"Validation error: {e!s}")
 
     # Log results
     log_result(target_path, issues)
@@ -211,7 +250,8 @@ def validate(target_path: str) -> dict:
         errors = [i for i in issues if "error" in i.lower()]
         warnings = [i for i in issues if "warning" in i.lower()]
 
-        message = f"Invariant violations in {os.path.basename(target_path)}:\n"
+        basename = os.path.basename(target_path)
+        message = f"Invariant violations in {basename}:\n"
         if errors:
             message += "\n".join(f"  [ERROR]{i}" for i in errors)
         if warnings:
@@ -220,25 +260,29 @@ def validate(target_path: str) -> dict:
         # Only fail on errors, not warnings
         return {
             "valid": len(errors) == 0,
-            "message": message
+            "message": message,
         }
 
+    basename = os.path.basename(target_path)
     return {
         "valid": True,
-        "message": f"All invariants satisfied: {os.path.basename(target_path)}"
+        "message": f"All invariants satisfied: {basename}",
     }
 
 
-def validate_all() -> dict:
+def validate_all() -> dict[str, Any]:
     """Validate all source files in the project."""
-    all_issues = []
+    all_issues: list[str] = []
     files_checked = 0
     files_passed = 0
 
     if not INVARIANTS:
         return {
             "valid": True,
-            "message": "No invariants configured. Edit invariant_validator.py to add project invariants."
+            "message": (
+                "No invariants configured."
+                " Edit invariant_validator.py to add project invariants."
+            ),
         }
 
     # Find all source files
@@ -246,7 +290,9 @@ def validate_all() -> dict:
         for source_file in PROJECT_ROOT.rglob(f"*{ext}"):
             # Skip excluded directories
             path_str = str(source_file).replace("\\", "/")
-            if any(f"/{skip}/" in path_str for skip in SKIP_DIRS):
+            if any(
+                f"/{skip}/" in path_str for skip in SKIP_DIRS
+            ):
                 continue
 
             result = validate(str(source_file))
@@ -259,17 +305,22 @@ def validate_all() -> dict:
 
     # Summary
     if all_issues:
-        summary = f"Invariant Check: {files_passed}/{files_checked} files passed\n\n"
+        summary = (
+            f"Invariant Check:"
+            f" {files_passed}/{files_checked} files passed\n\n"
+        )
         summary += "\n\n".join(all_issues)
         return {"valid": False, "message": summary}
 
     return {
         "valid": True,
-        "message": f"All invariants satisfied across {files_checked} files"
+        "message": (
+            f"All invariants satisfied across {files_checked} files"
+        ),
     }
 
 
-def log_result(target_path: str, issues: list):
+def log_result(target_path: str, issues: list[str]) -> None:
     """Log validation results for observability."""
     try:
         log_path = PROJECT_ROOT / LOG_FILE
@@ -283,7 +334,21 @@ def log_result(target_path: str, issues: list):
                     f.write(f"  - {issue}\n")
             f.write("-" * 60 + "\n")
     except Exception as e:
-        print(f"Warning: Could not write to log file: {e}", file=sys.stderr)
+        print(
+            f"Warning: Could not write to log file: {e}",
+            file=sys.stderr,
+        )
+
+
+def resolve_target() -> str | None:
+    """Resolve from CLI args or CLAUDE_FILE_PATH env var."""
+    cli_args = [
+        a for a in sys.argv[1:]
+        if a not in ("$CLAUDE_FILE_PATH", "%CLAUDE_FILE_PATH%", "")
+    ]
+    if cli_args:
+        return cli_args[0]
+    return os.environ.get("CLAUDE_FILE_PATH")
 
 
 # =============================================================================
@@ -294,15 +359,26 @@ if __name__ == "__main__":
     # Fix Windows console encoding
     if sys.platform == "win32":
         import io
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+        sys.stdout = io.TextIOWrapper(
+            sys.stdout.buffer, encoding='utf-8', errors='replace',
+        )
+        sys.stderr = io.TextIOWrapper(
+            sys.stderr.buffer, encoding='utf-8', errors='replace',
+        )
 
-    if len(sys.argv) < 2:
+    target = resolve_target()
+
+    if target == "--all":
+        result = validate_all()
+    elif target:
+        result = validate(target)
+    else:
+        # No target — show usage
         print("Project Invariant Validator")
         print("=" * 40)
         print("\nUsage:")
-        print("  python invariant_validator.py <file_path>  - Check single file")
-        print("  python invariant_validator.py --all        - Check all source files")
+        print("  python invariant_validator.py <file_path>")
+        print("  python invariant_validator.py --all")
         print("\nConfiguration:")
         print("  Edit the INVARIANTS list at the top of this file")
         print("  to define your project's invariants.")
@@ -310,22 +386,16 @@ if __name__ == "__main__":
         if INVARIANTS:
             print(f"  {len(INVARIANTS)} invariant(s) configured:")
             for inv in INVARIANTS:
-                print(f"    - {inv.get('id', '?')}: {inv.get('name', 'Unnamed')}")
+                name = inv.get('name', 'Unnamed')
+                print(f"    - {inv.get('id', '?')}: {name}")
         else:
             print("  No invariants configured yet.")
         sys.exit(1)
 
-    target = sys.argv[1]
-
-    if target == "--all":
-        result = validate_all()
-    else:
-        result = validate(target)
-
     # Output structured JSON for PostToolUse hook protocol
-    import json
     if result["valid"]:
-        print(json.dumps({"decision": "approve", "reason": result["message"]}))
+        output = {"decision": "approve", "reason": result["message"]}
     else:
-        print(json.dumps({"decision": "block", "reason": result["message"]}))
+        output = {"decision": "block", "reason": result["message"]}
+    print(json.dumps(output))
     sys.exit(0)

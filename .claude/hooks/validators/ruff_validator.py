@@ -18,7 +18,7 @@ from pathlib import Path
 
 # Shared utilities
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from utils.stdin_parser import parse_hook_input, get_file_path
+from utils.stdin_parser import get_file_path, parse_hook_input
 
 
 def main():
@@ -35,11 +35,25 @@ def main():
         print("{}")
         return
 
+    # Find project root (directory containing pyproject.toml)
+    project_root = Path(file_path).resolve().parent
+    while project_root != project_root.parent:
+        if (project_root / "pyproject.toml").exists():
+            break
+        project_root = project_root.parent
+
+    # Use relative path so per-file-ignores in pyproject.toml match
+    try:
+        rel_path = str(Path(file_path).resolve().relative_to(project_root))
+    except ValueError:
+        rel_path = file_path
+
     # Try running ruff
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "ruff", "check", file_path],
+            [sys.executable, "-m", "ruff", "check", rel_path],
             capture_output=True, text=True, timeout=120,
+            cwd=str(project_root),
         )
     except FileNotFoundError:
         # Python not found — pass silently

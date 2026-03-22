@@ -18,6 +18,9 @@ __pycache__/
 # =============================================================================
 dist/
 build/
+# To commit a specific build output for deployment, use negation:
+# !web/landing/dist/
+# !web/landing/dist/**
 out/
 target/
 *.egg
@@ -71,6 +74,8 @@ secrets.yml
 .DS_Store
 Thumbs.db
 desktop.ini
+# Windows device name artifact (created by some tools)
+nul
 
 # =============================================================================
 # Logs and databases
@@ -112,5 +117,20 @@ temp/
 .claude/status_lines/__pycache__/
 
 # =============================================================================
-# Project-specific (add your own below)
+# TypeScript build info
 # =============================================================================
+*.tsbuildinfo
+.turbo/
+
+# =============================================================================
+# Project-specific — Field Check
+# =============================================================================
+
+# Test corpus files (user-provided, not tracked)
+test-corpus/
+
+# Generated reports
+field-check-report.*
+
+# Coverage
+coverage.xml

@@ -1,7 +1,7 @@
 {
   "env": {
     "CLAUDE_CODE_ENABLE_TASKS": "true",
-    "CLAUDE_CODE_TASK_LIST_ID": "{{PROJECT_SLUG}}",
+    "CLAUDE_CODE_TASK_LIST_ID": "field-check",
     "CLAUDE_SESSION_TAG": "main"
   },
   "hooks": {
@@ -91,19 +91,19 @@
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/validators/invariant_validator.py $CLAUDE_FILE_PATH",
+            "command": "python .claude/hooks/validators/invariant_validator.py",
             "async": false,
             "timeout": 10000
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/validators/json_validator.py $CLAUDE_FILE_PATH",
+            "command": "python .claude/hooks/validators/json_validator.py ",
             "async": true,
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/validators/markdown_validator.py $CLAUDE_FILE_PATH",
+            "command": "python .claude/hooks/validators/markdown_validator.py ",
             "async": true,
             "timeout": 5000
           },
@@ -258,6 +258,12 @@
             "command": "python .claude/hooks/lifecycle/pre_compact.py --backup",
             "async": true,
             "timeout": 10000
+          },
+          {
+            "type": "command",
+            "command": "python .claude/hooks/lifecycle/pre_compact_guidance.py",
+            "async": false,
+            "timeout": 5000
           }
         ]
       }
@@ -281,6 +287,10 @@
     "timeout": 3000
   },
   "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)"
+    ],
     "allow": [
       "Bash(git status*)",
       "Bash(git diff*)",
