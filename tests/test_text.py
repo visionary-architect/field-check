@@ -280,3 +280,39 @@ class TestFormatExtractors:
             result = _extract_pdf("fake.pdf")
 
         assert result.extraction_quality == "degraded"
+
+
+def test_extract_text_unified_with_thread_executor(
+    tmp_path: Path,
+) -> None:
+    """extract_text_unified works with ThreadPoolExecutor."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from field_check.scanner.text import extract_text_unified
+
+    create_pdf_with_text(tmp_path / "doc.pdf", "Test content here")
+    (tmp_path / "readme.txt").write_text("Plain text", encoding="utf-8")
+    walk, inv = _walk_and_inventory(tmp_path)
+    config = FieldCheckConfig(sampling_rate=1.0)
+    sample = select_sample(walk, inv, config)
+
+    text_result, cache_result = extract_text_unified(
+        sample, inv, executor_class=ThreadPoolExecutor
+    )
+    assert text_result.total_processed >= 1
+    assert cache_result.total_extracted >= 1
+
+
+def test_extract_text_with_executor_class(tmp_path: Path) -> None:
+    """extract_text accepts executor_class parameter."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    create_pdf_with_text(tmp_path / "doc.pdf", "Content")
+    walk, inv = _walk_and_inventory(tmp_path)
+    config = FieldCheckConfig(sampling_rate=1.0)
+    sample = select_sample(walk, inv, config)
+
+    result = extract_text(
+        sample, inv, executor_class=ThreadPoolExecutor
+    )
+    assert result.total_processed >= 1

@@ -221,6 +221,23 @@ def test_emit_non_serializable(capsys: object) -> None:
     assert "/some/path" in parsed["path"] or "\\some\\path" in parsed["path"]
 
 
+def test_run_scan_with_executor_class(tmp_path: Path, capsys: object) -> None:
+    """Scanning with explicit executor_class passes through correctly."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    (tmp_path / "test.txt").write_text("hello world", encoding="utf-8")
+    cancel = threading.Event()
+    _run_scan(str(tmp_path), {}, cancel, executor_class=ThreadPoolExecutor)
+
+    captured = capsys.readouterr()  # type: ignore[attr-defined]
+    events = [
+        json.loads(line)
+        for line in captured.out.strip().split("\n")
+        if line.strip()
+    ]
+    assert any(e["event"] == "complete" for e in events)
+
+
 def test_run_scan_bad_config(capsys: object, tmp_path: Path) -> None:
     """Bad config values emit an error event instead of crashing."""
     cancel = threading.Event()

@@ -174,6 +174,7 @@ def extract_text(
     max_workers: int | None = None,
     timeout: float = DEFAULT_TIMEOUT,
     progress_callback: Callable[[int, int], None] | None = None,
+    executor_class: type | None = None,
 ) -> TextExtractionResult:
     """Extract text from sampled PDF/DOCX files using process pool.
 
@@ -206,8 +207,9 @@ def extract_text(
 
     total = len(extractable)
     workers = max_workers or min(MAX_WORKERS, os.cpu_count() or 1)
+    pool_cls = executor_class or ProcessPoolExecutor
 
-    with ProcessPoolExecutor(max_workers=workers) as pool:
+    with pool_cls(max_workers=workers) as pool:
         future_to_info: dict = {}
         for entry, mime in extractable:
             future = pool.submit(_extract_single, str(entry.path), mime)
@@ -243,6 +245,7 @@ def build_text_cache(
     max_workers: int | None = None,
     timeout: float = DEFAULT_TIMEOUT,
     progress_callback: Callable[[int, int], None] | None = None,
+    executor_class: type | None = None,
 ) -> TextCacheResult:
     """Build shared text cache for downstream analysis.
 
@@ -277,8 +280,9 @@ def build_text_cache(
 
     total = len(extractable)
     workers = max_workers or min(MAX_WORKERS, os.cpu_count() or 1)
+    pool_cls = executor_class or ProcessPoolExecutor
 
-    with ProcessPoolExecutor(max_workers=workers) as pool:
+    with pool_cls(max_workers=workers) as pool:
         future_to_entry: dict = {}
         for entry, mime in extractable:
             future = pool.submit(_extract_text_for_cache, str(entry.path), mime)
@@ -327,12 +331,14 @@ def extract_text_unified(
     max_workers: int | None = None,
     timeout: float = DEFAULT_TIMEOUT,
     progress_callback: Callable[[int, int], None] | None = None,
+    executor_class: type | None = None,
 ) -> tuple[TextExtractionResult, TextCacheResult]:
     """Single-pass text extraction for metadata analysis and text cache.
 
     Eliminates double PDF/DOCX parsing by retaining extracted text in
     TextResult.text and populating the text cache from it. Plain text
-    files are extracted separately for encoding detection.
+    files are extracted separately for encoding detection. Both file
+    types are processed in a single executor pool.
 
     Args:
         sample: Sampling result with selected files.
@@ -340,6 +346,9 @@ def extract_text_unified(
         max_workers: Max worker processes (default: min(4, cpu_count)).
         timeout: Per-file timeout in seconds.
         progress_callback: Called with (current, total) for progress display.
+        executor_class: Executor class to use (default: ProcessPoolExecutor).
+            Pass ThreadPoolExecutor for environments where process pools
+            cannot be used (e.g., sidecar with piped stdin/stdout).
 
     Returns:
         Tuple of (TextExtractionResult, TextCacheResult).
@@ -368,86 +377,87 @@ def extract_text_unified(
         return text_result, cache_result
 
     workers = max_workers or min(MAX_WORKERS, os.cpu_count() or 1)
+    pool_cls = executor_class or ProcessPoolExecutor
     completed = 0
 
-    # Phase A: PDF/DOCX — metadata + classification + text in one pass
-    if pdf_docx:
-        with ProcessPoolExecutor(max_workers=workers) as pool:
-            future_to_info: dict = {}
-            for entry, mime in pdf_docx:
-                future = pool.submit(_extract_single, str(entry.path), mime)
-                future_to_info[future] = (entry, mime)
+    # Single pool for both PDF/DOCX and plain text extraction
+    with pool_cls(max_workers=workers) as pool:
+        # Submit PDF/DOCX jobs — rich extraction with metadata
+        pdf_futures: dict = {}
+        for entry, mime in pdf_docx:
+            future = pool.submit(_extract_single, str(entry.path), mime)
+            pdf_futures[future] = (entry, mime)
 
-            for future in as_completed(future_to_info):
-                entry, mime = future_to_info[future]
-                try:
-                    file_result = future.result(timeout=timeout)
-                except TimeoutError:
-                    file_result = TextResult(path=str(entry.path), error="Extraction timed out")
-                    text_result.timeout_errors += 1
-                except Exception as exc:
-                    file_result = TextResult(path=str(entry.path), error=str(exc))
+        # Submit plain text jobs — encoding detection + text cache
+        text_futures: dict = {}
+        for entry, _mime in plain_text:
+            future = pool.submit(_extract_plain_text, str(entry.path))
+            text_futures[future] = entry
 
-                text_result.file_results.append(file_result)
-                text_result.total_processed += 1
+        # Collect PDF/DOCX results
+        for future in as_completed(pdf_futures):
+            entry, mime = pdf_futures[future]
+            try:
+                file_result = future.result(timeout=timeout)
+            except TimeoutError:
+                file_result = TextResult(path=str(entry.path), error="Extraction timed out")
+                text_result.timeout_errors += 1
+            except Exception as exc:
+                file_result = TextResult(path=str(entry.path), error=str(exc))
 
-                if file_result.error:
-                    text_result.extraction_errors += 1
-                    cache_result.extraction_errors += 1
-                else:
-                    _aggregate_extraction(text_result, file_result, mime)
-                    if file_result.text:
-                        cache_result.text_cache[str(entry.path)] = file_result.text
+            text_result.file_results.append(file_result)
+            text_result.total_processed += 1
+
+            if file_result.error:
+                text_result.extraction_errors += 1
+                cache_result.extraction_errors += 1
+            else:
+                _aggregate_extraction(text_result, file_result, mime)
+                if file_result.text:
+                    cache_result.text_cache[str(entry.path)] = file_result.text
+            cache_result.total_extracted += 1
+
+            completed += 1
+            if progress_callback is not None:
+                progress_callback(completed, total)
+
+        # Collect plain text results
+        for future in as_completed(text_futures):
+            entry = text_futures[future]
+            path_str = str(entry.path)
+            try:
+                text, enc_name, enc_conf, error = future.result(timeout=timeout)
+            except TimeoutError:
+                cache_result.extraction_errors += 1
                 cache_result.total_extracted += 1
-
                 completed += 1
                 if progress_callback is not None:
                     progress_callback(completed, total)
-
-    # Phase B: Plain text — encoding detection + text cache
-    if plain_text:
-        with ProcessPoolExecutor(max_workers=workers) as pool:
-            future_to_entry: dict = {}
-            for entry, _mime in plain_text:
-                future = pool.submit(_extract_plain_text, str(entry.path))
-                future_to_entry[future] = entry
-
-            for future in as_completed(future_to_entry):
-                entry = future_to_entry[future]
-                path_str = str(entry.path)
-                try:
-                    text, enc_name, enc_conf, error = future.result(timeout=timeout)
-                except TimeoutError:
-                    cache_result.extraction_errors += 1
-                    cache_result.total_extracted += 1
-                    completed += 1
-                    if progress_callback is not None:
-                        progress_callback(completed, total)
-                    continue
-                except Exception:
-                    logger.debug("Plain text extraction failed for %s", path_str)
-                    cache_result.extraction_errors += 1
-                    cache_result.total_extracted += 1
-                    completed += 1
-                    if progress_callback is not None:
-                        progress_callback(completed, total)
-                    continue
-
+                continue
+            except Exception:
+                logger.debug("Plain text extraction failed for %s", path_str)
+                cache_result.extraction_errors += 1
                 cache_result.total_extracted += 1
-
-                if error:
-                    cache_result.extraction_errors += 1
-                else:
-                    if text:
-                        cache_result.text_cache[path_str] = text
-                    if enc_name:
-                        cache_result.encoding_map[path_str] = (
-                            enc_name,
-                            enc_conf,
-                        )
-
                 completed += 1
                 if progress_callback is not None:
                     progress_callback(completed, total)
+                continue
+
+            cache_result.total_extracted += 1
+
+            if error:
+                cache_result.extraction_errors += 1
+            else:
+                if text:
+                    cache_result.text_cache[path_str] = text
+                if enc_name:
+                    cache_result.encoding_map[path_str] = (
+                        enc_name,
+                        enc_conf,
+                    )
+
+            completed += 1
+            if progress_callback is not None:
+                progress_callback(completed, total)
 
     return text_result, cache_result

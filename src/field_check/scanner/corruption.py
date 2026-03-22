@@ -402,6 +402,7 @@ def check_corruption(
     progress_callback: Callable[[int, int], None] | None = None,
     file_types: dict[Path, str] | None = None,
     max_workers: int | None = None,
+    executor_class: type | None = None,
 ) -> CorruptionResult:
     """Check all files for corruption, encryption, and emptiness.
 
@@ -433,7 +434,9 @@ def check_corruption(
     if max_workers == 0:
         return _check_sequential(walk_result, result, file_types, progress_callback)
 
-    return _check_parallel(walk_result, result, file_types, progress_callback, max_workers)
+    return _check_parallel(
+        walk_result, result, file_types, progress_callback, max_workers, executor_class
+    )
 
 
 def _check_sequential(
@@ -471,11 +474,13 @@ def _check_parallel(
     file_types: dict[Path, str] | None,
     progress_callback: Callable[[int, int], None] | None,
     max_workers: int,
+    executor_class: type | None = None,
 ) -> CorruptionResult:
     """Process-pool based corruption check for crash isolation (Invariant 5)."""
     total = len(walk_result.files)
     completed = 0
-    with ProcessPoolExecutor(max_workers=max_workers) as pool:
+    pool_cls = executor_class or ProcessPoolExecutor
+    with pool_cls(max_workers=max_workers) as pool:
         future_to_entry = {}
         for entry in walk_result.files:
             known_mime = file_types.get(entry.path) if file_types else None

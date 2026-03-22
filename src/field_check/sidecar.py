@@ -84,6 +84,7 @@ def _run_scan(
     scan_path: str,
     config_raw: dict,
     cancel_event: threading.Event,
+    executor_class: type | None = None,
 ) -> None:
     """Run a scan and emit events. Called in a background thread.
 
@@ -91,6 +92,7 @@ def _run_scan(
         scan_path: Directory to scan.
         config_raw: Raw config dict from GUI.
         cancel_event: Set by main thread to request cancellation.
+        executor_class: Executor class for parallel work (optional).
     """
     path = Path(scan_path).resolve()
     if not path.is_dir():
@@ -125,7 +127,11 @@ def _run_scan(
 
     try:
         result = run_pipeline(
-            path, config, on_phase=on_phase, on_progress=on_progress
+            path,
+            config,
+            on_phase=on_phase,
+            on_progress=on_progress,
+            executor_class=executor_class,
         )
     except ScanCancelledError:
         _emit({"event": "cancelled"})
@@ -171,27 +177,6 @@ def _run_scan(
     _emit({"event": "complete", "report": report_data})
 
 
-def _patch_executors() -> None:
-    """Swap ProcessPoolExecutor for ThreadPoolExecutor in scanner modules.
-
-    The sidecar runs as a subprocess with piped stdin/stdout. On Windows,
-    ProcessPoolExecutor workers fail with PermissionError when trying to
-    DuplicateHandle on the pipe handles. Since the sidecar is already
-    crash-isolated from the GUI (separate process), we swap in
-    ThreadPoolExecutor in modules that use ProcessPoolExecutor.
-
-    Called once at sidecar startup — NOT at import time — to avoid
-    affecting other importers of this module.
-    """
-    from concurrent.futures import ThreadPoolExecutor
-
-    import field_check.scanner.pii as _pii_mod
-    import field_check.scanner.text as _text_mod
-
-    _text_mod.ProcessPoolExecutor = ThreadPoolExecutor  # type: ignore[assignment]
-    _pii_mod.ProcessPoolExecutor = ThreadPoolExecutor  # type: ignore[assignment]
-
-
 def main() -> None:
     """Sidecar main loop. Reads commands from stdin, emits events to stdout."""
     # Configure logging to stderr so stdout stays clean for JSON IPC
@@ -201,17 +186,24 @@ def main() -> None:
         format="%(levelname)s: %(message)s",
     )
 
-    _patch_executors()
+    # Use ThreadPoolExecutor instead of ProcessPoolExecutor.
+    # The sidecar runs as a subprocess with piped stdin/stdout. On Windows,
+    # ProcessPoolExecutor workers fail with PermissionError when trying to
+    # DuplicateHandle on the pipe handles. Since the sidecar is already
+    # crash-isolated from the GUI (separate process), ThreadPoolExecutor
+    # is sufficient.
+    from concurrent.futures import ThreadPoolExecutor
+
+    executor_class: type = ThreadPoolExecutor
 
     # Install signal handlers for clean shutdown
+    import contextlib
     import signal
 
     shutdown_event = threading.Event()
 
     def _signal_handler(signum: int, frame: object) -> None:
         shutdown_event.set()
-
-    import contextlib
 
     signal.signal(signal.SIGINT, _signal_handler)
     with contextlib.suppress(OSError):
@@ -222,12 +214,40 @@ def main() -> None:
     scan_thread: threading.Thread | None = None
     cancel_event: threading.Event | None = None
 
+    # Use a queue for non-blocking stdin reads so shutdown_event
+    # can be checked without blocking on readline().
+    import queue
+
+    input_queue: queue.Queue[str | None] = queue.Queue()
+
+    def _stdin_reader() -> None:
+        """Read lines from stdin in a daemon thread, post to queue."""
+        while True:
+            try:
+                line = sys.stdin.readline()
+            except ValueError:
+                # stdin closed
+                input_queue.put(None)
+                return
+            if not line:  # EOF
+                input_queue.put(None)
+                return
+            input_queue.put(line)
+
+    reader_thread = threading.Thread(target=_stdin_reader, daemon=True)
+    reader_thread.start()
+
     while not shutdown_event.is_set():
-        line = sys.stdin.readline()
-        if not line:  # EOF — parent process closed stdin
+        try:
+            line = input_queue.get(timeout=0.5)
+        except queue.Empty:
+            continue
+
+        if line is None:  # EOF — parent process closed stdin
             if cancel_event is not None:
                 cancel_event.set()
             break
+
         line = line.strip()
         if not line:
             continue
@@ -260,7 +280,7 @@ def main() -> None:
                 config_raw = {}
             scan_thread = threading.Thread(
                 target=_run_scan,
-                args=(scan_path, config_raw, cancel_event),
+                args=(scan_path, config_raw, cancel_event, executor_class),
                 daemon=True,
             )
             scan_thread.start()

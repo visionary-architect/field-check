@@ -250,6 +250,7 @@ def scan_pii(
     max_workers: int | None = None,
     timeout: float = _DEFAULT_TIMEOUT,
     progress_callback: Callable[[int, int], None] | None = None,
+    executor_class: type | None = None,
 ) -> PIIScanResult:
     """Scan sampled files for PII patterns.
 
@@ -341,8 +342,9 @@ def scan_pii(
     # Scan uncached files via ProcessPoolExecutor (with file I/O)
     if uncached_entries:
         workers = max_workers or min(_MAX_WORKERS, os.cpu_count() or 1)
+        pool_cls = executor_class or ProcessPoolExecutor
 
-        with ProcessPoolExecutor(max_workers=workers) as pool:
+        with pool_cls(max_workers=workers) as pool:
             future_to_entry: dict = {}
             for entry, mime in uncached_entries:
                 future = pool.submit(

@@ -97,3 +97,20 @@ def test_phases_list_has_12_entries() -> None:
     assert len(PHASES) == 12
     assert PHASES[0] == "Scanning files"
     assert PHASES[-1] == "Detecting near-duplicates"
+
+
+def test_pipeline_with_executor_class(tmp_path: Path) -> None:
+    """Pipeline accepts and passes executor_class through."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    for i in range(3):
+        (tmp_path / f"file{i}.txt").write_text(
+            f"Hello world content {i}", encoding="utf-8"
+        )
+    config = FieldCheckConfig(sampling_rate=1.0)
+    result = run_pipeline(
+        tmp_path, config, executor_class=ThreadPoolExecutor
+    )
+    assert result.empty is False
+    assert result.walk is not None
+    assert result.inventory is not None

@@ -24,6 +24,38 @@
 
 ## Recent Sessions
 
+### Session: 2026-03-22 (Auto-captured at 03:23)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: address second-round review findings (18 fixes across security, robustness, DX)
+- fix: address full-system evaluation findings (CRITICAL/HIGH/MEDIUM)
+
+**Uncommitted changes:**
+- DEVLOG.md
+
+
+### Session: 2026-03-22 (Auto-captured at 03:03)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: address second-round review findings (18 fixes across security, robustness, DX)
+- fix: address full-system evaluation findings (CRITICAL/HIGH/MEDIUM)
+
+**Uncommitted changes:**
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+- pyproject.toml
+- src/field_check/__init__.py
+- src/field_check/cli.py
+- src/field_check/config.py
+- src/field_check/pipeline.py
+- src/field_check/report/__init__.py
+- ... and 24 more
+
+
 ### Session: 2026-03-22 (Auto-captured at 03:01)
 **Note:** This session ended without /pause-work.
 

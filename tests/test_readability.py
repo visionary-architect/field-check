@@ -107,6 +107,42 @@ class TestReadability:
             assert abs(result.avg_flesch_score - individual) < 1.0
 
 
+    def test_at_min_length_boundary(self) -> None:
+        """Text of exactly _MIN_TEXT_LENGTH is analyzed."""
+        text = "x " * 100  # 200 chars exactly
+        result = analyze_readability({"test.txt": text})
+        assert result.total_checked == 1
+
+    def test_truncation_at_max_length(self) -> None:
+        """Long text is truncated to _MAX_TEXT_LENGTH for scoring."""
+        # Same sentence repeated → same readability regardless of length
+        short_text = "The cat sat on the mat. " * 20  # ~480 chars
+        long_text = "The cat sat on the mat. " * 1000  # ~24000 chars
+        r_short = analyze_readability({"s.txt": short_text})
+        r_long = analyze_readability({"l.txt": long_text})
+        # Both should score similarly (truncation doesn't change score much)
+        if r_short.scores and r_long.scores:
+            diff = abs(
+                r_short.scores[0].flesch_reading_ease
+                - r_long.scores[0].flesch_reading_ease
+            )
+            assert diff < 5.0
+
+    def test_textstat_exception_caught(self) -> None:
+        """Exceptions from textstat are caught gracefully."""
+        import textstat
+
+        original = textstat.flesch_reading_ease
+        textstat.flesch_reading_ease = lambda _text: (_ for _ in ()).throw(
+            ValueError("Invalid")
+        )
+        try:
+            result = analyze_readability({"test.txt": "x " * 200})
+            assert result.total_checked == 0  # Exception caught, file skipped
+        finally:
+            textstat.flesch_reading_ease = original
+
+
 class TestReadabilityDataclasses:
     """Tests for readability dataclass structure."""
 

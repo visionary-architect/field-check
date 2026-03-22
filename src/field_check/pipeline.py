@@ -87,6 +87,7 @@ def run_pipeline(
     config: FieldCheckConfig,
     on_phase: PhaseCallback | None = None,
     on_progress: ProgressCallback | None = None,
+    executor_class: type | None = None,
 ) -> PipelineResult:
     """Run the full scan pipeline.
 
@@ -99,6 +100,9 @@ def run_pipeline(
         config: Scan configuration.
         on_phase: Called when a new phase starts.
         on_progress: Called with progress updates within a phase.
+        executor_class: Executor class for parallel work (default:
+            ProcessPoolExecutor). The sidecar passes ThreadPoolExecutor
+            since process pools fail with piped stdin/stdout on Windows.
 
     Returns:
         PipelineResult with all scan results.
@@ -149,6 +153,7 @@ def run_pipeline(
         walk_result,
         progress_callback=lambda c, t: _progress("Checking file health", c, t),
         file_types=inventory.file_types,
+        executor_class=executor_class,
     )
 
     # Phase 5: Sampling
@@ -171,6 +176,7 @@ def run_pipeline(
             progress_callback=lambda c, t: _progress(
                 "Extracting text", c, t
             ),
+            executor_class=executor_class,
         )
 
     # Phase 7: PII scan
@@ -187,6 +193,7 @@ def run_pipeline(
             progress_callback=lambda c, t: _progress(
                 "Scanning for PII", c, t
             ),
+            executor_class=executor_class,
         )
 
     # Phase 8: Language detection
