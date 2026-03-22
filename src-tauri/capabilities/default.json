@@ -26,6 +26,9 @@
     "shell:allow-kill",
     "dialog:allow-open",
     "dialog:allow-save",
-    "fs:allow-write-text-file"
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "**" }]
+    }
   ]
 }

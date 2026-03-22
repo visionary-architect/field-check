@@ -22,6 +22,7 @@ let selectedPath = null;
 let scanStartTime = null;
 let elapsedTimer = null;
 let lastReport = null;
+let scanning = false;
 
 // --- DOM Elements ---
 const viewSelect = document.getElementById("view-select");
@@ -51,16 +52,25 @@ function showView(view) {
   view.classList.add("active");
 }
 
+/** Called when a scan finishes (complete, error, cancelled, or crash). */
+function onScanEnd() {
+  scanning = false;
+  stopTimer();
+}
+
 // --- Scanner Lifecycle ---
 
 async function initScanner() {
   scanner = new ScannerIPC();
 
+  // Spawn first, THEN register listeners — spawn() clears listeners
+  await scanner.spawn();
+
   scanner.on("phase", (msg) => {
     phaseName.textContent = msg.name;
     phaseCounter.textContent = `Phase ${msg.index + 1} / ${msg.total}`;
-    // Update overall progress bar based on phase
-    const pct = ((msg.index + 1) / msg.total) * 100;
+    // Progress bar: 0% at start, 100% only on complete event
+    const pct = (msg.index / msg.total) * 100;
     phaseProgress.style.width = pct + "%";
   });
 
@@ -73,14 +83,15 @@ async function initScanner() {
   });
 
   scanner.on("complete", (msg) => {
-    stopTimer();
+    onScanEnd();
+    phaseProgress.style.width = "100%";
     lastReport = msg.report;
     reportContent.innerHTML = renderReport(msg.report);
     showView(viewReport);
   });
 
   scanner.on("error", (msg) => {
-    stopTimer();
+    onScanEnd();
     reportContent.innerHTML = `<div class="card card-full">
       <h3>Error</h3>
       <p style="color: var(--danger)">${escapeHtml(msg.message)}</p>
@@ -89,16 +100,28 @@ async function initScanner() {
   });
 
   scanner.on("cancelled", () => {
-    stopTimer();
+    onScanEnd();
     showView(viewSelect);
   });
 
-  await scanner.spawn();
+  scanner.on("close", () => {
+    // Sidecar crashed or exited unexpectedly during scan
+    if (scanning) {
+      onScanEnd();
+      reportContent.innerHTML = `<div class="card card-full">
+        <h3>Scanner Crashed</h3>
+        <p style="color: var(--danger)">The scanner process exited unexpectedly.</p>
+        <p style="color: var(--text-muted)">Try starting a new scan.</p>
+      </div>`;
+      showView(viewReport);
+    }
+  });
 }
 
 // --- Timer ---
 
 function startTimer() {
+  stopTimer(); // Prevent interval leak on double-call
   scanStartTime = Date.now();
   elapsedTimer = setInterval(() => {
     const secs = ((Date.now() - scanStartTime) / 1000).toFixed(0);
@@ -125,7 +148,8 @@ btnSelectFolder.addEventListener("click", async () => {
 });
 
 btnStartScan.addEventListener("click", async () => {
-  if (!selectedPath || !scanner) return;
+  if (!selectedPath || !scanner || scanning) return;
+  scanning = true;
 
   // Reset progress UI
   phaseName.textContent = "Initializing";
@@ -156,29 +180,45 @@ btnNewScan.addEventListener("click", () => {
 
 btnExportJson.addEventListener("click", async () => {
   if (!lastReport) return;
-  const path = await save({
-    defaultPath: "field-check-report.json",
-    filters: [{ name: "JSON", extensions: ["json"] }],
-  });
-  if (path) {
-    const { writeTextFile } = await import("@tauri-apps/plugin-fs");
-    await writeTextFile(path, JSON.stringify(lastReport, null, 2));
+  try {
+    const path = await save({
+      defaultPath: "field-check-report.json",
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (path) {
+      const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+      await writeTextFile(path, JSON.stringify(lastReport, null, 2));
+    }
+  } catch (err) {
+    console.error("Export failed:", err);
+    reportContent.querySelector(".card-full")?.insertAdjacentHTML(
+      "beforeend",
+      `<p style="color:var(--danger);margin-top:1rem">Export failed: ${escapeHtml(err.message)}</p>`
+    );
   }
 });
 
 btnExportHtml.addEventListener("click", async () => {
   if (!lastReport) return;
-  const path = await save({
-    defaultPath: "field-check-report.html",
-    filters: [{ name: "HTML", extensions: ["html"] }],
-  });
-  if (path) {
-    const html = `<!DOCTYPE html>
+  try {
+    const path = await save({
+      defaultPath: "field-check-report.html",
+      filters: [{ name: "HTML", extensions: ["html"] }],
+    });
+    if (path) {
+      const html = `<!DOCTYPE html>
 <html><head><title>Field Check Report</title>
 <style>body{font-family:sans-serif;background:#0f172a;color:#f1f5f9;padding:2rem;}</style>
 </head><body>${renderReport(lastReport)}</body></html>`;
-    const { writeTextFile } = await import("@tauri-apps/plugin-fs");
-    await writeTextFile(path, html);
+      const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+      await writeTextFile(path, html);
+    }
+  } catch (err) {
+    console.error("Export failed:", err);
+    reportContent.querySelector(".card-full")?.insertAdjacentHTML(
+      "beforeend",
+      `<p style="color:var(--danger);margin-top:1rem">Export failed: ${escapeHtml(err.message)}</p>`
+    );
   }
 });
 

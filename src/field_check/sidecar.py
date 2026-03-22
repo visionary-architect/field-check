@@ -75,9 +75,9 @@ def _build_config(raw: dict) -> FieldCheckConfig:
                 0.0, min(1.0, float(raw["pii_min_confidence"]))
             )
         if "simhash_threshold" in raw:
-            config.simhash_threshold = int(raw["simhash_threshold"])
+            config.simhash_threshold = max(0, int(raw["simhash_threshold"]))
         if "simhash_bits" in raw:
-            config.simhash_bits = int(raw["simhash_bits"])
+            config.simhash_bits = max(1, min(256, int(raw["simhash_bits"])))
     except (ValueError, TypeError) as exc:
         msg = f"Invalid config value: {exc}"
         raise ValueError(msg) from exc
@@ -214,6 +214,7 @@ def main() -> None:
             scan_thread = threading.Thread(
                 target=_run_scan,
                 args=(scan_path, config_raw, cancel_event),
+                daemon=True,
             )
             scan_thread.start()
 

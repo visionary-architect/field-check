@@ -21,9 +21,9 @@ function esc(str) {
  * @returns {string}
  */
 function formatSize(bytes) {
-  if (bytes <= 0) return "0 B";
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   return (bytes / Math.pow(1024, i)).toFixed(1) + " " + units[i];
 }
 
@@ -33,7 +33,7 @@ function formatSize(bytes) {
  * @returns {string}
  */
 function formatDuration(seconds) {
-  if (seconds < 1) return "<1s";
+  if (!Number.isFinite(seconds) || seconds < 1) return "<1s";
   if (seconds < 60) return `${seconds.toFixed(1)}s`;
   const mins = Math.floor(seconds / 60);
   const secs = Math.round(seconds % 60);
@@ -41,15 +41,25 @@ function formatDuration(seconds) {
 }
 
 /**
+ * Format a confidence interval range.
+ * @param {object} ci - Object with lower_bound and upper_bound (percentages).
+ * @returns {string}
+ */
+function formatCI(ci) {
+  if (!ci) return "";
+  return `<span class="ci">[${ci.lower_bound.toFixed(1)}–${ci.upper_bound.toFixed(1)}%]</span>`;
+}
+
+/**
  * Create an HTML card element.
- * @param {string} title - Card heading.
+ * @param {string} title - Card heading (safe literal string).
  * @param {string} content - Inner HTML.
- * @param {string} [extraClass] - Additional CSS class.
+ * @param {string} [extraClass] - Additional CSS class (safe literal string).
  * @returns {string}
  */
 function card(title, content, extraClass = "") {
-  return `<div class="card ${extraClass}">
-    <h3>${title}</h3>
+  return `<div class="card ${esc(extraClass)}">
+    <h3>${esc(title)}</h3>
     ${content}
   </div>`;
 }
@@ -126,10 +136,18 @@ function renderCorruption(summary) {
 
   const total = (cor.ok || 0) + (cor.corrupt || 0) + (cor.encrypted || 0) + (cor.empty || 0);
   const healthPct = total > 0 ? ((cor.ok / total) * 100).toFixed(1) : "100.0";
+  const healthNum = parseFloat(healthPct);
+
+  const badge =
+    healthNum >= 95
+      ? '<span class="badge badge-ok">Healthy</span>'
+      : healthNum >= 80
+        ? '<span class="badge badge-warn">Degraded</span>'
+        : '<span class="badge badge-danger">Poor</span>';
 
   return card(
     "File Health",
-    `<div class="stat">${healthPct}% <span class="badge badge-ok">Healthy</span></div>
+    `<div class="stat">${healthPct}% ${badge}</div>
      <div class="stat-label">Corrupt: ${cor.corrupt || 0} · Encrypted: ${cor.encrypted || 0} · Empty: ${cor.empty || 0}</div>`
   );
 }
@@ -162,15 +180,20 @@ function renderPII(summary) {
 }
 
 /**
- * Render language distribution.
+ * Render language distribution with confidence intervals.
  */
 function renderLanguage(summary) {
   const lang = summary.language;
   if (!lang || !lang.distribution) return "";
 
+  const ci = lang.distribution_ci || {};
   const entries = Object.entries(lang.distribution).sort((a, b) => b[1] - a[1]);
   const rows = entries
-    .map(([language, count]) => `<tr><td>${esc(language)}</td><td>${count}</td></tr>`)
+    .map(([language, count]) => {
+      const ciData = ci[language];
+      const ciStr = ciData ? ` ${formatCI(ciData)}` : "";
+      return `<tr><td>${esc(language)}</td><td>${count}${ciStr}</td></tr>`;
+    })
     .join("");
 
   return card(
@@ -183,15 +206,20 @@ function renderLanguage(summary) {
 }
 
 /**
- * Render encoding distribution.
+ * Render encoding distribution with confidence intervals.
  */
 function renderEncoding(summary) {
   const enc = summary.encoding;
   if (!enc || !enc.distribution) return "";
 
+  const ci = enc.distribution_ci || {};
   const entries = Object.entries(enc.distribution).sort((a, b) => b[1] - a[1]);
   const rows = entries
-    .map(([encoding, count]) => `<tr><td>${esc(encoding)}</td><td>${count}</td></tr>`)
+    .map(([encoding, count]) => {
+      const ciData = ci[encoding];
+      const ciStr = ciData ? ` ${formatCI(ciData)}` : "";
+      return `<tr><td>${esc(encoding)}</td><td>${count}${ciStr}</td></tr>`;
+    })
     .join("");
 
   return card(
@@ -223,6 +251,10 @@ function renderNearDuplicates(summary) {
  * @returns {string} HTML string for the report content area.
  */
 export function renderReport(report) {
+  if (!report) {
+    return '<div class="card card-full"><h3>No Data</h3><p>No report data available.</p></div>';
+  }
+
   const summary = report.summary || {};
 
   let html = renderSummary(summary);

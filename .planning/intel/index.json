@@ -1,7 +1,7 @@
 {
   "_comment": "Codebase index",
   "_version": "1.0",
-  "_lastUpdated": "2026-03-21T13:29:08.896395",
+  "_lastUpdated": "2026-03-21T21:02:49.511299",
   "files": {
     "src/field_check/config.py": {
       "exports": [
@@ -44,33 +44,22 @@
     },
     "src/field_check/cli.py": {
       "exports": [
-        "scan",
         "main",
-        "console"
+        "console",
+        "scan"
       ],
       "imports": [
-        "sys",
-        "field_check",
-        "field_check.scanner.pii",
-        "field_check.scanner",
-        "field_check.scanner.readability",
-        "time",
-        "field_check.scanner.sampling",
-        "field_check.scanner.simhash",
         "__future__",
-        "pathlib",
-        "rich.console",
-        "field_check.scanner.inventory",
-        "field_check.scanner.corruption",
-        "field_check.report",
-        "field_check.scanner.mojibake",
-        "field_check.scanner.text",
+        "field_check",
         "rich.progress",
-        "field_check.scanner.encoding",
-        "field_check.scanner.dedup",
-        "field_check.scanner.language",
+        "rich.console",
         "click",
-        "field_check.config"
+        "time",
+        "field_check.config",
+        "field_check.pipeline",
+        "sys",
+        "pathlib",
+        "field_check.report"
       ],
       "type": "module"
     },
@@ -903,50 +892,50 @@
     },
     "tests/test_final_coverage.py": {
       "exports": [
-        "TestPIIExtractTextDOCX",
-        "TestTextCacheFalsyCharset",
-        "TestWalkerDirOSError",
-        "TestPDFClassificationMixedZone",
-        "TestPDFClassificationTextHeavy",
-        "TestDetermineExitCode",
-        "TestWalkerSymlinkSubdirOSError",
-        "TestLanguageUnreachableGuard",
-        "TestExtractSinglePDF",
-        "TestBuildTextCacheProgressCallbacks",
-        "TestCLIValueErrorFromReport",
-        "TestPIIExtractTextPDF",
         "ROOT",
-        "TestCLIKeyboardInterrupt",
-        "TestWalkerSymlinkLoopDevIno",
-        "TestWalkerSubdirSymlinkLoop",
-        "TestPIIScanNoExtractableFiles",
-        "TestCSVReportEdgeCases",
-        "TestWalkerSkipSpecialFiles",
+        "TestExtractSinglePDF",
         "TestWalkerWindowsFallback",
+        "TestWalkerSymlinkLoopDevIno",
+        "TestWalkerSkipSpecialFiles",
+        "TestPIIExtractTextPDF",
+        "TestCSVReportEdgeCases",
+        "TestPIIScanNoExtractableFiles",
+        "TestPDFClassificationTextHeavy",
+        "TestCLIKeyboardInterrupt",
+        "TestCLIValueErrorFromReport",
+        "TestWalkerSubdirSymlinkLoop",
+        "TestMixedScanPDF",
+        "TestPIIExtractTextDOCX",
+        "TestLanguageUnreachableGuard",
+        "TestBuildTextCacheProgressCallbacks",
+        "TestDetermineExitCode",
         "TestPageCountBucketFallback",
-        "TestCLIExitCode",
+        "TestWalkerDirOSError",
         "TestWalkerSymlinkFileHandling",
-        "TestMixedScanPDF"
+        "TestCLIExitCode",
+        "TestWalkerSymlinkSubdirOSError",
+        "TestPDFClassificationMixedZone",
+        "TestTextCacheFalsyCharset"
       ],
       "imports": [
+        "field_check.cli",
+        "field_check.config",
+        "field_check.scanner.corruption",
         "unittest.mock",
+        "field_check.scanner.language",
+        "field_check.scanner",
+        "field_check.scanner.text_workers",
         "field_check.scanner.dedup",
         "field_check.scanner.sampling",
-        "click.testing",
-        "field_check.config",
-        "field_check.report",
-        "field_check.scanner.pii",
         "field_check.scanner.text",
+        "field_check.report",
+        "click.testing",
         "field_check.scanner.inventory",
-        "stat",
-        "field_check.scanner",
-        "field_check.cli",
-        "field_check.scanner.corruption",
-        "field_check.scanner.text_workers",
-        "__future__",
-        "field_check.scanner.language",
+        "field_check.scanner.pii",
         "pathlib",
-        "os"
+        "os",
+        "stat",
+        "__future__"
       ],
       "type": "module"
     },
@@ -1711,6 +1700,237 @@
         "types",
         "zipfile",
         "__future__"
+      ],
+      "type": "module"
+    },
+    "src/field_check/pipeline.py": {
+      "exports": [
+        "CancelledError",
+        "PipelineResult",
+        "logger",
+        "PhaseCallback",
+        "run_pipeline",
+        "PHASES",
+        "ProgressCallback"
+      ],
+      "imports": [
+        "field_check.scanner.text",
+        "field_check.scanner.encoding",
+        "pathlib",
+        "field_check.scanner.mojibake",
+        "logging",
+        "__future__",
+        "field_check.scanner.sampling",
+        "dataclasses",
+        "field_check.scanner.readability",
+        "time",
+        "field_check.config",
+        "field_check.scanner.corruption",
+        "collections.abc",
+        "field_check.scanner.language",
+        "field_check.scanner",
+        "field_check.scanner.pii",
+        "field_check.scanner.inventory",
+        "field_check.scanner.simhash",
+        "field_check.scanner.dedup"
+      ],
+      "type": "module"
+    },
+    "tests/test_pipeline.py": {
+      "exports": [
+        "test_empty_dir_no_phase_callback_for_later_phases",
+        "test_empty_directory",
+        "test_phases_list_has_12_entries",
+        "test_phase_callback_fires",
+        "test_pipeline_returns_all_results",
+        "test_progress_callback_fires"
+      ],
+      "imports": [
+        "pathlib",
+        "field_check.config",
+        "__future__",
+        "field_check.pipeline"
+      ],
+      "type": "module"
+    },
+    "src/field_check/sidecar.py": {
+      "exports": [
+        "logger",
+        "main"
+      ],
+      "imports": [
+        "threading",
+        "field_check.report.json_report",
+        "logging",
+        "json",
+        "sys",
+        "field_check.scanner.pii",
+        "__future__",
+        "field_check.config",
+        "pathlib",
+        "field_check",
+        "concurrent.futures",
+        "field_check.pipeline",
+        "field_check.scanner.text"
+      ],
+      "type": "module"
+    },
+    "tests/test_sidecar.py": {
+      "exports": [
+        "test_main_ready_event",
+        "test_build_config_overrides",
+        "test_build_config_invalid_values",
+        "test_main_missing_cmd_field",
+        "test_run_scan_bad_config",
+        "test_main_eof_exits_cleanly",
+        "test_build_config_defaults",
+        "test_build_config_invalid_simhash",
+        "test_run_scan_with_files",
+        "test_main_invalid_json",
+        "test_build_config_clamps_values",
+        "test_run_scan_invalid_path",
+        "test_run_scan_empty_directory",
+        "test_run_scan_cancellation",
+        "test_emit_writes_json_line",
+        "test_main_unknown_command",
+        "test_emit_non_serializable"
+      ],
+      "imports": [
+        "field_check.sidecar",
+        "threading",
+        "io",
+        "unittest.mock",
+        "pathlib",
+        "__future__",
+        "json"
+      ],
+      "type": "module"
+    },
+    "gui/vite.config.js": {
+      "exports": [
+        "defineConfig"
+      ],
+      "imports": [
+        "vite"
+      ],
+      "type": "module"
+    },
+    "gui/src/scanner-ipc.js": {
+      "exports": [
+        "ScannerIPC"
+      ],
+      "imports": [
+        "@tauri-apps/plugin-shell"
+      ],
+      "type": "module"
+    },
+    "gui/src/report-renderer.js": {
+      "exports": [
+        "renderReport"
+      ],
+      "imports": [],
+      "type": "module"
+    },
+    "gui/src/main.js": {
+      "exports": [],
+      "imports": [
+        "./report-renderer.js",
+        "./scanner-ipc.js",
+        "@tauri-apps/api/window",
+        "@tauri-apps/plugin-dialog"
+      ],
+      "type": "module"
+    },
+    "src-tauri/build.rs": {
+      "exports": [],
+      "imports": [],
+      "type": "binary"
+    },
+    "src-tauri/src/lib.rs": {
+      "exports": [
+        "run"
+      ],
+      "imports": [],
+      "type": "library"
+    },
+    "src-tauri/src/main.rs": {
+      "exports": [],
+      "imports": [],
+      "type": "binary"
+    },
+    "scripts/build-sidecar.py": {
+      "exports": [
+        "ROOT",
+        "TEMPLATES_DIR",
+        "get_target_triple",
+        "build",
+        "BINARIES_DIR",
+        "DIST_DIR",
+        "SIDECAR_ENTRY"
+      ],
+      "imports": [
+        "platform",
+        "sys",
+        "pathlib",
+        "__future__",
+        "shutil",
+        "subprocess"
+      ],
+      "type": "module"
+    },
+    "scripts/dev-sidecar.py": {
+      "exports": [
+        "ROOT",
+        "get_target_triple",
+        "create_wrapper",
+        "BINARIES_DIR"
+      ],
+      "imports": [
+        "subprocess",
+        "sys",
+        "__future__",
+        "stat",
+        "pathlib"
+      ],
+      "type": "module"
+    },
+    "tests/integration/__init__.py": {
+      "exports": [],
+      "imports": [],
+      "type": "module"
+    },
+    "tests/integration/test_sidecar_integration.py": {
+      "exports": [
+        "TestSidecarIntegration"
+      ],
+      "imports": [
+        "json",
+        "subprocess",
+        "time",
+        "sys",
+        "__future__",
+        "pathlib",
+        "pytest"
+      ],
+      "type": "module"
+    },
+    "debug_sidecar.py": {
+      "exports": [
+        "line",
+        "proc",
+        "td",
+        "start",
+        "t_err"
+      ],
+      "imports": [
+        "threading",
+        "time",
+        "tempfile",
+        "sys",
+        "json",
+        "pathlib",
+        "subprocess",
+        "shutil"
       ],
       "type": "module"
     }
