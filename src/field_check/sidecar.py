@@ -11,30 +11,13 @@ import json
 import logging
 import sys
 import threading
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-import field_check.scanner.pii as _pii_mod
-import field_check.scanner.text as _text_mod
 from field_check import __version__
 from field_check.config import FieldCheckConfig
 from field_check.pipeline import CancelledError, run_pipeline
 from field_check.report.json_report import render_json_report
 
-# The sidecar runs as a subprocess with piped stdin/stdout. On Windows,
-# ProcessPoolExecutor workers fail with PermissionError when trying to
-# DuplicateHandle on the pipe handles. Since the sidecar is already
-# crash-isolated from the GUI (separate process), we swap in
-# ThreadPoolExecutor in modules that use ProcessPoolExecutor.
-_text_mod.ProcessPoolExecutor = ThreadPoolExecutor  # type: ignore[assignment]
-_pii_mod.ProcessPoolExecutor = ThreadPoolExecutor  # type: ignore[assignment]
-
-# Route all logging to stderr so stdout stays clean for JSON IPC
-logging.basicConfig(
-    stream=sys.stderr,
-    level=logging.WARNING,
-    format="%(levelname)s: %(message)s",
-)
 logger = logging.getLogger(__name__)
 
 # Lock for thread-safe stdout writes. The main thread and scan thread
@@ -175,14 +158,55 @@ def _run_scan(
     _emit({"event": "complete", "report": report_data})
 
 
+def _patch_executors() -> None:
+    """Swap ProcessPoolExecutor for ThreadPoolExecutor in scanner modules.
+
+    The sidecar runs as a subprocess with piped stdin/stdout. On Windows,
+    ProcessPoolExecutor workers fail with PermissionError when trying to
+    DuplicateHandle on the pipe handles. Since the sidecar is already
+    crash-isolated from the GUI (separate process), we swap in
+    ThreadPoolExecutor in modules that use ProcessPoolExecutor.
+
+    Called once at sidecar startup — NOT at import time — to avoid
+    affecting other importers of this module.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    import field_check.scanner.pii as _pii_mod
+    import field_check.scanner.text as _text_mod
+
+    _text_mod.ProcessPoolExecutor = ThreadPoolExecutor  # type: ignore[assignment]
+    _pii_mod.ProcessPoolExecutor = ThreadPoolExecutor  # type: ignore[assignment]
+
+
 def main() -> None:
     """Sidecar main loop. Reads commands from stdin, emits events to stdout."""
+    # Configure logging to stderr so stdout stays clean for JSON IPC
+    logging.basicConfig(
+        stream=sys.stderr,
+        level=logging.WARNING,
+        format="%(levelname)s: %(message)s",
+    )
+
+    _patch_executors()
+
+    # Install signal handlers for clean shutdown
+    import signal
+
+    shutdown_event = threading.Event()
+
+    def _signal_handler(signum: int, frame: object) -> None:
+        shutdown_event.set()
+
+    signal.signal(signal.SIGINT, _signal_handler)
+    signal.signal(signal.SIGTERM, _signal_handler)
+
     _emit({"event": "ready", "version": __version__})
 
     scan_thread: threading.Thread | None = None
     cancel_event: threading.Event | None = None
 
-    while True:
+    while not shutdown_event.is_set():
         line = sys.stdin.readline()
         if not line:  # EOF — parent process closed stdin
             if cancel_event is not None:

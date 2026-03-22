@@ -23,12 +23,24 @@
         }
       ]
     },
-    "shell:allow-kill",
+    {
+      "identifier": "shell:allow-kill",
+      "allow": [
+        {
+          "name": "binaries/scanner",
+          "sidecar": true
+        }
+      ]
+    },
     "dialog:allow-open",
     "dialog:allow-save",
     {
       "identifier": "fs:allow-write-text-file",
-      "allow": [{ "path": "**" }]
+      "allow": [
+        { "path": "$DOCUMENT/**" },
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$DESKTOP/**" }
+      ]
     }
   ]
 }

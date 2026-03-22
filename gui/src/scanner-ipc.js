@@ -12,6 +12,7 @@ export class ScannerIPC {
     this._child = null;
     this._listeners = new Map();
     this._ready = false;
+    this._stdoutBuffer = "";
   }
 
   /**
@@ -24,13 +25,23 @@ export class ScannerIPC {
 
     const command = Command.sidecar("binaries/scanner");
 
-    command.stdout.on("data", (line) => {
-      if (!line.trim()) return;
-      try {
-        const msg = JSON.parse(line);
-        this._dispatch(msg.event, msg);
-      } catch {
-        console.warn("[scanner] Non-JSON stdout:", line);
+    command.stdout.on("data", (chunk) => {
+      // Buffer partial lines — Tauri may deliver chunks that don't
+      // align to newline boundaries, causing JSON.parse to fail.
+      this._stdoutBuffer += chunk;
+      const lines = this._stdoutBuffer.split("\n");
+      // Keep the last (possibly incomplete) segment in the buffer
+      this._stdoutBuffer = lines.pop();
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const msg = JSON.parse(trimmed);
+          this._dispatch(msg.event, msg);
+        } catch {
+          console.warn("[scanner] Non-JSON stdout:", trimmed);
+        }
       }
     });
 

@@ -197,7 +197,7 @@ def _make_result(rule_id: str, message: str, path: str | Path) -> dict:
         "locations": [
             {
                 "physicalLocation": {
-                    "artifactLocation": {"uri": str(path)},
+                    "artifactLocation": {"uri": str(path).replace("\\", "/")},
                 },
             },
         ],
@@ -205,8 +205,8 @@ def _make_result(rule_id: str, message: str, path: str | Path) -> dict:
 
 
 def _try_relative(path: Path, root: Path) -> str:
-    """Return path relative to root if possible."""
+    """Return path relative to root if possible (SARIF requires forward slashes)."""
     try:
-        return str(Path(path).relative_to(root))
+        return str(Path(path).relative_to(root)).replace("\\", "/")
     except (ValueError, TypeError):
-        return str(path)
+        return str(path).replace("\\", "/")

@@ -58,36 +58,30 @@ def test_check_valid_png(tmp_path: Path) -> None:
 
 
 def test_check_corrupt_pdf(tmp_path: Path) -> None:
-    """PNG header in .pdf file should be flagged as corrupt."""
+    """PNG header in .pdf file — filetype sees PNG (no MIME mismatch)."""
     create_corrupt_pdf(tmp_path / "bad.pdf")
     result = check_corruption(_walk(tmp_path))
-    # filetype detects by magic bytes, so it sees PNG not PDF
-    # The file has PNG magic bytes and filetype will detect it as image/png
-    # Since the magic bytes match the detected MIME, it won't be "corrupt"
-    # in this implementation - the corruption check validates detected MIME
-    # against actual header, and they match (both PNG).
-    # To test true corruption, we need a file where filetype detects
-    # a MIME type but the header doesn't match.
-    # Let's verify it at least doesn't crash
+    # filetype detects by magic bytes (PNG), so detected MIME matches header.
+    # This is not a corruption case — it's a misnamed file.
     assert result.total_checked == 1
+    assert result.corrupt_count == 0
 
 
-def test_check_corrupt_pdf_with_wrong_header(tmp_path: Path) -> None:
-    """File detected as PDF but with wrong header should be corrupt."""
-    # Write random bytes to a file that filetype would detect as PDF
-    # Actually, let's create a file where the first bytes are %PDF
-    # but then corrupt the rest, and create another where header mismatches
+def test_check_corrupt_pdf_via_mock(tmp_path: Path) -> None:
+    """File with non-PDF content but detected as PDF should be flagged corrupt."""
     bad_file = tmp_path / "bad.dat"
-    # Write bytes that filetype will detect as application/pdf
-    # but with corrupted header - actually we need filetype to detect
-    # a MIME we have signatures for, but the header doesn't match.
-    # Simplest: write a file with JPEG header bytes that filetype
-    # detects as JPEG, but then patch the header to be wrong
     bad_file.write_bytes(b"\xff\xd8\xff" + b"\x00" * 100)
-    # filetype should detect this as image/jpeg and header matches
-    # For a true mismatch test, mock filetype detection
-    result = check_corruption(_walk(tmp_path))
-    assert result.total_checked == 1
+
+    walk = _walk(tmp_path)
+    with patch(
+        "field_check.scanner.corruption._detect_mime",
+        return_value="application/pdf",
+    ):
+        result = check_corruption(walk)
+
+    assert result.corrupt_count == 1
+    flagged = [f for f in result.flagged_files if f.status == "corrupt"]
+    assert len(flagged) == 1
 
 
 def test_check_corrupt_magic_mismatch(tmp_path: Path) -> None:

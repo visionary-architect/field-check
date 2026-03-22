@@ -5,7 +5,12 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-import ftfy
+try:
+    import ftfy
+
+    _HAS_FTFY = True
+except ImportError:
+    _HAS_FTFY = False
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +40,13 @@ def detect_mojibake(text_cache: dict[str, str]) -> MojibakeResult:
         MojibakeResult with counts and affected file paths.
     """
     result = MojibakeResult()
+
+    if not _HAS_FTFY:
+        logger.debug(
+            "ftfy not installed — skipping mojibake detection. "
+            "Install with: pip install ftfy"
+        )
+        return result
 
     for path, text in text_cache.items():
         if len(text) < _MIN_TEXT_LENGTH:

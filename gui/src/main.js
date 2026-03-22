@@ -24,31 +24,38 @@ let elapsedTimer = null;
 let lastReport = null;
 let scanning = false;
 
-// --- DOM Elements ---
-const viewSelect = document.getElementById("view-select");
-const viewProgress = document.getElementById("view-progress");
-const viewReport = document.getElementById("view-report");
+// --- DOM Elements (with null guards) ---
+function $(id) {
+  const el = document.getElementById(id);
+  if (!el) console.error(`[gui] Missing DOM element: #${id}`);
+  return el;
+}
 
-const btnSelectFolder = document.getElementById("btn-select-folder");
-const btnStartScan = document.getElementById("btn-start-scan");
-const selectedPathEl = document.getElementById("selected-path");
-const btnCancel = document.getElementById("btn-cancel");
-const phaseName = document.getElementById("phase-name");
-const phaseProgress = document.getElementById("phase-progress");
-const progressDetail = document.getElementById("progress-detail");
-const phaseCounter = document.getElementById("phase-counter");
-const elapsedTime = document.getElementById("elapsed-time");
-const reportContent = document.getElementById("report-content");
-const btnExportJson = document.getElementById("btn-export-json");
-const btnExportHtml = document.getElementById("btn-export-html");
-const btnNewScan = document.getElementById("btn-new-scan");
+const viewSelect = $("view-select");
+const viewProgress = $("view-progress");
+const viewReport = $("view-report");
+
+const btnSelectFolder = $("btn-select-folder");
+const btnStartScan = $("btn-start-scan");
+const selectedPathEl = $("selected-path");
+const btnCancel = $("btn-cancel");
+const phaseName = $("phase-name");
+const phaseProgress = $("phase-progress");
+const progressDetail = $("progress-detail");
+const phaseCounter = $("phase-counter");
+const elapsedTime = $("elapsed-time");
+const reportContent = $("report-content");
+const btnExportJson = $("btn-export-json");
+const btnExportHtml = $("btn-export-html");
+const btnNewScan = $("btn-new-scan");
 
 // --- View Management ---
 
 function showView(view) {
-  viewSelect.classList.remove("active");
-  viewProgress.classList.remove("active");
-  viewReport.classList.remove("active");
+  if (!view) return;
+  viewSelect?.classList.remove("active");
+  viewProgress?.classList.remove("active");
+  viewReport?.classList.remove("active");
   view.classList.add("active");
 }
 
@@ -60,21 +67,20 @@ function onScanEnd() {
 
 // --- Scanner Lifecycle ---
 
-async function initScanner() {
-  scanner = new ScannerIPC();
-
-  // Spawn first, THEN register listeners — spawn() clears listeners
-  await scanner.spawn();
-
+/** Wire up all event listeners on the scanner instance. */
+function attachScannerListeners() {
   scanner.on("phase", (msg) => {
-    phaseName.textContent = msg.name;
-    phaseCounter.textContent = `Phase ${msg.index + 1} / ${msg.total}`;
-    // Progress bar: 0% at start, 100% only on complete event
-    const pct = (msg.index / msg.total) * 100;
-    phaseProgress.style.width = pct + "%";
+    if (phaseName) phaseName.textContent = msg.name;
+    if (phaseCounter)
+      phaseCounter.textContent = `Phase ${msg.index + 1} / ${msg.total}`;
+    if (phaseProgress) {
+      const pct = msg.total > 0 ? (msg.index / msg.total) * 100 : 0;
+      phaseProgress.style.width = pct + "%";
+    }
   });
 
   scanner.on("progress", (msg) => {
+    if (!progressDetail) return;
     if (msg.total > 0) {
       progressDetail.textContent = `${msg.current} / ${msg.total}`;
     } else {
@@ -84,18 +90,20 @@ async function initScanner() {
 
   scanner.on("complete", (msg) => {
     onScanEnd();
-    phaseProgress.style.width = "100%";
+    if (phaseProgress) phaseProgress.style.width = "100%";
     lastReport = msg.report;
-    reportContent.innerHTML = renderReport(msg.report);
+    if (reportContent) reportContent.innerHTML = renderReport(msg.report);
     showView(viewReport);
   });
 
   scanner.on("error", (msg) => {
     onScanEnd();
-    reportContent.innerHTML = `<div class="card card-full">
-      <h3>Error</h3>
-      <p style="color: var(--danger)">${escapeHtml(msg.message)}</p>
-    </div>`;
+    if (reportContent) {
+      reportContent.innerHTML = `<div class="card card-full">
+        <h3>Error</h3>
+        <p style="color: var(--danger)">${escapeHtml(msg.message)}</p>
+      </div>`;
+    }
     showView(viewReport);
   });
 
@@ -108,14 +116,38 @@ async function initScanner() {
     // Sidecar crashed or exited unexpectedly during scan
     if (scanning) {
       onScanEnd();
-      reportContent.innerHTML = `<div class="card card-full">
-        <h3>Scanner Crashed</h3>
-        <p style="color: var(--danger)">The scanner process exited unexpectedly.</p>
-        <p style="color: var(--text-muted)">Try starting a new scan.</p>
-      </div>`;
+      if (reportContent) {
+        reportContent.innerHTML = `<div class="card card-full">
+          <h3>Scanner Crashed</h3>
+          <p style="color: var(--danger)">The scanner process exited unexpectedly.</p>
+          <p style="color: var(--text-muted)">Try starting a new scan.</p>
+        </div>`;
+      }
       showView(viewReport);
     }
+    // Auto-restart sidecar so "New Scan" works after a crash
+    restartScanner();
   });
+}
+
+/** Restart the sidecar after a crash. */
+async function restartScanner() {
+  try {
+    scanner = new ScannerIPC();
+    await scanner.spawn();
+    attachScannerListeners();
+  } catch (err) {
+    console.error("[gui] Failed to restart scanner:", err);
+    scanner = null;
+  }
+}
+
+async function initScanner() {
+  scanner = new ScannerIPC();
+
+  // Spawn first, THEN register listeners — spawn() clears listeners
+  await scanner.spawn();
+  attachScannerListeners();
 }
 
 // --- Timer ---
@@ -125,7 +157,7 @@ function startTimer() {
   scanStartTime = Date.now();
   elapsedTimer = setInterval(() => {
     const secs = ((Date.now() - scanStartTime) / 1000).toFixed(0);
-    elapsedTime.textContent = `${secs}s`;
+    if (elapsedTime) elapsedTime.textContent = `${secs}s`;
   }, 500);
 }
 
@@ -138,47 +170,58 @@ function stopTimer() {
 
 // --- Event Handlers ---
 
-btnSelectFolder.addEventListener("click", async () => {
+btnSelectFolder?.addEventListener("click", async () => {
   const folder = await open({ directory: true, multiple: false });
   if (folder) {
     selectedPath = folder;
-    selectedPathEl.textContent = folder;
-    btnStartScan.disabled = false;
+    if (selectedPathEl) selectedPathEl.textContent = folder;
+    if (btnStartScan) btnStartScan.disabled = false;
   }
 });
 
-btnStartScan.addEventListener("click", async () => {
+btnStartScan?.addEventListener("click", async () => {
   if (!selectedPath || !scanner || scanning) return;
   scanning = true;
 
   // Reset progress UI
-  phaseName.textContent = "Initializing";
-  phaseProgress.style.width = "0%";
-  progressDetail.textContent = "";
-  phaseCounter.textContent = "Phase 0 / 12";
-  elapsedTime.textContent = "0s";
+  if (phaseName) phaseName.textContent = "Initializing";
+  if (phaseProgress) phaseProgress.style.width = "0%";
+  if (progressDetail) progressDetail.textContent = "";
+  if (phaseCounter) phaseCounter.textContent = "Phase 0 / 12";
+  if (elapsedTime) elapsedTime.textContent = "0s";
 
   showView(viewProgress);
   startTimer();
 
-  await scanner.scan(selectedPath);
+  try {
+    await scanner.scan(selectedPath);
+  } catch (err) {
+    onScanEnd();
+    if (reportContent) {
+      reportContent.innerHTML = `<div class="card card-full">
+        <h3>Error</h3>
+        <p style="color: var(--danger)">${escapeHtml(err.message)}</p>
+      </div>`;
+    }
+    showView(viewReport);
+  }
 });
 
-btnCancel.addEventListener("click", async () => {
+btnCancel?.addEventListener("click", async () => {
   if (scanner) {
     await scanner.cancel();
   }
 });
 
-btnNewScan.addEventListener("click", () => {
+btnNewScan?.addEventListener("click", () => {
   lastReport = null;
   selectedPath = null;
-  selectedPathEl.textContent = "";
-  btnStartScan.disabled = true;
+  if (selectedPathEl) selectedPathEl.textContent = "";
+  if (btnStartScan) btnStartScan.disabled = true;
   showView(viewSelect);
 });
 
-btnExportJson.addEventListener("click", async () => {
+btnExportJson?.addEventListener("click", async () => {
   if (!lastReport) return;
   try {
     const path = await save({
@@ -191,14 +234,14 @@ btnExportJson.addEventListener("click", async () => {
     }
   } catch (err) {
     console.error("Export failed:", err);
-    reportContent.querySelector(".card-full")?.insertAdjacentHTML(
+    reportContent?.querySelector(".card-full")?.insertAdjacentHTML(
       "beforeend",
       `<p style="color:var(--danger);margin-top:1rem">Export failed: ${escapeHtml(err.message)}</p>`
     );
   }
 });
 
-btnExportHtml.addEventListener("click", async () => {
+btnExportHtml?.addEventListener("click", async () => {
   if (!lastReport) return;
   try {
     const path = await save({
@@ -215,7 +258,7 @@ btnExportHtml.addEventListener("click", async () => {
     }
   } catch (err) {
     console.error("Export failed:", err);
-    reportContent.querySelector(".card-full")?.insertAdjacentHTML(
+    reportContent?.querySelector(".card-full")?.insertAdjacentHTML(
       "beforeend",
       `<p style="color:var(--danger);margin-top:1rem">Export failed: ${escapeHtml(err.message)}</p>`
     );
@@ -238,13 +281,16 @@ getCurrentWindow()
 
 initScanner().catch((err) => {
   console.error("Failed to start scanner:", err);
-  document.getElementById("app").innerHTML = `
-    <div class="view active" style="text-align:center">
-      <h2>Scanner failed to start</h2>
-      <p style="color:var(--danger)">${escapeHtml(err.message)}</p>
-      <p style="color:var(--text-muted);margin-top:1rem">
-        Make sure the scanner binary is available in src-tauri/binaries/
-      </p>
-    </div>
-  `;
+  // Show error in the select view instead of destroying the entire DOM
+  if (viewSelect) {
+    viewSelect.innerHTML = `
+      <div style="text-align:center">
+        <h2>Scanner failed to start</h2>
+        <p style="color:var(--danger)">${escapeHtml(err.message)}</p>
+        <p style="color:var(--text-muted);margin-top:1rem">
+          Make sure the scanner binary is available in src-tauri/binaries/
+        </p>
+      </div>
+    `;
+  }
 });

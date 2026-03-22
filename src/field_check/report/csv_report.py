@@ -31,6 +31,16 @@ CSV_COLUMNS = [
 ]
 
 
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _sanitize_csv_cell(value: str) -> str:
+    """Prefix formula-triggering characters to prevent CSV injection in spreadsheets."""
+    if value and value[0] in _FORMULA_PREFIXES:
+        return "'" + value
+    return value
+
+
 def render_csv_report(
     inventory: InventoryResult,
     walk_result: WalkResult,
@@ -69,7 +79,7 @@ def render_csv_report(
 
         writer.writerow(
             [
-                str(entry.relative_path),
+                _sanitize_csv_cell(str(entry.relative_path)),
                 entry.size,
                 inventory.file_types.get(entry.path, "unknown"),
                 hash_lookup.get(path_str, ""),

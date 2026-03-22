@@ -46,7 +46,7 @@ function formatDuration(seconds) {
  * @returns {string}
  */
 function formatCI(ci) {
-  if (!ci) return "";
+  if (!ci || !Number.isFinite(ci.lower_bound) || !Number.isFinite(ci.upper_bound)) return "";
   return `<span class="ci">[${ci.lower_bound.toFixed(1)}–${ci.upper_bound.toFixed(1)}%]</span>`;
 }
 

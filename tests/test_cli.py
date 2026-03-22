@@ -86,3 +86,36 @@ def test_cli_scan_shows_duration(tmp_corpus: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(main, ["scan", str(tmp_corpus)])
     assert "Duration" in result.output
+
+
+def test_invariant2_scan_never_modifies_files(tmp_corpus: Path) -> None:
+    """INVARIANT 2: Scan must never modify, delete, or create user files.
+
+    Snapshot mtimes and sizes before/after a full scan and assert
+    nothing changed.
+    """
+    import os
+
+    # Snapshot: {relative_path: (size, mtime_ns)}
+    before: dict[str, tuple[int, int]] = {}
+    for root, _dirs, files in os.walk(tmp_corpus):
+        for name in files:
+            p = Path(root) / name
+            st = p.stat()
+            before[str(p.relative_to(tmp_corpus))] = (st.st_size, st.st_mtime_ns)
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["scan", str(tmp_corpus)])
+    assert result.exit_code == 0
+
+    # Snapshot after
+    after: dict[str, tuple[int, int]] = {}
+    for root, _dirs, files in os.walk(tmp_corpus):
+        for name in files:
+            p = Path(root) / name
+            st = p.stat()
+            after[str(p.relative_to(tmp_corpus))] = (st.st_size, st.st_mtime_ns)
+
+    assert before.keys() == after.keys(), "Files were created or deleted"
+    for key in before:
+        assert before[key] == after[key], f"File modified: {key}"

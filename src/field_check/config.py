@@ -50,7 +50,15 @@ def load_config(scan_path: Path, config_path: Path | None = None) -> FieldCheckC
 
     try:
         import yaml
+    except ImportError:
+        logger.warning(
+            "PyYAML not installed — cannot read %s, using defaults. "
+            "Install with: pip install pyyaml",
+            path,
+        )
+        return FieldCheckConfig()
 
+    try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     except Exception:
         logger.warning("Failed to parse %s, using defaults", path)
