@@ -4,7 +4,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/field-check)](https://pypi.org/project/field-check/)
 [![Python](https://img.shields.io/pypi/pyversions/field-check)](https://pypi.org/project/field-check/)
-[![License](https://img.shields.io/github/license/usefield/field-check)](LICENSE)
+[![License](https://img.shields.io/github/license/visionary-architect/field-check)](LICENSE)
 
 Field Check is a free, open-source CLI tool that scans a document corpus and generates a comprehensive health report — file inventory, duplicates, corruption, PII risk indicators, language distribution, encoding issues, near-duplicates, and more. Know exactly what's in your data before feeding it into RAG pipelines, embedding models, or batch AI processing.
 
@@ -99,7 +99,7 @@ field-check scan ./corpus/ --format csv -o inventory.csv
 ### Tuning
 
 ```bash
-# Lower sampling rate for very large corpora
+# Override auto-tuned sampling rate
 field-check scan ./large-corpus/ --sampling-rate 0.05
 
 # Exclude patterns
@@ -116,15 +116,15 @@ field-check scan ./corpus/ --show-pii-samples
 | **File inventory** | Magic-byte detection via filetype | Full corpus |
 | **Exact duplicates** | BLAKE3 content hashing | Full corpus |
 | **Corrupt/encrypted/empty** | Header validation + structure checks | Full corpus |
-| **PII risk indicators** | Regex patterns (email, CC, SSN, phone, IP) | Sampled (10%) |
-| **Language detection** | Unicode script analysis + stop-word matching | Sampled (10%) |
-| **Encoding detection** | charset-normalizer | Sampled (10%) |
-| **Near-duplicates** | SimHash fingerprinting | Sampled (10%) |
-| **Scanned vs native PDFs** | Text layer presence check | Sampled (10%) |
+| **PII risk indicators** | Regex patterns (email, CC, SSN, phone, IP) | Sampled |
+| **Language detection** | Unicode script analysis + stop-word matching | Sampled |
+| **Encoding detection** | charset-normalizer | Sampled |
+| **Near-duplicates** | SimHash fingerprinting | Sampled |
+| **Scanned vs native PDFs** | Text layer presence check | Sampled |
 | **Size/age distribution** | File metadata | Full corpus |
 | **Directory structure** | Depth/breadth analysis | Full corpus |
 
-Sampled analyses include 95% confidence intervals. No bare point estimates.
+Sampling rate is auto-tuned based on corpus size (full census for ≤3,000 files, ~3,000 samples for larger corpora). All sampled analyses include 95% confidence intervals — no bare point estimates.
 
 ## Configuration
 
@@ -134,15 +134,17 @@ Create a `.field-check.yaml` in your corpus directory:
 # Exclude patterns (glob syntax)
 exclude:
   - "*.log"
-  - ".git"
   - "node_modules"
-  - "__pycache__"
 
-# Sampling rate for content analysis (0.0–1.0)
-sampling_rate: 0.10
+# Sampling config (auto-tuned by default)
+sampling:
+  rate: 0.10           # Override auto-tuning with explicit rate (0.0–1.0)
+  min_per_type: 30     # Minimum files sampled per MIME type
 
-# SimHash near-duplicate threshold (Hamming distance in bits)
-simhash_threshold: 5
+# SimHash near-duplicate detection
+simhash:
+  threshold: 5         # Hamming distance in bits
+  bits: 64             # Hash size (64 or 128)
 
 # CI exit code thresholds (fraction, not percentage)
 thresholds:
@@ -194,5 +196,5 @@ corpus-check:
 ## Links
 
 - [PyPI](https://pypi.org/project/field-check/)
-- [GitHub](https://github.com/usefield/field-check)
+- [GitHub](https://github.com/visionary-architect/field-check)
 - [Field](https://usefield.co)
