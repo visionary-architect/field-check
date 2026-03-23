@@ -24,6 +24,216 @@
 
 ## Recent Sessions
 
+### Session: 2026-03-23 (Auto-captured at 12:47)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: third-pass 2026 review â€” security patches, API updates, and new PII patterns
+
+**Uncommitted changes:**
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+- STATE.md
+
+
+### Session: 2026-03-23 (Auto-captured at 12:46)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: third-pass 2026 review â€” security patches, API updates, and new PII patterns
+
+**Uncommitted changes:**
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+- STATE.md
+
+
+### Session: 2026-03-23 (Auto-captured at 12:30)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: third-pass 2026 review â€” security patches, API updates, and new PII patterns
+
+**Uncommitted changes:**
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+- STATE.md
+
+
+### Session: 2026-03-23 (Auto-captured at 12:14)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: third-pass 2026 review â€” security patches, API updates, and new PII patterns
+
+**Uncommitted changes:**
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+- STATE.md
+
+
+### Session: 2026-03-23 (Auto-captured at 12:06)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: third-pass 2026 review â€” security patches, API updates, and new PII patterns
+
+**Uncommitted changes:**
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+- STATE.md
+
+
+### Session: 2026-03-23 (Auto-captured at 01:32)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: third-pass 2026 review â€” security patches, API updates, and new PII patterns
+
+**Uncommitted changes:**
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+- STATE.md
+- pyproject.toml
+- src/field_check/__init__.py
+- src/field_check/cli.py
+- src/field_check/pipeline.py
+- src/field_check/report/csv_report.py
+- ... and 12 more
+
+
+### Session: 2026-03-23 (Auto-captured at 01:27)
+**Note:** This session ended without /pause-work.
+
+**Uncommitted changes:**
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+- STATE.md
+- pyproject.toml
+- src/field_check/__init__.py
+- src/field_check/cli.py
+- src/field_check/pipeline.py
+- src/field_check/report/csv_report.py
+- ... and 9 more
+
+
+### Session: 2026-03-23 (Auto-captured at 00:54)
+**Note:** This session ended without /pause-work.
+
+**Uncommitted changes:**
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+- STATE.md
+- pyproject.toml
+- src/field_check/cli.py
+- src/field_check/pipeline.py
+- src/field_check/report/csv_report.py
+- src/field_check/scanner/corruption.py
+- ... and 6 more
+
+
+### Session: 2026-03-23 (Auto-captured at 00:13)
+**Note:** This session ended without /pause-work.
+
+**Uncommitted changes:**
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+- STATE.md
+- pyproject.toml
+- src/field_check/cli.py
+- src/field_check/pipeline.py
+- src/field_check/scanner/corruption.py
+- src/field_check/scanner/inventory.py
+- ... and 3 more
+
+
+### Session: 2026-03-22 (Auto-captured at 23:59)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: thread executor_class through corruption.py and fix sidecar hang
+- fix: address second-round review findings (18 fixes across security, robustness, DX)
+- fix: address full-system evaluation findings (CRITICAL/HIGH/MEDIUM)
+
+**Uncommitted changes:**
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+- STATE.md
+
+
+### Session: 2026-03-22 (Auto-captured at 23:46)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: thread executor_class through corruption.py and fix sidecar hang
+- fix: address second-round review findings (18 fixes across security, robustness, DX)
+- fix: address full-system evaluation findings (CRITICAL/HIGH/MEDIUM)
+
+**Uncommitted changes:**
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+- STATE.md
+
+
+### Session: 2026-03-22 (Auto-captured at 23:42)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: thread executor_class through corruption.py and fix sidecar hang
+- fix: address second-round review findings (18 fixes across security, robustness, DX)
+- fix: address full-system evaluation findings (CRITICAL/HIGH/MEDIUM)
+
+**Uncommitted changes:**
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+
+
+### Session: 2026-03-22 (Auto-captured at 12:01)
+**Note:** This session ended without /pause-work.
+
+**Commits:**
+- fix: thread executor_class through corruption.py and fix sidecar hang
+- fix: address second-round review findings (18 fixes across security, robustness, DX)
+- fix: address full-system evaluation findings (CRITICAL/HIGH/MEDIUM)
+
+**Uncommitted changes:**
+- .planning/intel/conventions.json
+- .planning/intel/index.json
+- .planning/intel/summary.md
+- DEVLOG.md
+- src/field_check/pipeline.py
+- src/field_check/scanner/corruption.py
+- src/field_check/scanner/pii.py
+- src/field_check/scanner/text.py
+- src/field_check/sidecar.py
+- tests/test_pipeline.py
+- ... and 3 more
+
+
 ### Session: 2026-03-22 (Auto-captured at 03:23)
 **Note:** This session ended without /pause-work.
 

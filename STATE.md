@@ -7,10 +7,10 @@
 
 ## Current Focus
 
-**Status:** All 20 upgrade items implemented + comprehensive review complete
-**Last Commit:** 99068a6
+**Status:** CLI-first strategy — all core features complete, GUI deferred
+**Last Commit:** 0da61a0
 **Branch:** `main`
-**Next Step:** Final UAT / release tagging
+**Next Step:** Final CLI polish, UAT, and v0.2.0 release
 
 ---
 
@@ -19,6 +19,20 @@
 **Milestone:** v1.0
 **Phase:** Post-Phase 8 — 20 upgrades implemented, reviewed, and committed
 **Previous Phase:** 8 — PyPI Publish (complete)
+
+### Strategic Shift: CLI-First (2026-03-22)
+
+Desktop GUI (Tauri) deferred due to code signing costs ($300-500/year for
+Apple + Windows certificates). The CLI is the primary distribution channel.
+
+**Rationale:**
+- Target audience (ML engineers, data teams) lives in the terminal
+- `pip install field-check` is zero-friction — no signing, no installers
+- GUI sidecar code is maintained and tested, can be revisited later
+- Future visual option: `field-check serve` (localhost web UI, no signing)
+
+**What stays:** `gui/` directory remains in repo, sidecar IPC is tested
+**What's deferred:** Tauri bundling, platform installers, code signing
 
 ---
 
@@ -60,6 +74,8 @@
 | 2026-03-05 | Comprehensive showcase README | Primary marketing surface for PyPI |
 | 2026-03-05 | CI on PRs to main only | Saves Actions minutes, low noise |
 | 2026-03-05 | Publish as v0.1.0 alpha | Bump to 1.0.0 when cloud connectors land |
+| 2026-03-22 | CLI-first, defer desktop GUI | Code signing costs ($300-500/yr), target audience prefers CLI |
+| 2026-03-22 | Keep sidecar code maintained | IPC architecture ready if GUI revisited or web UI added |
 
 ---
 
@@ -72,6 +88,14 @@
 ## Session Log
 
 <!-- New sessions are added at the top -->
+
+### 2026-03-22 (session 30)
+- Fixed sidecar hang: `check_corruption()` hardcoded ProcessPoolExecutor, causing Windows pipe hang
+- Threaded `executor_class` through corruption.py → pipeline.py (completes H6 fix)
+- All 11 sidecar integration tests now pass (previously 2 failed with timeouts)
+- Full test suite: 0 failures, 12 expected skips
+- Strategic decision: CLI-first, defer Tauri GUI due to code signing costs
+- Committed as 0da61a0
 
 ### 2026-03-06 (session 29)
 - Continued comprehensive review fix-up from compacted session
@@ -300,10 +324,11 @@ Ready for final UAT or release tagging.
 **Completed this session:** 6 tasks (5 fix batches + commit)
 
 ### Next Steps
-1. Run final UAT on the complete upgraded tool
+1. Run final UAT on the complete upgraded CLI tool
 2. Update version to v0.2.0 in pyproject.toml
 3. Tag release and publish to PyPI
 4. Consider cloud connector phases (9-10) if desired
+5. Future: `field-check serve` for localhost web UI (no code signing needed)
 
 ### Uncommitted Work
 Docs/config files remain uncommitted (CLAUDE.md, STATE.md, DEVLOG.md, etc.)
