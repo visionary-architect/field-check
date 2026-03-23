@@ -24,60 +24,50 @@
 
 ## Recent Sessions
 
-### Session: 2026-03-23 (Auto-captured at 12:47)
-**Note:** This session ended without /pause-work.
+### Session: 2026-03-23 (Third-Pass Review + v0.3 Roadmap)
 
-**Commits:**
-- fix: third-pass 2026 review â€” security patches, API updates, and new PII patterns
+**Phase/Focus:** Third-pass 2026 comprehensive review + feature roadmap planning
 
-**Uncommitted changes:**
-- .planning/intel/conventions.json
-- .planning/intel/index.json
-- .planning/intel/summary.md
-- DEVLOG.md
-- STATE.md
+#### Worked On
+- Completed third-pass 2026 review: back-tested every line of code against current data
+- Applied all critical/high/medium fixes (17 files: CVE patches, API updates, new PII patterns)
+- Applied all low-priority fixes (BLAKE3 for SimHash, IPv6/crypto wallet PII, DEFF log-transform)
+- Brainstormed and validated 10 feature ideas against 2026 web research (4 parallel research agents)
+- Locked in v0.3 roadmap: 4 features, archived 6 others
 
+#### v0.3 Roadmap (Locked In)
+1. **LLM Cost Estimator** — Token count projection + cost tables across providers
+2. **RAG Readiness Score** — Chunk-ability, information density, text quality composite
+3. **Multimodal Content Inventory** — Images, tables, forms inside PDFs/DOCX
+4. **Document Provenance Metadata** — XMP/DocInfo: creation date, creator tool, edit history
 
-### Session: 2026-03-23 (Auto-captured at 12:46)
-**Note:** This session ended without /pause-work.
+#### Archived Ideas
+- EU AI Act Compliance Export (strong #5, deferred past v0.3)
+- Toxicity Scanning (Tiny-Toxic-Detector, v0.4 with compliance pairing)
+- Compliance Presets, Croissant/CycloneDX exports (v0.5)
+- AI Content Detection (HOLD — 61% FPR on non-native English)
 
-**Commits:**
-- fix: third-pass 2026 review â€” security patches, API updates, and new PII patterns
+#### Fixes Applied (Third-Pass Review)
+| Fix | File | Commit |
+|-----|------|--------|
+| pdfplumber CVE-2025-64512 bump | `pyproject.toml` | `5ff3f62` |
+| fast-langdetect 1.0 API update | `scanner/language.py` | `5ff3f62` |
+| SARIF schema URL canonical | `report/sarif_report.py` | `5ff3f62` |
+| IBAN countries + IPv6 + crypto PII | `scanner/pii.py` | `5ff3f62` |
+| BLAKE3 for SimHash shingles | `scanner/simhash.py` | `5ff3f62` |
+| DEFF log-transform file sizes | `scanner/sampling.py` | `5ff3f62` |
+| 8 dependency version bumps | `pyproject.toml` | `5ff3f62` |
+| Project state + roadmap docs | planning/STATE/DEVLOG | `82bdabf` |
 
-**Uncommitted changes:**
-- .planning/intel/conventions.json
-- .planning/intel/index.json
-- .planning/intel/summary.md
-- DEVLOG.md
-- STATE.md
+#### Decisions Made
+- v0.3 = corpus intelligence (cost, RAG readiness, multimodal, provenance)
+- Document provenance promoted from deprioritized to core v0.3 (answers “can I trust this data?”)
+- AI content detection on hold (technology not ready for statistical rigor standard)
+- EU AI Act export is #5 but deferred (narrower audience, timing-dependent)
 
-
-### Session: 2026-03-23 (Auto-captured at 12:30)
-**Note:** This session ended without /pause-work.
-
-**Commits:**
-- fix: third-pass 2026 review â€” security patches, API updates, and new PII patterns
-
-**Uncommitted changes:**
-- .planning/intel/conventions.json
-- .planning/intel/index.json
-- .planning/intel/summary.md
-- DEVLOG.md
-- STATE.md
-
-
-### Session: 2026-03-23 (Auto-captured at 12:14)
-**Note:** This session ended without /pause-work.
-
-**Commits:**
-- fix: third-pass 2026 review â€” security patches, API updates, and new PII patterns
-
-**Uncommitted changes:**
-- .planning/intel/conventions.json
-- .planning/intel/index.json
-- .planning/intel/summary.md
-- DEVLOG.md
-- STATE.md
+#### Commits
+- `5ff3f62` fix: third-pass 2026 review — security patches, API updates, and new PII patterns
+- `82bdabf` docs: update project state and roadmap for v0.3 features
 
 
 ### Session: 2026-03-23 (Auto-captured at 12:06)
