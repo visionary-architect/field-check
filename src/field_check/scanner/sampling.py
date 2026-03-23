@@ -78,7 +78,11 @@ _Z_SCORES: dict[float, float] = {
 }
 
 
-def _sample_by_directory(entries: list[FileEntry], target: int) -> list[FileEntry]:
+def _sample_by_directory(
+    entries: list[FileEntry],
+    target: int,
+    rng: object | None = None,
+) -> list[FileEntry]:
     """Sample files proportionally across directories.
 
     Groups files by parent directory, allocates the sample budget
@@ -89,12 +93,15 @@ def _sample_by_directory(entries: list[FileEntry], target: int) -> list[FileEntr
     Args:
         entries: Files to sample from (all same MIME type).
         target: Number of files to select.
+        rng: Random instance for reproducible sampling (default: module RNG).
 
     Returns:
         Selected files drawn proportionally from directories.
     """
     import random
     from pathlib import PurePath
+
+    rng = rng or random
 
     # Group by parent directory
     by_dir: dict[str, list[FileEntry]] = defaultdict(list)
@@ -104,7 +111,7 @@ def _sample_by_directory(entries: list[FileEntry], target: int) -> list[FileEntr
 
     if len(by_dir) <= 1:
         # Single directory: simple random sample
-        return random.sample(entries, target)
+        return rng.sample(entries, target)
 
     total = len(entries)
     selected: list[FileEntry] = []
@@ -141,7 +148,7 @@ def _sample_by_directory(entries: list[FileEntry], target: int) -> list[FileEntr
         if n >= len(dir_files):
             selected.extend(dir_files)
         else:
-            selected.extend(random.sample(dir_files, n))
+            selected.extend(rng.sample(dir_files, n))
 
     return selected[:target]
 
@@ -179,11 +186,12 @@ def select_sample(
         rate = config.sampling_rate
     min_per_type = config.sampling_min_per_type
 
-    # Seed RNG for reproducibility if configured
-    if config.seed is not None:
-        import random
+    # Create a local RNG instance for reproducibility (avoids mutating global state)
+    import random
 
-        random.seed(config.seed)
+    rng: random.Random | None = None
+    if config.seed is not None:
+        rng = random.Random(config.seed)
 
     # Group files by MIME type
     files_by_type: defaultdict[str, list[FileEntry]] = defaultdict(list)
@@ -205,7 +213,11 @@ def select_sample(
         else:
             target = max(math.ceil(pop_size * rate), min(min_per_type, pop_size))
             target = min(target, pop_size)
-            sample = list(entries) if target >= pop_size else _sample_by_directory(entries, target)
+            sample = (
+                list(entries)
+                if target >= pop_size
+                else _sample_by_directory(entries, target, rng=rng)
+            )
 
         per_type_sample[mime] = sample
         selected.extend(sample)
@@ -312,10 +324,12 @@ def estimate_design_effect(
     # Group files by parent directory
     from pathlib import PurePath
 
-    groups: dict[str, list[int]] = defaultdict(list)
+    groups: dict[str, list[float]] = defaultdict(list)
     for f in files:
         parent = str(PurePath(f.path).parent)
-        groups[parent].append(f.size)
+        # Log-transform sizes to reduce outlier influence (file sizes are
+        # right-skewed/lognormal). math.log1p handles zero-byte files safely.
+        groups[parent].append(math.log1p(f.size))
 
     k = len(groups)  # number of clusters
     if k <= 1 or k == len(files):
@@ -325,8 +339,9 @@ def estimate_design_effect(
     n = len(files)
     m = n / k  # average cluster size
 
-    # One-way ANOVA: compute MSB and MSW from file sizes
-    grand_mean = sum(f.size for f in files) / n
+    # One-way ANOVA: compute MSB and MSW from log-transformed file sizes
+    all_values = [v for members in groups.values() for v in members]
+    grand_mean = sum(all_values) / n
 
     ssb = 0.0  # between-group sum of squares
     ssw = 0.0  # within-group sum of squares

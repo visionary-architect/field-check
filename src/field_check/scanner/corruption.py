@@ -71,28 +71,16 @@ class CorruptionResult:
 
 
 def _detect_mime(filepath: Path) -> str:
-    """Detect MIME type via puremagic then filetype (magic bytes).
+    """Detect MIME type by reusing inventory's detection logic.
 
     Falls back to empty string if detection fails.
     """
-    try:
-        import puremagic
+    from field_check.scanner.inventory import _detect_file_type
 
-        mime = puremagic.from_file(str(filepath), mime=True)
-        if mime:
-            return mime
-    except ImportError:
-        pass
-    except Exception:
-        pass
-
-    try:
-        import filetype
-
-        kind = filetype.guess(str(filepath))
-        return kind.mime if kind else ""
-    except Exception:
-        return ""
+    mime, _had_error = _detect_file_type(filepath)
+    # Map inventory's fallback "application/octet-stream" to empty string
+    # for corruption checking (unknown type = no validation to perform)
+    return "" if mime == "application/octet-stream" else mime
 
 
 def _check_magic_bytes(header: bytes, mime_type: str) -> bool:
@@ -477,6 +465,8 @@ def _check_parallel(
     executor_class: type | None = None,
 ) -> CorruptionResult:
     """Process-pool based corruption check for crash isolation (Invariant 5)."""
+    from concurrent.futures import BrokenExecutor
+
     total = len(walk_result.files)
     completed = 0
     pool_cls = executor_class or ProcessPoolExecutor
@@ -492,6 +482,9 @@ def _check_parallel(
             try:
                 health = fut.result(timeout=_PER_FILE_TIMEOUT)
                 _tally_health(result, health)
+            except BrokenExecutor:
+                logger.warning("Worker pool crashed during corruption check")
+                break
             except Exception:
                 logger.warning(
                     "Corruption check failed for %s", entry.path, exc_info=True

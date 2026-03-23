@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import re
 from collections import defaultdict
@@ -38,7 +37,7 @@ def _tokenize(text: str) -> list[str]:
 def compute_simhash(text: str, bits: int = SIMHASH_BITS) -> int:
     """Compute a SimHash fingerprint from text.
 
-    Uses MD5 hashing of 3-shingles with weighted bit accumulation.
+    Uses BLAKE3 hashing of 3-shingles with weighted bit accumulation.
     Supports 64-bit or 128-bit fingerprints.
 
     Args:
@@ -48,17 +47,18 @@ def compute_simhash(text: str, bits: int = SIMHASH_BITS) -> int:
     Returns:
         Integer fingerprint of the specified width.
     """
+    import blake3 as _blake3
+
     shingles = _tokenize(text)
     if not shingles:
         return 1  # Avoid 0 — all-zero fingerprints would collide as false duplicates
 
     vector = [0] * bits
-    # MD5 produces 128 bits; use 8 bytes for 64-bit, 16 for 128-bit
     hash_bytes = 8 if bits <= 64 else 16
 
     for shingle in shingles:
-        digest = hashlib.md5(shingle.encode("utf-8"), usedforsecurity=False).digest()
-        hash_val = int.from_bytes(digest[:hash_bytes], "big")
+        digest = _blake3.blake3(shingle.encode("utf-8")).digest(length=hash_bytes)
+        hash_val = int.from_bytes(digest, "big")
 
         for i in range(bits):
             if hash_val & (1 << i):

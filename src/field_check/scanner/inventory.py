@@ -52,6 +52,13 @@ EXTENSION_MIME_MAP: dict[str, str] = {
     ".h": "text/x-c",
     ".go": "text/x-go",
     ".rs": "text/x-rust",
+    # Data formats common in ML/RAG pipelines
+    ".parquet": "application/vnd.apache.parquet",
+    ".avro": "application/avro",
+    ".arrow": "application/vnd.apache.arrow.file",
+    ".feather": "application/vnd.apache.arrow.file",
+    ".orc": "application/x-orc",
+    ".ndjson": "text/json",
 }
 
 # Size bucket boundaries in bytes.

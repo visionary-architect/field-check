@@ -76,6 +76,21 @@ CONTEXT_CONFIG: dict[str, tuple[float, list[str], list[str]]] = {
         ["dni", "documento", "identidad", "nie", "nif"],
         ["order", "reference", "serial", "code", "postal"],
     ),
+    "ipv6_address": (
+        0.6,
+        ["ip", "host", "server", "network", "address", "dns", "ipv6"],
+        ["version"],
+    ),
+    "btc_address": (
+        0.5,
+        ["wallet", "bitcoin", "btc", "crypto", "address", "transaction", "tx"],
+        ["hash", "commit", "sha", "checksum"],
+    ),
+    "eth_address": (
+        0.6,
+        ["wallet", "ethereum", "eth", "crypto", "address", "transaction", "tx", "contract"],
+        ["hash", "commit", "sha", "checksum"],
+    ),
 }
 
 
