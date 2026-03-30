@@ -7,18 +7,32 @@
 
 ## Current Focus
 
-**Status:** All 20 upgrade items implemented + comprehensive review complete
-**Last Commit:** 99068a6
-**Branch:** `main`
-**Next Step:** Final UAT / release tagging
+**Status:** v0.3 feature development — 4 new corpus intelligence features
+**Last Commit:** 82bdabf
+**Branch:** `fix/third-pass-2026-review` (PR #1 open)
+**Next Step:** Plan and implement v0.3 features (Cost Estimator, RAG Readiness, Multimodal, Provenance)
 
 ---
 
 ## Current Phase
 
-**Milestone:** v1.0
-**Phase:** Post-Phase 8 — 20 upgrades implemented, reviewed, and committed
-**Previous Phase:** 8 — PyPI Publish (complete)
+**Milestone:** v0.3
+**Phase:** Pre-planning — v0.3 roadmap locked in, implementation not yet started
+**Previous Phase:** Post-Phase 8 — third-pass 2026 review complete
+
+### Strategic Shift: CLI-First (2026-03-22)
+
+Desktop GUI (Tauri) deferred due to code signing costs ($300-500/year for
+Apple + Windows certificates). The CLI is the primary distribution channel.
+
+**Rationale:**
+- Target audience (ML engineers, data teams) lives in the terminal
+- `pip install field-check` is zero-friction — no signing, no installers
+- GUI sidecar code is maintained and tested, can be revisited later
+- Future visual option: `field-check serve` (localhost web UI, no signing)
+
+**What stays:** `gui/` directory remains in repo, sidecar IPC is tested
+**What's deferred:** Tauri bundling, platform installers, code signing
 
 ---
 
@@ -60,6 +74,8 @@
 | 2026-03-05 | Comprehensive showcase README | Primary marketing surface for PyPI |
 | 2026-03-05 | CI on PRs to main only | Saves Actions minutes, low noise |
 | 2026-03-05 | Publish as v0.1.0 alpha | Bump to 1.0.0 when cloud connectors land |
+| 2026-03-22 | CLI-first, defer desktop GUI | Code signing costs ($300-500/yr), target audience prefers CLI |
+| 2026-03-22 | Keep sidecar code maintained | IPC architecture ready if GUI revisited or web UI added |
 
 ---
 
@@ -72,6 +88,22 @@
 ## Session Log
 
 <!-- New sessions are added at the top -->
+
+### 2026-03-23 (session 31)
+- Third-pass 2026 review: 17 files changed (CVE patches, API updates, new PII patterns)
+- Low-priority fixes: BLAKE3 for SimHash, IPv6/crypto wallet PII, DEFF log-transform
+- Brainstormed + validated 10 feature ideas against 2026 data (4 parallel research agents)
+- Locked in v0.3 roadmap: LLM Cost Estimator, RAG Readiness, Multimodal Inventory, Document Provenance
+- Committed as 5ff3f62, 82bdabf
+- Paused: ready to plan v0.3 implementation
+
+### 2026-03-22 (session 30)
+- Fixed sidecar hang: `check_corruption()` hardcoded ProcessPoolExecutor, causing Windows pipe hang
+- Threaded `executor_class` through corruption.py → pipeline.py (completes H6 fix)
+- All 11 sidecar integration tests now pass (previously 2 failed with timeouts)
+- Full test suite: 0 failures, 12 expected skips
+- Strategic decision: CLI-first, defer Tauri GUI due to code signing costs
+- Committed as 0da61a0
 
 ### 2026-03-06 (session 29)
 - Continued comprehensive review fix-up from compacted session
@@ -282,48 +314,50 @@
 
 > Used by `/pause-work` and `/resume-work` for session continuity.
 
-**Last Updated:** 2026-03-06 15:30
-**Session Ended:** All review work complete, pausing for handoff
+**Last Updated:** 2026-03-23 14:00
+**Session Ended:** v0.3 roadmap locked in, pausing before implementation planning
 
 ### In Progress
-None — all work complete and committed.
+None — roadmap planning complete, implementation not yet started.
 
 ### Resume Point
-All 20 upgrades implemented. Comprehensive review complete with all fixes committed.
-Ready for final UAT or release tagging.
+v0.3 roadmap is locked in with 4 features. Next step is to plan implementation.
+Branch `fix/third-pass-2026-review` has PR #1 open — merge to main before starting v0.3.
 
 ### Task State
 
 **In Progress:** None
-**Pending:** Final UAT / v0.2.0 release
+**Pending:** v0.3 feature implementation (4 features)
 **Blocked:** None
-**Completed this session:** 6 tasks (5 fix batches + commit)
 
 ### Next Steps
-1. Run final UAT on the complete upgraded tool
-2. Update version to v0.2.0 in pyproject.toml
-3. Tag release and publish to PyPI
-4. Consider cloud connector phases (9-10) if desired
+1. Merge PR #1 (`fix/third-pass-2026-review`) to main
+2. Plan v0.3 implementation — decide phase structure for the 4 features
+3. Implement features (all build on existing scan data, minimal new deps):
+   - **LLM Cost Estimator** — token counting + cost projection (zero deps)
+   - **RAG Readiness Score** — chunk-ability metrics from extracted text (zero deps)
+   - **Multimodal Content Inventory** — content type counting via pdfminer.six (existing dep)
+   - **Document Provenance Metadata** — XMP/DocInfo extraction via pikepdf (optional dep)
+4. Update reports (terminal, HTML, JSON, CSV) with new sections
+5. Update version to v0.3.0 and release
 
 ### Uncommitted Work
-Docs/config files remain uncommitted (CLAUDE.md, STATE.md, DEVLOG.md, etc.)
-These are tracked but not part of the source code changes.
+- STATE.md, DEVLOG.md (this handoff update)
 
 ### Context to Remember
-- All 20 upgrade items from deep research plan are implemented and tested
-- Coverage is 94.25% (553 tests, 12 skips)
-- Mock-based tests in test_mock_deps.py cover optional deps without installing them
-- `importlib.reload()` in mock tests can pollute other test files' class references — use `teardown_method` to restore and avoid `isinstance` checks on reloaded classes
-- Spec is at docs/SPEC.md — authoritative source for all design decisions
-- 10 phases total (8 for v1.0, 2 for cloud connectors)
-- Target <50MB installed size for core
+- 681 tests passing, 91.7% coverage, 12 skips
+- Third-pass review applied: pdfplumber CVE fix, fast-langdetect 1.0 API, BLAKE3 SimHash, new PII patterns
+- All 4 v0.3 features validated against 2026 web research — see memory/MEMORY.md for details
+- Key research: 4-chars-per-token heuristic (10-15% accuracy), pdfminer.six typed layout objects, pikepdf XMP provenance
+- Archived ideas documented in memory/MEMORY.md for future reference
+- Target <50MB installed size for core (all 4 features are zero or minimal new deps)
 
 ### Known Remaining Issues
 
 | Issue | Severity | Notes |
 |-------|----------|-------|
-| text_workers.py coverage at 80% | low | Remaining uncovered lines are optional dep import error paths |
-| Some terminal_content.py sections uncovered | low | Lines 493-523 (cloud/advanced report sections) |
+| text_workers.py coverage at 80% | low | Optional dep import error paths |
+| terminal_content.py lines 493-523 uncovered | low | Cloud/advanced report sections |
 
 ### VPS / Production Status
 

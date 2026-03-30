@@ -27,8 +27,8 @@ logger = logging.getLogger(__name__)
 _IBAN_COUNTRIES = (
     "AL|AD|AT|AZ|BH|BY|BE|BA|BR|BG|CR|HR|CY|CZ|DK|DO|TL|EG|SV|EE|FO|FI|FR|"
     "GE|DE|GI|GR|GL|GT|HU|IS|IQ|IE|IL|IT|JO|KZ|XK|KW|LV|LB|LY|LI|LT|LU|MK|"
-    "MT|MR|MU|MC|MD|ME|NL|NO|PK|PS|PL|PT|QA|RO|LC|SM|ST|SA|RS|SC|SK|SI|ES|SD|"
-    "SE|CH|TN|TR|UA|AE|GB|VA|VG"
+    "MT|MR|MU|MC|MD|ME|NL|NO|OM|PK|PS|PL|PT|QA|RO|LC|SM|SO|ST|SA|RS|SC|SK|SI|"
+    "ES|SD|SE|CH|TN|TR|UA|AE|GB|VA|VG"
 )
 _IBAN_PATTERN = rf"\b(?:{_IBAN_COUNTRIES})\d{{2}}[A-Z0-9]{{11,30}}\b"
 
@@ -78,10 +78,22 @@ BUILTIN_PATTERNS: list[dict[str, str | float]] = [
     },
     {
         "name": "ip_address",
-        "label": "IP Address",
+        "label": "IP Address (IPv4)",
         "pattern": (
             r"\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}"
             r"(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b"
+        ),
+        "fp_rate": 0.15,
+    },
+    {
+        "name": "ipv6_address",
+        "label": "IP Address (IPv6)",
+        "pattern": (
+            r"\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b"
+            r"|"
+            r"\b(?:[0-9a-fA-F]{1,4}:){1,7}:\b"
+            r"|"
+            r"\b::(?:[0-9a-fA-F]{1,4}:){0,5}[0-9a-fA-F]{1,4}\b"
         ),
         "fp_rate": 0.15,
     },
@@ -111,6 +123,21 @@ BUILTIN_PATTERNS: list[dict[str, str | float]] = [
         "pattern": r"\b\d{8}[A-Z]\b",
         "fp_rate": 0.30,
         "validator": "es_dni",
+    },
+    {
+        "name": "btc_address",
+        "label": "Bitcoin Address",
+        "pattern": (
+            r"\b(?:[13][A-HJ-NP-Za-km-z1-9]{25,34}"
+            r"|bc1[a-z0-9]{6,87})\b"
+        ),
+        "fp_rate": 0.20,
+    },
+    {
+        "name": "eth_address",
+        "label": "Ethereum Address",
+        "pattern": r"\b0x[0-9a-fA-F]{40}\b",
+        "fp_rate": 0.10,
     },
 ]
 
@@ -341,6 +368,8 @@ def scan_pii(
 
     # Scan uncached files via ProcessPoolExecutor (with file I/O)
     if uncached_entries:
+        from concurrent.futures import BrokenExecutor
+
         workers = max_workers or min(_MAX_WORKERS, os.cpu_count() or 1)
         pool_cls = executor_class or ProcessPoolExecutor
 
@@ -366,6 +395,9 @@ def scan_pii(
                         path=str(future_to_entry[future].path),
                         error="PII scan timed out",
                     )
+                except BrokenExecutor:
+                    logger.warning("Worker pool crashed during PII scan")
+                    break
                 except Exception as exc:
                     file_result = PIIFileResult(
                         path=str(future_to_entry[future].path),

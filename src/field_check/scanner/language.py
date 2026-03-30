@@ -713,8 +713,13 @@ def _try_fast_langdetect(text: str) -> str | None:
     try:
         from fast_langdetect import detect  # type: ignore[import-untyped]
 
-        result = detect(text[:2000], low_memory=True)
-        lang_code = result.get("lang", "") if isinstance(result, dict) else ""
+        results = detect(text[:2000], model="lite", k=1)
+        if isinstance(results, list) and results:
+            lang_code = results[0].get("lang", "")
+        elif isinstance(results, dict):
+            lang_code = results.get("lang", "")
+        else:
+            lang_code = ""
         return _FASTLANG_NAMES.get(lang_code)
     except ImportError:
         return None

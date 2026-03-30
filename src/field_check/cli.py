@@ -12,7 +12,7 @@ from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 from field_check import __version__
-from field_check.config import load_config
+from field_check.config import FieldCheckConfig, load_config
 from field_check.pipeline import PHASES, PipelineResult, run_pipeline
 from field_check.report import determine_exit_code, generate_report
 
@@ -21,7 +21,7 @@ console = Console()
 
 def _run_scan_pipeline(
     scan_path: Path,
-    config: object,
+    config: FieldCheckConfig,
     con: Console,
 ) -> PipelineResult:
     """Run the full scan pipeline with Rich progress display.

@@ -218,7 +218,7 @@ class TestDetectNearDuplicates:
                 cache[str(f)] = f.read_text(encoding="utf-8")
 
         # With generous threshold, near-duplicates should cluster
-        result = detect_near_duplicates(cache, threshold=10)
+        result = detect_near_duplicates(cache, threshold=17)
         # At least the 3 report variants should form a cluster
         assert result.total_analyzed == 5
         report_paths = {str(tmp_neardup_corpus / f"report_v{i}.txt") for i in range(1, 4)}

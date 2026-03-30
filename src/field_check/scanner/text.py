@@ -353,6 +353,8 @@ def extract_text_unified(
     Returns:
         Tuple of (TextExtractionResult, TextCacheResult).
     """
+    from concurrent.futures import BrokenExecutor
+
     from field_check.scanner.text_workers import (
         _extract_plain_text,
         _extract_single,
@@ -402,6 +404,10 @@ def extract_text_unified(
             except TimeoutError:
                 file_result = TextResult(path=str(entry.path), error="Extraction timed out")
                 text_result.timeout_errors += 1
+            except BrokenExecutor:
+                logger.warning("Worker pool crashed during text extraction")
+                text_result.extraction_errors += len(pdf_futures) - completed
+                break
             except Exception as exc:
                 file_result = TextResult(path=str(entry.path), error=str(exc))
 
@@ -434,6 +440,9 @@ def extract_text_unified(
                 if progress_callback is not None:
                     progress_callback(completed, total)
                 continue
+            except BrokenExecutor:
+                logger.warning("Worker pool crashed during plain text extraction")
+                break
             except Exception:
                 logger.debug("Plain text extraction failed for %s", path_str)
                 cache_result.extraction_errors += 1

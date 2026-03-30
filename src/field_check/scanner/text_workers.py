@@ -66,7 +66,7 @@ def _extract_pdf(filepath: str) -> TextResult:
     file_size = os.path.getsize(filepath)
 
     try:
-        with pdfplumber.open(filepath) as pdf:
+        with pdfplumber.open(filepath, unicode_norm="NFC") as pdf:
             result.page_count = len(pdf.pages)
 
             # Extract metadata
@@ -348,7 +348,7 @@ def _extract_pdf_text_fast(filepath: str) -> tuple[str, str | None, float, str |
 
     import pdfplumber
 
-    with pdfplumber.open(filepath) as pdf:
+    with pdfplumber.open(filepath, unicode_norm="NFC") as pdf:
         text = "\n".join(page.extract_text() or "" for page in pdf.pages)
     return (text, None, 0.0, None)
 

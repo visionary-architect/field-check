@@ -200,7 +200,12 @@ def run_pipeline(
     _phase(7)
     language_result: LanguageResult | None = None
     if text_cache_result and text_cache_result.text_cache:
-        language_result = analyze_languages(text_cache_result.text_cache)
+        language_result = analyze_languages(
+            text_cache_result.text_cache,
+            progress_callback=lambda c, t: _progress(
+                "Detecting languages", c, t
+            ),
+        )
 
     # Phase 9: Encoding analysis
     _phase(8)
